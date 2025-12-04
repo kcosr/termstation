@@ -1,5 +1,7 @@
 # TermStation
 
+![TermStation interface](https://termstation.dev/assets/termstation-interface.png)
+
 ## Pre-Alpha Warning
 
 This is a pre-alpha release. Use at your own risk! Review this README and the following documents before proceeding with installation.
