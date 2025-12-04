@@ -21,6 +21,76 @@ function readMountInfoLines() {
 
 /**
  * Create a classifier function that returns the bind mount mode ("rw" | "ro")
+ * for workspace-relative paths, based on the template's bind_mounts array.
+ *
+ * This is the preferred method for backend-hosted workspace APIs since the
+ * backend runs on the host and cannot see container mount namespaces via
+ * /proc/self/mountinfo.
+ *
+ * @param {Array<{container_path?: string, containerPath?: string, readonly?: boolean}>} bindMounts
+ *   Array of bind mount definitions from the template
+ * @returns {(containerPath: string) => ('rw' | 'ro' | null)}
+ */
+export function createBindMountClassifierFromTemplate(bindMounts) {
+  if (!Array.isArray(bindMounts) || bindMounts.length === 0) {
+    return () => null;
+  }
+
+  const sep = path.sep;
+  const mounts = [];
+
+  for (const m of bindMounts) {
+    if (!m) continue;
+    const containerPathRaw = m.container_path || m.containerPath;
+    if (typeof containerPathRaw !== 'string' || !containerPathRaw.trim()) continue;
+
+    // Normalize container path (e.g., /workspace/.cargo)
+    let containerPath;
+    try {
+      containerPath = path.posix.normalize(containerPathRaw.trim());
+      // Ensure leading slash for consistent matching
+      if (!containerPath.startsWith('/')) containerPath = '/' + containerPath;
+    } catch (_) {
+      continue;
+    }
+
+    // Determine mode: readonly === true means 'ro', otherwise 'rw'
+    const mode = m.readonly === true ? 'ro' : 'rw';
+
+    mounts.push({ containerPath, mode });
+  }
+
+  if (!mounts.length) {
+    return () => null;
+  }
+
+  // Sort longest paths first so the most specific bind wins
+  mounts.sort((a, b) => b.containerPath.length - a.containerPath.length);
+
+  return (inputPath) => {
+    if (!inputPath) return null;
+
+    // Normalize input path to match container path format
+    let p;
+    try {
+      p = path.posix.normalize(String(inputPath));
+      if (!p.startsWith('/')) p = '/' + p;
+    } catch (_) {
+      return null;
+    }
+
+    for (const m of mounts) {
+      // Exact match or path is under the mount point
+      if (p === m.containerPath || p.startsWith(m.containerPath + '/')) {
+        return m.mode;
+      }
+    }
+    return null;
+  };
+}
+
+/**
+ * Create a classifier function that returns the bind mount mode ("rw" | "ro")
  * for absolute paths under the given root, based on /proc/self/mountinfo.
  *
  * Only sub-mounts beneath the root are considered; the root mount itself is
@@ -31,6 +101,7 @@ function readMountInfoLines() {
  *
  * @param {string} root - Absolute workspace root path
  * @returns {(fullPath: string) => ('rw' | 'ro' | null)}
+ * @deprecated Use createBindMountClassifierFromTemplate for backend-hosted APIs
  */
 export function createBindMountClassifier(root) {
   let rootPath;

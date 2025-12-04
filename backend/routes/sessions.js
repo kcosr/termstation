@@ -46,7 +46,7 @@ import { usersConfigCache, groupsConfigCache } from '../utils/json-config-cache.
 import { isWorkspaceServiceEnabledForSession, computeWorkspaceServicePort } from '../utils/workspace-service-flags.js';
 import { canAccessSessionFromRequest } from '../utils/session-access.js';
 import { sanitizeOutputFilename } from '../utils/session-links.js';
-import { createBindMountClassifier } from '../utils/workspace-mountinfo.js';
+import { createBindMountClassifierFromTemplate } from '../utils/workspace-mountinfo.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2604,7 +2604,7 @@ async function handleWorkspaceInfo(req, res) {
 async function handleWorkspaceList(req, res) {
   const ctx = await resolveWorkspaceContext(req, res);
   if (!ctx) return;
-  const { root } = ctx;
+  const { root, session } = ctx;
   const requestedPath = typeof req.query.path === 'string' && req.query.path ? req.query.path : '/';
   const target = resolveSafeWorkspacePath(root, requestedPath);
   if (!target) {
@@ -2627,15 +2627,30 @@ async function handleWorkspaceList(req, res) {
     const rel = path.relative(root, target) || '';
     const logicalPath = normalizeWorkspaceLogicalPath(rel);
     const outEntries = [];
-    const classifyBind = createBindMountClassifier(root);
+
+    // Get bind mounts from the session's template
+    let bindMounts = [];
+    try {
+      if (session && session.template_id) {
+        const template = templateLoader.getTemplate(session.template_id);
+        if (template && Array.isArray(template.bind_mounts)) {
+          bindMounts = template.bind_mounts;
+        }
+      }
+    } catch (_) {
+      // Non-fatal: continue without bind mount info
+    }
+    const classifyBind = createBindMountClassifierFromTemplate(bindMounts);
+
     for (const entry of entries) {
       if (!entry || typeof entry.name !== 'string') continue;
       const name = entry.name;
       const isHidden = name.startsWith('.');
       const isDir = typeof entry.isDirectory === 'function' ? entry.isDirectory() : false;
       const childRel = rel ? path.posix.join(rel.replace(/\\/g, '/'), name) : name;
-      const fullPath = path.join(target, name);
-      const bindMode = classifyBind(fullPath);
+      // Build the container-style path for bind mount classification (e.g., /workspace/.cargo)
+      const containerPath = '/workspace/' + childRel.replace(/\\/g, '/');
+      const bindMode = classifyBind(containerPath);
       const outEntry = {
         name,
         type: isDir ? 'directory' : 'file',
