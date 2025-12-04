@@ -1,0 +1,5 @@
+{
+  "write_files": [
+    { "source": "files/AGENTS.md", "target": "AGENTS.out.md" }
+  ]
+}

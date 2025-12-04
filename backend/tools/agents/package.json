@@ -1,0 +1,9 @@
+{
+  "name": "agents-cli-build",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "commander": "^11.1.0"
+  }
+}
+

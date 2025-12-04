@@ -1,0 +1,14 @@
+{
+  "name": "workspace-web-server",
+  "version": "0.1.0",
+  "description": "Workspace web server helper for TermStation",
+  "type": "module",
+  "bin": {
+    "workspace-web-server": "bin/workspace-web-server.js"
+  },
+  "scripts": {
+    "start": "node bin/workspace-web-server.js",
+    "build:bundle": "bun build bin/workspace-web-server.js --target=node --minify --outfile ../../bootstrap/bin/workspace-web-server.js",
+    "build:bun": "bash ./build-bun.sh"
+  }
+}

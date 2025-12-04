@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Generated Android project
+android/
+
+# Capacitor build artifacts
+build/
+dist/
+

@@ -1,0 +1,4 @@
+Common text B.
+Nested: {% if nested eq "yes" %}Y{% else %}N{% endif %}
+Tail B.
+

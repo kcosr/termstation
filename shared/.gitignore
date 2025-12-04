@@ -1,0 +1,3 @@
+# Generated build info files (created by scripts/gen-build-info.mjs)
+build-info.generated.mjs
+build-info.generated.cjs

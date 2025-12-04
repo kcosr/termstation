@@ -1,0 +1,8 @@
+[
+  {
+    "username": "termstation",
+    "password_hash": "pbkdf2$150000$74ffe47b9f66cb3d98a5a895ac8b09f5$5736eb2d2c55aa82b2b98b3d50ff8f8bc1856954b6ad50bbdb4e6ba37cb461d9",
+    "prompt_for_reset": true,
+    "groups": ["developers","admins"]
+  }
+]

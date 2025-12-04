@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TermStation</title>
+    <link rel="icon" type="image/png" href="favicon.png">
+    
+    <script src="js/utils/window-mode-utils.js"></script>
+    <!-- Frontend version (pure web); desktop ignores this and uses embedded appVersion -->
+    <script src="version.js"></script>
+    <!-- Early theme + desktop loading gate to avoid first-paint flicker -->
+    <script>
+        (function() {
+            try {
+                // Log unhandled errors to console so they appear in adb logcat
+                window.addEventListener('error', function(e){ try { console.error('[GlobalError]', e.message, e.filename, e.lineno+':'+e.colno); } catch (_) {} });
+                window.addEventListener('unhandledrejection', function(e){ try { console.error('[UnhandledRejection]', e.reason && (e.reason.stack || e.reason.message || e.reason)); } catch (_) {} });
+            } catch (_) {}
+            // Apply saved sidebar width ASAP to avoid initial layout jump
+            try {
+                var savedWidth = null;
+                // Desktop/Electron path: use synchronous state bridge
+                try {
+                    if (window.desktop && window.desktop.state && typeof window.desktop.state.loadSync === 'function') {
+                        var res = window.desktop.state.loadSync();
+                        var stateObj = (res && res.ok) ? (res.state || {}) : {};
+                        savedWidth = stateObj['ui.sidebar.width'];
+                    }
+                } catch (_) {}
+                // Web path: read from localStorage state blob
+                if (savedWidth == null) {
+                    try {
+                        var raw = localStorage.getItem('terminal_manager_state');
+                        if (raw) {
+                            var obj = JSON.parse(raw);
+                            savedWidth = obj && obj['ui.sidebar.width'];
+                        }
+                    } catch (_) {}
+                }
+                var w = parseInt(savedWidth, 10);
+                if (!isNaN(w)) {
+                    // Conservative clamp to keep reasonable bounds before JS bootstraps
+                    var clamped = Math.max(240, Math.min(640, w));
+                    document.documentElement.style.setProperty('--sidebar-width', clamped + 'px');
+                }
+            } catch (_) {}
+            // Add platform/electron classes ASAP
+            try {
+                var ua = navigator.userAgent || '';
+                var isElectron = ua.indexOf('Electron') !== -1;
+                if (isElectron) { document.documentElement.classList.add('is-electron'); }
+                if (/Mac OS X/.test(ua)) {
+                    document.documentElement.classList.add('platform-mac');
+                } else if (/Windows NT/.test(ua)) {
+                    document.documentElement.classList.add('platform-windows');
+                } else if (/Linux/.test(ua)) {
+                    document.documentElement.classList.add('platform-linux');
+                }
+                // Web-only: gate first paint until UI ready (Electron window is gated via IPC)
+                if (!isElectron) {
+                    try {
+                        document.documentElement.classList.add('app-loading');
+                        window.__APP_LOADING_TIMEOUT__ = setTimeout(function(){
+                            try {
+                                document.documentElement.classList.remove('app-loading');
+                                document.documentElement.classList.add('app-ready');
+                            } catch (_) {}
+                        }, 2000);
+                    } catch (_) {}
+                }
+            } catch (e) { /* ignore */ }
+
+            // Detect dedicated/minimal window mode from URL as early as possible
+            // and hide app header/sidebar before styles/scripts load to avoid flash.
+            try {
+                var isMinimal = (window.WindowModeUtils && typeof WindowModeUtils.shouldUseMinimalModeFromUrl === 'function')
+                    ? WindowModeUtils.shouldUseMinimalModeFromUrl(window.location)
+                    : (function(){ var p=new URLSearchParams(window.location.search||''); return String(p.get('ui')||'').toLowerCase()==='minimal'; })();
+                var isWindow = (window.WindowModeUtils && typeof WindowModeUtils.shouldUseWindowModeFromUrl === 'function')
+                    ? WindowModeUtils.shouldUseWindowModeFromUrl(window.location)
+                    : (function(){ var p=new URLSearchParams(window.location.search||''); var ui=String(p.get('ui')||'').toLowerCase(); var w=String(p.get('window')||'').trim(); var sid=(p.get('session_id')||'').trim(); return ui==='window'||w==='1'||(sid && !ui); })();
+                var targetSession = (function(){ try { var p=new URLSearchParams(window.location.search||''); return (p.get('session_id')||'').trim(); } catch(_){ return ''; } })();
+                if (isWindow || isMinimal) {
+                    // Mark initial UI mode on <html> so inline CSS below can apply immediately
+                    document.documentElement.setAttribute('data-window-ui', isMinimal ? 'minimal' : 'window');
+                    // Also pre-set header height variables to reduce layout jump when CSS loads
+                    try {
+                        var rootStyle = document.documentElement.style;
+                        rootStyle.setProperty('--app-header-height', '0px');
+                        if (isMinimal) {
+                            rootStyle.setProperty('--terminal-header-height', '0px');
+                            rootStyle.setProperty('--session-tabs-height', '0px');
+                            rootStyle.setProperty('--terminal-tabs-height', '0px');
+                            rootStyle.setProperty('--session-info-toolbar-height', '0px');
+                        } else {
+                            // window mode keeps terminal header/tabs visible
+                            rootStyle.setProperty('--session-tabs-height', '0px');
+                            rootStyle.setProperty('--session-info-toolbar-height', '0px');
+                        }
+                    } catch (_) {}
+                    // If a specific session is targeted, defer any initial non-target selection
+                    try {
+                        if (targetSession) {
+                            window.__TARGET_SESSION_ID__ = targetSession;
+                            window.__DEFER_SESSION_SELECTION__ = true;
+                        }
+                    } catch (_) {}
+                }
+            } catch (_) { /* ignore */ }
+
+            // Prefer desktop (Electron) settings synchronously via preload bridge,
+            // fall back to browser localStorage, then 'auto'.
+            try {
+                var resolveThemeFromSettings = function(settings) {
+                    try {
+                        if (!settings || typeof settings !== 'object') return null;
+                        var globalTheme = '';
+                        try {
+                            if (settings.ui && typeof settings.ui.theme === 'string') {
+                                globalTheme = String(settings.ui.theme || '').trim();
+                            }
+                        } catch (_) {}
+                        var overrideTheme = '';
+                        try {
+                            var ap = settings.authProfiles || {};
+                            var items = Array.isArray(ap.items) ? ap.items : [];
+                            var activeId = (ap && typeof ap.activeId === 'string') ? ap.activeId : '';
+                            if (activeId && items && items.length) {
+                                for (var i = 0; i < items.length; i++) {
+                                    var p = items[i];
+                                    if (!p || !p.id || p.id !== activeId) continue;
+                                    var ov = p.overrides || {};
+                                    var ui = ov.ui || {};
+                                    if (typeof ui.theme === 'string' && ui.theme.trim() !== '') {
+                                        overrideTheme = ui.theme.trim();
+                                    }
+                                    break;
+                                }
+                            }
+                        } catch (_) {}
+                        var chosen = overrideTheme || globalTheme;
+                        return (chosen && typeof chosen === 'string' && chosen.trim() !== '') ? chosen.trim() : null;
+                    } catch (_) {
+                        return null;
+                    }
+                };
+
+                var theme = null;
+                // Desktop first: use synchronous load exposed by preload
+                try {
+                    var hasDesktop = !!(window.desktop && window.desktop.settings && typeof window.desktop.settings.loadSync === 'function');
+                    if (hasDesktop) {
+                        var res = window.desktop.settings.loadSync();
+                        if (res && res.ok && res.settings) {
+                            theme = resolveThemeFromSettings(res.settings) || theme;
+                        }
+                        // Apply saved desktop window effects (opacity) as early as possible
+                        try {
+                            var eff = res && res.ok && res.settings && res.settings.preferences && res.settings.preferences.desktop && res.settings.preferences.desktop.effects;
+                            var op = eff && typeof eff.windowOpacity === 'number' ? eff.windowOpacity : null;
+                            if (op != null && window.desktop && window.desktop.setWindowEffects) {
+                                var clamp = function(v){ v = Number(v); if (!isFinite(v)) return 1; return Math.max(0.2, Math.min(1, v)); };
+                                window.desktop.setWindowEffects({ opacity: clamp(op) });
+                            }
+                        } catch (_) {}
+                    }
+                } catch (_) {}
+
+                // Fallback: browser localStorage
+                if (!theme) {
+                    try {
+                        var raw = localStorage.getItem('terminal_manager_settings');
+                        if (raw) {
+                            var s = JSON.parse(raw);
+                            theme = resolveThemeFromSettings(s) || theme;
+                        }
+                    } catch (_) {}
+                }
+
+                // Final fallback: auto (system preference)
+                if (!theme) { theme = 'auto'; themeSource = 'auto'; }
+
+                document.documentElement.setAttribute('data-theme', theme);
+                // Set a minimal inline background color early (before CSS) to avoid a white flash
+                try {
+                    var prefersDark = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                    var bg;
+                    if (theme === 'light') bg = '#ffffff';
+                    else if (theme === 'dark') bg = '#1e1e1e';
+                    else if (theme === 'auto') bg = prefersDark ? '#1e1e1e' : '#ffffff';
+                    else bg = '#1e1e1e'; // default to a dark-safe color for other themes
+                    document.documentElement.style.backgroundColor = bg;
+                } catch (_) {}
+            } catch (e) {
+                // Last resort
+                document.documentElement.setAttribute('data-theme', 'auto');
+            }
+        })();
+    </script>
+    <!-- Inline CSS to hide app chrome immediately for dedicated/minimal windows (prevents brief flash) -->
+    <style>
+        html[data-window-ui="window"] .app-header,
+        html[data-window-ui="window"] .session-tabs-container,
+        html[data-window-ui="window"] .session-info-toolbar,
+        html[data-window-ui="window"] .terminal-sidebar { display: none !important; }
+
+        html[data-window-ui="minimal"] .app-header,
+        html[data-window-ui="minimal"] .terminal-header,
+        html[data-window-ui="minimal"] .session-tabs-container,
+        html[data-window-ui="minimal"] .terminal-tabs,
+        html[data-window-ui="minimal"] .session-info-toolbar,
+        html[data-window-ui="minimal"] .terminal-sidebar { display: none !important; }
+    </style>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/searchable-dropdown.css">
+    
+    <!-- Xterm.js CSS -->
+    <link rel="stylesheet" href="js/vendor/xterm/xterm.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation Header -->
+        <header class="app-header">
+            <div class="app-title">
+                <button id="mobile-sidebar-toggle" class="mobile-sidebar-toggle" aria-label="Toggle sidebar">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+                <button id="desktop-sidebar-toggle" class="desktop-sidebar-toggle" aria-label="Toggle sidebar">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+                
+                <h1>TermStation</h1>
+                <span class="connection-status" id="connection-status" aria-live="polite" aria-atomic="true">
+                    <span class="status-indicator"></span>
+                    <span id="connection-status-text" class="sr-only" style="position:absolute;left:-9999px;">Disconnected</span>
+                </span>
+            </div>
+            <nav class="app-nav">
+                <div id="global-links-container" class="global-links-container" style="display: none;">
+                    <div class="dropdown">
+                        <button id="global-links-btn" class="btn-icon dropdown-toggle header-links-btn" title="Links" aria-haspopup="true" aria-expanded="false" aria-controls="global-links-dropdown">
+                            <span id="global-links-icon"></span>
+                        </button>
+                        <div id="global-links-dropdown" class="dropdown-menu" role="menu"></div>
+                    </div>
+                </div>
+                <div class="nav-buttons">
+                    <button id="terminal-nav-btn" class="nav-btn active" data-page="terminal" title="Sessions">
+                        <span class="nav-icon" id="terminal-nav-icon"></span>
+                        <span class="nav-text">Sessions</span>
+                    </button>
+                    <button id="history-nav-btn" class="nav-btn" data-page="history" title="History">
+                        <span class="nav-icon" id="history-nav-icon"></span>
+                        <span class="nav-text">History</span>
+                    </button>
+                    <button id="containers-nav-btn" class="nav-btn" data-page="containers" title="Containers">
+                        <span class="nav-icon" id="containers-nav-icon"></span>
+                        <span class="nav-text">Containers</span>
+                    </button>
+                </div>
+                <div class="dropdown user-menu-container" id="user-menu-container" style="margin-left: auto;">
+                    <!-- Fullscreen toggle (desktop/electron only) -->
+                    <button id="window-fullscreen-toggle" class="btn-icon" title="Enter full screen" aria-pressed="false" style="margin-right: 8px;">
+                        <span id="window-fullscreen-toggle-icon"></span>
+                    </button>
+                    <button id="user-menu-btn" class="btn-icon dropdown-toggle header-settings-btn" title="Account" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-dropdown">
+                        <span id="user-menu-avatar"></span>
+                        <span id="user-menu-name" class="user-menu-name" style="margin-left:6px;"></span>
+                    </button>
+                    <div id="user-menu-dropdown" class="dropdown-menu" role="menu" style="min-width: 260px;">
+                        <div class="dropdown-header" id="user-menu-toprow" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding: 4px 12px; border-bottom:1px solid var(--border-color);">
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span class="environment-text" id="user-menu-environment-text"></span>
+                                <span class="version-text" id="user-menu-version-text"></span>
+                            </div>
+                            <button id="user-menu-open-settings" class="btn-icon" title="Settings"><span id="user-menu-settings-icon"></span></button>
+                        </div>
+                        <div class="dropdown-info" id="user-menu-status">Logged in as <strong id="user-menu-username">(anonymous)</strong></div>
+                        <button class="dropdown-item" id="user-menu-login">Login…</button>
+                        <button class="dropdown-item" id="user-menu-reset-password">Reset password</button>
+                        <button class="dropdown-item" id="user-menu-logout">Logout</button>
+                    </div>
+                </div>
+                
+                
+            </nav>
+        </header>
+        
+
+        <!-- Main layout container for sidebar and content -->
+        <div class="main-layout">
+            <!-- Sidebar with session list -->
+            <aside class="terminal-sidebar" id="terminal-sidebar" aria-label="Workspaces sidebar">
+                        <div class="sidebar-header">
+                            <div class="sidebar-header-actions">
+                                <button id="workspaces-back-btn" class="btn" style="display: none;">Back</button>
+                                <button id="new-workspace-btn" class="btn btn-primary" title="Create workspace">+ Workspace</button>
+                                <button id="new-session-btn" class="btn btn-primary" title="Create remote session">
+                                    + Session
+                                </button>
+                                <button id="new-local-session-btn" class="btn btn-primary" title="Create local terminal" aria-label="Create local terminal" style="display:none;">
+                                    + Terminal
+                                </button>
+                                <button id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close sidebar">
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+                        <div class="search-container">
+                            <input type="text" id="session-search" class="search-input" placeholder="Search sessions..." autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+                            <div class="search-clear" id="search-clear" style="display: none;">×</div>
+                        </div>
+                        <div class="pinned-filter-container" id="pinned-filter-container">
+                            <button class="pinned-filter-btn" id="pinned-filter-btn" title="Show only pinned workspaces">
+                                <span class="pinned-filter-icon" id="pinned-filter-icon"></span>
+                                <span class="pinned-filter-text">Pinned</span>
+                            </button>
+                            <button class="pinned-filter-btn" id="active-filter-btn" title="Show only workspaces with active sessions">
+                                <span class="pinned-filter-icon" id="active-filter-icon"></span>
+                                <span class="pinned-filter-text">Active</span>
+                            </button>
+                        </div>
+                        <div class="template-filter-container" id="template-filter-container" style="display: none;">
+                            <div class="template-filter-options" id="template-filter-options">
+                                <!-- Template filter options will be populated dynamically -->
+                                <button class="template-filter-clear" id="template-filter-clear" title="Clear template filter">×</button>
+                            </div>
+                        </div>
+                        <div class="workspace-list" id="workspace-list">
+                            <!-- Workspaces will be dynamically added here -->
+                        </div>
+                        <div class="session-list" id="session-list" style="display: none;">
+                            <!-- Sessions will be dynamically added here (within a workspace) -->
+                        </div>
+                        <!-- Decorative large sidebar logo at bottom -->
+                        <div class="sidebar-logo" aria-hidden="true">
+                            <svg viewBox="85 45 345 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="">
+                              <path class="logo-frame" d="M 110 250 L 110 75 Q 110 70, 115 70 L 385 70 Q 390 70, 390 75 L 390 250" fill="none" stroke-width="45" stroke-linecap="square"/>
+                              <path class="logo-inner-bevel" d="M 133 250 L 133 96 Q 133 91, 138 91 L 362 91 Q 367 91, 367 96 L 367 250" fill="none" stroke-width="5" stroke-linecap="square"/>
+                              <rect class="logo-screen" x="150" y="104" width="200" height="150" rx="5" ry="5"/>
+                              <path class="logo-prompt" d="M 210 164 L 235 179 L 210 194" fill="none" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                              <rect class="logo-cursor" x="250" y="192" width="30" height="6"/>
+                              <path class="logo-path-left" d="M 110 380 Q 135 320, 180 265 L 210 265 Q 185 320, 170 380 Z" opacity="0.9"/>
+                              <path class="logo-path-center" d="M 220 380 L 280 380 L 265 265 L 235 265 Z" opacity="0.9"/>
+                              <path class="logo-path-right" d="M 330 380 Q 315 320, 290 265 L 320 265 Q 365 320, 390 380 Z" opacity="0.9"/>
+                              <g transform="translate(148, 358)">
+                                <rect class="logo-icon-bg" x="-8" y="-12" width="16" height="24" rx="2" stroke-width="1.5"/>
+                                <circle class="logo-icon-detail" cx="0" cy="9" r="1.5"/>
+                              </g>
+                              <g transform="translate(250, 357)">
+                                <rect class="logo-icon-bg" x="-12" y="-10" width="24" height="20" rx="1" stroke-width="1.5"/>
+                                <line class="logo-icon-detail" x1="-12" y1="-4" x2="12" y2="-4" stroke-width="1.5"/>
+                                <circle class="logo-icon-detail" cx="-7" cy="-7" r="1"/>
+                                <circle class="logo-icon-detail" cx="-3" cy="-7" r="1"/>
+                                <circle class="logo-icon-detail" cx="1" cy="-7" r="1"/>
+                              </g>
+                              <g transform="translate(352, 356)">
+                                <rect class="logo-icon-bg" x="-14" y="-10" width="28" height="18" rx="1" stroke-width="1.5"/>
+                                <rect class="logo-icon-detail" x="-3" y="8" width="6" height="4"/>
+                                <rect class="logo-icon-detail" x="-6" y="12" width="12" height="2"/>
+                              </g>
+                            </svg>
+                        </div>
+            </aside>
+            <!-- Backdrop for overlay sidebar (mobile and dedicated window) -->
+            <div id="sidebar-backdrop" aria-hidden="true"></div>
+
+        <!-- Main Content Area -->
+        <main class="app-content">
+            
+            <!-- Session Manager Page -->
+            <div id="terminal-page" class="page active">
+                <div class="terminal-container">
+                    <!-- Terminal View Area -->
+                    <section class="terminal-main">
+                        <!-- Session info toolbar -->
+                        <div class="session-info-toolbar" id="session-info-toolbar">
+                            <!-- Mobile/Electron toolbar sidebar toggle (hamburger) -->
+                            <button id="toolbar-sidebar-toggle" class="toolbar-sidebar-toggle" aria-label="Toggle sidebar" aria-controls="terminal-sidebar" aria-expanded="false">
+                                <span class="hamburger-line"></span>
+                                <span class="hamburger-line"></span>
+                                <span class="hamburger-line"></span>
+                            </button>
+                            <div class="session-info-content">
+                                <div class="session-title-line" id="session-title-line"></div>
+                                <div class="session-id-line" id="session-id-line"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="terminal-header" id="terminal-header">
+                            <!-- Dedicated window/desktop toolbar sidebar toggle (hamburger) -->
+                            <button id="window-sidebar-toggle" class="toolbar-sidebar-toggle" aria-label="Toggle sidebar" aria-controls="terminal-sidebar" aria-expanded="false">
+                                <span class="hamburger-line"></span>
+                                <span class="hamburger-line"></span>
+                                <span class="hamburger-line"></span>
+                            </button>
+                            <div class="terminal-info">
+                                <div class="terminal-session-info">
+                                    <div class="terminal-title" id="terminal-title"></div>
+                                    <div class="terminal-session-id" id="terminal-session-id"></div>
+                                </div>
+                                <span class="terminal-status-message" id="terminal-status-message"></span>
+                            </div>
+                            <div class="terminal-controls">
+                                <div class="session-links-container">
+                                    <div class="dropdown">
+                                        <button id="session-links-btn" class="btn-icon dropdown-toggle" title="Session links">
+                                            <span id="session-links-icon"></span>
+                                        </button>
+                                        <div id="session-links-dropdown" class="dropdown-menu">
+                                            <!-- Links will be populated dynamically -->
+                                        </div>
+                                    </div>
+                                </div>
+                				<!-- XXX
+                                <button id="terminal-clear-btn" class="btn-icon" title="Clear Terminal" style="display: none;">
+                                    Clear
+                                </button>
+				-->
+                                <button id="terminal-detach-btn" class="btn-icon" title="Detach session">
+                                    Detach
+                                </button>
+                                <button id="terminal-close-btn" class="btn-icon btn-danger" title="Terminate Session">
+                                    Terminate
+                                </button>
+                                <!-- Activity transitions (timeline) dropdown button: directly left of Search -->
+                                <div class="session-transitions-container" id="session-transitions-container" style="display: none;">
+                                    <div class="dropdown">
+                                        <button id="session-transitions-btn" class="btn-icon" title="Activity timeline" aria-label="Activity timeline">
+                                            <span id="session-transitions-icon"></span>
+                                        </button>
+                                        <div id="session-transitions-dropdown" class="dropdown-menu session-transitions-dropdown">
+                                            <!-- Timeline populated dynamically -->
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Search button: left of Text Input, consistent button styling -->
+                                <div class="dropdown terminal-search-container">
+                                    <button id="terminal-search-btn" class="btn-icon terminal-search-toggle" title="Search terminal">
+                                        <span id="terminal-search-icon"></span>
+                                    </button>
+                                    <div id="terminal-search-dropdown" class="dropdown-menu terminal-search-dropdown">
+                                        <div class="terminal-search-row">
+                                            <input type="text" id="terminal-search-input" class="terminal-search-input search-input" placeholder="Search..." />
+                                            <button id="terminal-search-prev" class="btn btn-secondary" title="Previous">Prev</button>
+                                            <button id="terminal-search-next" class="btn btn-secondary" title="Next">Next</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="text-input-btn" class="btn-icon" title="Text input">
+                                    <span id="text-input-icon"></span>
+                                </button>
+                                <button id="mobile-scroll-forward-btn" class="btn-icon mobile-scroll-forward-toggle" title="Enable scroll forwarding to apps (disabled)">
+                                    <span id="mobile-scroll-forward-icon"></span>
+                                </button>
+                                <div class="mobile-keyboard-container">
+                                    <button id="mobile-keyboard-btn" class="btn-icon mobile-keyboard-toggle" title="Mobile keyboard">
+                                        <span id="mobile-keyboard-toggle-icon"></span>
+                                    </button>
+                                    <div id="mobile-keyboard-backdrop" class="mobile-keyboard-backdrop"></div>
+                                    <div id="mobile-keyboard-dropdown" class="mobile-keyboard-dropdown">
+                                        <div class="mobile-keyboard-content">
+                                            <div class="mobile-keyboard-header">
+                                                <span class="mobile-keyboard-icon" id="mobile-keyboard-icon"></span>
+                                                <button class="mobile-keyboard-close" id="mobile-keyboard-close" title="Close">&times;</button>
+                                            </div>
+                                            <div class="mobile-keyboard-columns">
+                                                <div class="mobile-keyboard-column">
+                                                    <button class="mobile-key" data-key="Escape">Esc</button>
+                                                    <button class="mobile-key" data-key="Tab">Tab</button>
+                                                    <button class="mobile-key" data-key="shift+tab">Shift+Tab</button>
+                                                    <button class="mobile-key" data-key="ctrl+c">Ctrl+C</button>
+                                                </div>
+                                                <div class="mobile-keyboard-column">
+                                                    <div class="mobile-keyboard-row">
+                                                        <button class="mobile-key" data-key="ArrowUp">↑</button>
+                                                        <button class="mobile-key" data-key="ArrowDown">↓</button>
+                                                    </div>
+                                                    <div class="mobile-keyboard-row">
+                                                        <button class="mobile-key" data-key="ArrowLeft">←</button>
+                                                        <button class="mobile-key" data-key="ArrowRight">→</button>
+                                                    </div>
+                                                    <div class="mobile-keyboard-page-nav">
+                                                        <button class="mobile-key page-nav-key" data-key="PageUp"><span class="page-up-icon"></span></button>
+                                                        <button class="mobile-key page-nav-key" data-key="PageDown"><span class="page-down-icon"></span></button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mobile-keyboard-navigation">
+                                                <div class="mobile-keyboard-row">
+                                                    <button class="mobile-key" data-key="Home">Home</button>
+                                                    <button class="mobile-key" data-key="End">End</button>
+                                                </div>
+                                            </div>
+                                            <div class="mobile-keyboard-bottom-row">
+                                                <button class="mobile-key" data-key="1">1</button>
+                                                <button class="mobile-key" data-key="2">2</button>
+                                                <button class="mobile-key" data-key="3">3</button>
+                                            </div>
+                                            <div class="mobile-keyboard-row mobile-keyboard-shortcuts-row">
+                                                <button class="mobile-key" data-key="ctrl+t">Ctrl+T</button>
+                                                <button class="mobile-key" data-key="ctrl+j">Ctrl+J</button>
+                                            </div>
+                                            <div class="mobile-keyboard-enter-row">
+                                                <button class="mobile-key" data-key="enter">Enter</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="dropdown prompts-queue-container" id="prompts-queue-container" style="display: none;">
+                                    <button id="prompts-queue-btn" class="btn-icon prompts-queue-toggle" title="Queued and stop inputs" aria-haspopup="true" aria-expanded="false" aria-controls="prompts-queue-dropdown">
+                                        <span id="prompts-queue-icon"></span>
+                                        <span id="prompts-queue-badge" class="prompts-queue-badge" style="display: none;"></span>
+                                    </button>
+                                    <div id="prompts-queue-dropdown" class="dropdown-menu prompts-queue-dropdown">
+                                        <!-- Deferred and stop inputs will be rendered dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Text Input Floating Modal -->
+                        <div id="text-input-modal" class="floating-modal" tabindex="-1">
+                            <div class="floating-modal-content">
+                                <div class="floating-modal-body">
+                                    <div class="floating-modal-header">
+                                        <span class="floating-modal-icon" id="floating-modal-icon"></span>
+                                        <button class="floating-modal-close" id="text-input-modal-close" data-modal-close title="Close">&times;</button>
+                                    </div>
+                                    <!-- Included content area (readonly). Shown when launching modal from Shift+select in xterm. -->
+                                    <textarea id="text-input-included" class="form-control" rows="8"></textarea>
+                                    <div id="text-input-divider" class="text-input-divider" aria-hidden="true"></div>
+                                    <textarea id="text-input-text" data-modal-input class="form-control" rows="3"></textarea>
+                                    <div class="floating-modal-actions">
+                                        <div class="floating-modal-buttons">
+                                            <button type="button" class="btn btn-secondary" id="text-input-clear">Clear</button>
+                                            <button type="button" class="btn btn-secondary" id="text-input-copy">Copy</button>
+                                            <button type="button" class="btn btn-primary" id="text-input-send" data-modal-submit>Send</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Session Tabs Header -->
+                        <div class="session-tabs-container" id="session-tabs-container" style="display: none;">
+                            <div class="session-tabs" id="session-tabs">
+                                <!-- Session tabs will be dynamically added here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Tab Interface for Terminal + URL Viewing -->
+                        <div class="terminal-tabs" id="terminal-tabs">
+                            <button class="terminal-tab active" data-tab-id="terminal">
+                                <span class="terminal-tab-title">Terminal</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Content Area with Tab Views -->
+                        <div class="terminal-content-area" id="terminal-content-area">
+                            <div class="terminal-content-view terminal-view active" id="terminal-view" data-tab-id="terminal">
+                                <div class="terminal-placeholder">
+                                    <p>Select a session or create a new terminal</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Future pages will be added here -->
+        </main>
+        </div> <!-- End main-layout -->
+
+        <!-- Modal for new workspace -->
+        <div id="new-workspace-modal" class="modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="new-workspace-title">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="new-workspace-title" data-modal-title>Create Workspace</h2>
+                    <button class="modal-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="new-workspace-form">
+                        <div class="form-group">
+                            <label for="new-workspace-name">Workspace</label>
+                            <input type="text" id="new-workspace-name" name="new-workspace-name" placeholder="Workspace name" required autocomplete="off">
+                            <small class="form-help">Choose a unique name. "Default" is reserved.</small>
+                            <div id="new-workspace-error" class="form-error" style="display: none;"></div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-modal-submit form="new-workspace-form">Create</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for new session -->
+        <div id="new-session-modal" class="modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="new-session-title">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="new-session-title" data-modal-title>Create Session</h2>
+                    <button class="modal-close" id="modal-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="new-session-form" autocomplete="off">
+                        <div class="form-group">
+                            <label for="session-title">Title</label>
+                            <input type="text" id="session-title" name="session-title" placeholder="Session title (optional)">
+                        </div>
+                        <div class="form-group workspace-picker-group">
+                            <label for="session-workspace-select">Workspace</label>
+                            <div class="workspace-picker">
+                                <select id="session-workspace-select" name="session-workspace"></select>
+                                <button type="button" id="workspace-add-btn" class="btn btn-secondary workspace-dropdown-btn" title="Add workspace">+</button>
+                            </div>
+                            <div id="workspace-add-inline" class="workspace-add-inline" style="display: none;">
+                                <input type="text" id="workspace-add-input" placeholder="New workspace name" autocomplete="off" />
+                                <button type="button" id="workspace-add-confirm" class="btn btn-primary">Add</button>
+                                <button type="button" id="workspace-add-cancel" class="btn btn-secondary">Cancel</button>
+                            </div>
+                            <div id="workspace-add-error" class="form-error" style="display: none;"></div>
+                            <small class="form-help">Choose an existing workspace or add a new one. Empty means Default.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="template-select">Templates</label>
+                            <div id="template-select-container" class="multi-select-container">
+                                <div class="template-search-wrapper">
+                                    <input type="text" id="template-search" class="template-search" placeholder="Search templates" autocomplete="off">
+                                    <div id="template-dropdown" class="template-dropdown" style="display: none;">
+                                        <!-- Options will be populated dynamically -->
+                                    </div>
+                                </div>
+                                <div id="selected-templates" class="selected-templates"></div>
+                            </div>
+                            <small class="form-help" id="template-description"></small>
+                        </div>
+                        <div id="template-parameters"></div>
+                        <div id="interactive-group" class="form-group" style="display: none;">
+                            <div class="checkbox-wrapper">
+                                <input type="checkbox" id="session-interactive" name="session-interactive" checked>
+                                <label for="session-interactive">Interactive</label>
+                            </div>
+                            <small class="form-help" id="interactive-help">When disabled, the session is read-only.</small>
+                        </div>
+                        <div id="visibility-group" class="form-group">
+                            <label for="session-visibility">Visibility</label>
+                            <select id="session-visibility" name="session-visibility">
+                                <option value="private" selected>Private (only you)</option>
+                                <option value="shared_readonly">Shared (read-only for others)</option>
+                                <option value="public">Public (full access)</option>
+                            </select>
+                            <small class="form-help">Controls who can see and interact with this session.</small>
+                        </div>
+                        <!-- Custom command fields removed; templates are mandatory -->
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="modal-cancel" data-modal-close>Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="modal-create" data-modal-submit form="new-session-form">Create</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for editing a large Prompt input -->
+        <div id="prompt-editor-modal" class="modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="prompt-editor-title">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="prompt-editor-title" data-modal-title>Edit Prompt</h2>
+                    <button type="button" class="modal-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="prompt-editor-form">
+                        <div class="form-group">
+                            <label for="prompt-editor-text">Prompt</label>
+                            <textarea id="prompt-editor-text" name="prompt-editor-text" rows="23" placeholder="Enter prompt..." style="width: 100%;"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-modal-submit form="prompt-editor-form">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for moving a session to a workspace -->
+        <div id="move-workspace-modal" class="modal" tabindex="-1">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 data-modal-title>Move to Workspace</h2>
+                    <button class="modal-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="move-workspace-form">
+                        <div class="form-group workspace-picker-group">
+                            <label for="move-workspace-select">Workspace</label>
+                            <div class="workspace-picker">
+                                <select id="move-workspace-select" name="move-workspace"></select>
+                                <button type="button" id="move-workspace-add-btn" class="btn btn-secondary workspace-dropdown-btn" title="Add workspace">+</button>
+                            </div>
+                            <div id="move-workspace-add-inline" class="workspace-add-inline" style="display: none;">
+                                <input type="text" id="move-workspace-add-input" placeholder="New workspace name" autocomplete="off" />
+                                <button type="button" id="move-workspace-add-confirm" class="btn btn-primary">Add</button>
+                                <button type="button" id="move-workspace-add-cancel" class="btn btn-secondary">Cancel</button>
+                            </div>
+                            <div id="move-workspace-add-error" class="form-error" style="display: none;"></div>
+                            <small class="form-help">Choose a workspace or add a new one.</small>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-modal-submit form="move-workspace-form">Move</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for confirming session termination -->
+        <div id="confirm-terminate-modal" class="modal" tabindex="-1">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 data-modal-title>Terminate Session</h2>
+                    <button class="modal-close" id="terminate-modal-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p data-modal-message>Are you sure you want to terminate this terminal session? This action cannot be undone.</p>
+                    <!-- Local close confirm: shown only in local-close flow (feature-flag + local_only) -->
+                    <div id="local-close-dont-ask-row" style="display: none; margin-top: 10px;">
+                        <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary);">
+                            <input type="checkbox" id="local-close-dont-ask" />
+                            Don't ask again
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="terminate-cancel" data-modal-cancel>Cancel</button>
+                    <button type="button" class="btn btn-danger" id="terminate-confirm" data-modal-confirm>Terminate</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for confirming session history deletion -->
+        <div id="confirm-delete-modal" class="modal" tabindex="-1">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 data-modal-title>Delete Session History</h2>
+                    <button class="modal-close" id="delete-modal-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p data-modal-message>Are you sure you want to delete this session's history and logs? This will permanently remove all terminal output and metadata. This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="delete-cancel" data-modal-cancel>Cancel</button>
+                    <button type="button" class="btn btn-danger" id="delete-confirm" data-modal-confirm>Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for confirming admin actions (reset token / reload config) -->
+        <div id="confirm-admin-action-modal" class="modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="confirm-admin-action-title">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="confirm-admin-action-title" data-modal-title>Confirm Action</h2>
+                    <button class="modal-close" id="confirm-admin-action-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p data-modal-message>Are you sure you want to proceed?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="confirm-admin-action-cancel" data-modal-cancel>Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirm-admin-action-confirm" data-modal-confirm>Confirm</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal for confirming multiple template submission -->
+        <div id="confirm-multiple-templates-modal" class="modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="confirm-multiple-templates-title">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="confirm-multiple-templates-title" data-modal-title>Confirm Multiple Commands</h2>
+                    <button class="modal-close" id="confirm-multiple-templates-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p data-modal-message>Are you sure you want to run multiple commands?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="confirm-multiple-templates-cancel" data-modal-cancel>Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirm-multiple-templates-confirm" data-modal-confirm>Run</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for confirming container stop -->
+        <div id="confirm-stop-container-modal" class="modal" tabindex="-1">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 data-modal-title>Stop Container</h2>
+                    <button class="modal-close" id="stop-container-modal-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p data-modal-message>Are you sure you want to stop this container?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="stop-container-cancel" data-modal-cancel>Cancel</button>
+                    <button type="button" class="btn btn-danger" id="stop-container-confirm" data-modal-confirm>Stop</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for confirming termination of all containers -->
+        <div id="confirm-terminate-all-containers-modal" class="modal" tabindex="-1">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 data-modal-title>Terminate All Containers</h2>
+                    <button class="modal-close" id="terminate-all-containers-modal-close" data-modal-close>&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p data-modal-message>Are you sure you want to terminate all containers and remove all volumes? This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="terminate-all-containers-cancel" data-modal-cancel>Cancel</button>
+                    <button type="button" class="btn btn-danger" id="terminate-all-containers-confirm" data-modal-confirm>Terminate All</button>
+                </div>
+            </div>
+        </div>
+
+        
+    </div>
+
+    <!-- Quick Template Search Overlay (floating modal) -->
+    <div id="template-quick-open-modal" class="floating-modal quick-open-modal" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="floating-modal-content">
+            <div class="floating-modal-body" style="padding: 8px 12px;">
+                <div class="dropdown" style="position: relative; display: block; width: 100%;">
+                    <input type="text" id="template-quick-open-input" class="dropdown-search searchable-dropdown-search form-input" placeholder="Type a template name..." aria-label="Quick template search" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" style="width: 100%; box-sizing: border-box; margin: 0;" />
+                    <div id="template-quick-open-dropdown" class="dropdown-menu" role="menu" style="left: 0; right: 0; width: auto; max-height: 40vh; overflow: auto;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shutdown Loading Overlay -->
+    <div id="shutdown-overlay" class="shutdown-overlay">
+        <div class="shutdown-content">
+            <div class="shutdown-spinner"></div>
+            <div class="shutdown-title">Application Restarting</div>
+            <div class="shutdown-message">Please wait while the application restarts...</div>
+            <div class="shutdown-status" id="shutdown-status">Checking application status...</div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="settings-modal-title">Settings</h2>
+                <button class="modal-close" id="settings-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <style>
+                    /* Scoped styles for Settings modal tables */
+                    #settings-modal .settings-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                    }
+                    #settings-modal .settings-table th,
+                    #settings-modal .settings-table td {
+                        padding: 6px 8px;
+                        border-bottom: 1px solid var(--border-color);
+                        vertical-align: middle;
+                    }
+                    #settings-modal .settings-table thead th {
+                        color: var(--text-secondary);
+                        font-weight: 600;
+                    }
+                    #settings-modal .notifications-levels-table tbody tr:hover {
+                        background: var(--bg-hover);
+                    }
+                    #settings-modal .notifications-levels-table input[type="checkbox"] {
+                        transform: translateY(1px);
+                    }
+                    
+                </style>
+                <div class="settings-layout">
+                    <nav class="settings-sidebar" aria-label="Settings Sections">
+                        <div class="settings-nav">
+                            <button type="button" class="settings-nav-button" data-section="admin">Admin</button>
+                            <button type="button" class="settings-nav-button" data-section="developer">Developer</button>
+                            <button type="button" class="settings-nav-button" data-section="display">Display</button>
+                            <button type="button" class="settings-nav-button" data-section="import-export">Import/Export</button>
+                            <button type="button" class="settings-nav-button" data-section="keyboard">Keyboard Shortcuts</button>
+                            <button type="button" class="settings-nav-button" data-section="links">Links</button>
+                            <button type="button" class="settings-nav-button" data-section="notes">Notes</button>
+                            <button type="button" class="settings-nav-button active" data-section="notifications">Notifications</button>
+                            <button type="button" class="settings-nav-button" data-section="terminal">Terminal</button>
+                        </div>
+                    </nav>
+                    <div class="settings-content">
+                        <form id="settings-form">
+                            <div class="settings-panel active" data-section="notifications">
+                                <div class="settings-section">
+                                    <h3>Notifications</h3>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="notifications-enabled">
+                                            <label for="notifications-enabled">Show notifications</label>
+                                        </div>
+                                        <small class="form-help">Display notifications</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="notifications-sound">
+                                            <label for="notifications-sound">Play notification sounds</label>
+                                        </div>
+                                        <small class="form-help">Play audio alerts when notifications are received</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="notifications-scheduled-input-show">
+                                            <label for="notifications-scheduled-input-show">Show scheduled/remote input toasts</label>
+                                        </div>
+                                        <small class="form-help">When disabled, input injections are recorded in the Notification Center but no toast appears.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Per-level behavior</label>
+                                        <table class="settings-table notifications-levels-table" style="width:100%; border-collapse: collapse;">
+                                            <thead>
+                                                <tr>
+                                                    <th style="text-align:left; padding: 6px 4px; color: var(--text-secondary);">Level</th>
+                                                    <th style="text-align:left; padding: 6px 4px; color: var(--text-secondary);">Show</th>
+                                                    <th style="text-align:left; padding: 6px 4px; color: var(--text-secondary);">Sound</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td style="padding: 6px 4px;"><strong>Info</strong></td>
+                                                    <td style="padding: 6px 4px;"><input type="checkbox" id="notifications-info-show"></td>
+                                                    <td style="padding: 6px 4px;"><input type="checkbox" id="notifications-info-sound"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 6px 4px;"><strong>Success</strong></td>
+                                                    <td style="padding: 6px 4px;"><input type="checkbox" id="notifications-success-show"></td>
+                                                    <td style="padding: 6px 4px;"><input type="checkbox" id="notifications-success-sound"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 6px 4px;"><strong>Warning</strong></td>
+                                                    <td style="padding: 6px 4px;"><input type="checkbox" id="notifications-warning-show"></td>
+                                                    <td style="padding: 6px 4px;"><input type="checkbox" id="notifications-warning-sound"></td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 6px 4px;"><strong>Error</strong></td>
+                                                    <td style="padding: 6px 4px;"><input type="checkbox" id="notifications-error-show"></td>
+                                                    <td style="padding: 6px 4px;"><input type="checkbox" id="notifications-error-sound"></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                        <small class="form-help">Control visibility and sounds by notification level</small>
+                                    </div>
+                                    <div class="form-group" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                        <label for="test-notification-level" class="sr-only">Level</label>
+                                        <select id="test-notification-level" style="max-width:180px;">
+                                            <option value="info">Info</option>
+                                            <option value="success">Success</option>
+                                            <option value="warning">Warning</option>
+                                            <option value="error">Error</option>
+                                        </select>
+                                        <button type="button" id="test-notification-btn" class="btn btn-secondary">Test Notification</button>
+                                        <small class="form-help" style="flex-basis:100%">Send a test notification to preview settings</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-panel" data-section="terminal">
+                                <div class="settings-section">
+                                    <h3>Terminal</h3>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="terminal-cursor-blink">
+                                            <label for="terminal-cursor-blink">Blinking cursor</label>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="terminal-auto-attach-on-select">
+                                            <label for="terminal-auto-attach-on-select">Auto-attach on session select</label>
+                                        </div>
+                                        <small class="form-help">If enabled, selecting a session will immediately attach instead of showing the attach prompt.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dynamic-title-mode">Dynamic Title</label>
+                                        <select id="dynamic-title-mode">
+                                            <option value="always">Always</option>
+                                            <option value="ifUnset">If not set</option>
+                                            <option value="never">Never</option>
+                                        </select>
+                                        <small class="form-help">When to use terminal-provided titles.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="terminal-filter-osc-colors">
+                                            <label for="terminal-filter-osc-colors">Filter OSC color updates</label>
+                                        </div>
+                                        <small class="form-help">Strip well-formed OSC 4/10/11/12/104/110/111/112 sequences before rendering.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="terminal-collapse-naked-rgb">
+                                            <label for="terminal-collapse-naked-rgb">Collapse malformed rgb payload runs</label>
+                                        </div>
+                                        <small class="form-help">Hide repeated rgb:… artifacts when OSC introducers are missing.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-panel" data-section="links">
+                                <div class="settings-section">
+                                    <h3>Links</h3>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="links-search-reveal-group">
+                                            <label for="links-search-reveal-group">Include group matches when searching global links</label>
+                                        </div>
+                                        <small class="form-help">When enabled, matching a group name in the header dropdown exposes all links in that group.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="links-show-session-toolbar-menu">
+                                            <label for="links-show-session-toolbar-menu">Show session links menu</label>
+                                        </div>
+                                        <small class="form-help">Disable to hide the links dropdown in the session toolbar. Global header links are unaffected.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="links-show-session-tabs">
+                                            <label for="links-show-session-tabs">Show session link tabs</label>
+                                        </div>
+                                        <small class="form-help">Disable to hide session-provided link tabs and prevent them from opening automatically.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-panel" data-section="notes">
+                                <div class="settings-section">
+                                    <h3>Notes</h3>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="notes-show-session-tab">
+                                            <label for="notes-show-session-tab">Show session notes tab</label>
+                                        </div>
+                                        <small class="form-help">Disable to hide the collaborative notes tab from terminal sessions.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="notes-show-workspace-tab">
+                                            <label for="notes-show-workspace-tab">Show workspace notes tab</label>
+                                        </div>
+                                        <small class="form-help">Disable to hide the workspace notes from the tabs row.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-panel" data-section="display">
+                                <div class="settings-section">
+                                    <h3>Display</h3>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="display-show-activity-indicator" aria-describedby="activity-indicator-desc" checked>
+                                            <label for="display-show-activity-indicator">Show activity indicator in session list</label>
+                                        </div>
+                                        <small class="form-help" id="activity-indicator-desc">Display a small dot on session rows when output activity changes. Active output uses a pulsing indicator; when output stops while a session is not being viewed, a static indicator is shown until you open or interact with that session. Space is reserved to keep badge alignment consistent.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="display-close-send-text-on-submit">
+                                            <label for="display-close-send-text-on-submit">Close "Send Text" modal after submission</label>
+                                        </div>
+                                        <small class="form-help">When disabled, the main input is cleared and the modal remains open. The modal always closes when launched with highlighted text.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="display-show-container-shells-in-sidebar">
+                                            <label for="display-show-container-shells-in-sidebar">Show container shells in sidebar</label>
+                                        </div>
+                                        <small class="form-help">When disabled, child container shells (Shell 1, Shell 2, …) are hidden under their parent sessions.</small>
+                                    </div>
+                                </div>
+                                <div class="settings-section">
+                                    <div class="form-group">
+                                        <label for="app-theme">Application Theme</label>
+                                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                            <select id="app-theme">
+                                                <option value="dark">Dark</option>
+                                                <option value="light">Light</option>
+                                                <option value="auto">Auto (System)</option>
+                                                <option value="dracula">Dracula</option>
+                                                <option value="nord">Nord</option>
+                                                <option value="solarized-dark">Solarized Dark</option>
+                                                <option value="solarized-light">Solarized Light</option>
+                                                <option value="gruvbox-dark">Gruvbox Dark</option>
+                                                <option value="gruvbox-light">Gruvbox Light</option>
+                                                <option value="monokai">Monokai</option>
+                                                <option value="one-dark">One Dark</option>
+                                                <option value="night-owl">Night Owl</option>
+                                                <option value="tokyo-night">Tokyo Night</option>
+                                                <option value="catppuccin-mocha">Catppuccin Mocha</option>
+                                                <option value="catppuccin-latte">Catppuccin Latte</option>
+                                                <option value="forest-dark">Forest Dark</option>
+                                                <option value="forest-light">Forest Light</option>
+                                                <option value="everforest-dark">Everforest Dark</option>
+                                                <option value="everforest-light">Everforest Light</option>
+                                                <option value="matrix">Matrix</option>
+                                                <option value="autumn-morning">Autumn Morning</option>
+                                                <option value="autumn-afternoon">Autumn Afternoon</option>
+                                                <option value="autumn-night">Autumn Night</option>
+                                                <option value="winter-morning">Winter Morning</option>
+                                                <option value="winter-afternoon">Winter Afternoon</option>
+                                                <option value="winter-night">Winter Night</option>
+                                            </select>
+                                            <div class="checkbox-wrapper" style="white-space:nowrap;">
+                                                <input type="checkbox" id="app-theme-profile-override">
+                                                <label for="app-theme-profile-override">Override for current profile</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="app-font-family">Application Font Family</label>
+                                        <select id="app-font-family" aria-label="Application font family">
+                                            <!-- Options populated dynamically -->
+                                        </select>
+                                        <small class="form-help">Choose the font used across the general application UI.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="links-session-tab-max-width">Maximum session tab width</label>
+                                        <input type="range" id="links-session-tab-max-width" min="100" max="800" step="10">
+                                        <span class="range-value" id="links-session-tab-max-width-value">200px</span>
+                                        <small class="form-help">Control how wide session tabs can grow before titles are truncated.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="terminal-font-size">Font Size</label>
+                                        <input type="range" id="terminal-font-size" min="8" max="64" step="1">
+                                        <span class="range-value" id="font-size-value">14px</span>
+                                        <small class="form-help">Adjust terminal text size</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="terminal-font-family">Font Family</label>
+                                        <select id="terminal-font-family">
+                                            <!-- Options populated dynamically -->
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="window-opacity">Window Opacity</label>
+                                        <input type="range" id="window-opacity" min="50" max="100" step="1">
+                                        <span class="range-value" id="window-opacity-value">100%</span>
+                                        <small class="form-help">Controls overall window opacity (desktop only). Clicks remain captured by the app.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            
+
+                            <div class="settings-panel" data-section="keyboard">
+                                <div class="settings-section">
+                                    <h3>Keyboard Shortcuts</h3>
+                                    <div class="form-group">
+                                        <button type="button" id="keyboard-shortcuts-btn" class="btn btn-secondary">Open Shortcuts Tester</button>
+                                        <small class="form-help">Capture key combinations to evaluate usable shortcuts</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Admin Section -->
+                            <div class="settings-panel" data-section="admin">
+                                <div class="settings-section" id="admin-settings-section">
+                                    <h3>Admin</h3>
+                                    <div class="form-group" id="reset-session-token-group" style="display:none;">
+                                        <button type="button" id="reset-session-token-btn" class="btn btn-secondary">Reset Session Token</button>
+                                        <small class="form-help">Rotates the server's cookie signing secret and issues a new session token. All existing sessions will be logged out. Controlled by feature flag.</small>
+                                    </div>
+                                    <div class="form-group" id="reload-config-group" style="display:none;">
+                                        <button type="button" id="reload-config-btn" class="btn btn-secondary">Reload Server Config</button>
+                                        <small class="form-help">Reloads templates, users, groups, and links from disk without restarting the server. Controlled by feature flag.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-panel" data-section="developer">
+                                <div class="settings-section" id="developer-settings-section">
+                                    <h3>Developer</h3>
+                                    <div class="form-group">
+                                        <button type="button" id="open-devtools-btn" class="btn btn-secondary">Open DevTools</button>
+                                        <small class="form-help">Opens the native DevTools window (Electron desktop only).</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="allow-insecure-certs">
+                                            <label for="allow-insecure-certs">Allow invalid certificates</label>
+                                        </div>
+                                        <small class="form-help">Desktop only. When enabled, SSL/TLS certificate errors are ignored for embedded content and app navigation.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="debug-console-enabled">
+                                            <label for="debug-console-enabled">Show debug console</label>
+                                        </div>
+                                        <small class="form-help">Display debug console overlay with application logs</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="debug-key-overlay">
+                                            <label for="debug-key-overlay">Show keypress overlay</label>
+                                        </div>
+                                        <small class="form-help">Visualize currently pressed keys and last combo in the bottom-right</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="debug-ws-logs">
+                                            <label for="debug-ws-logs">Log WebSocket messages</label>
+                                        </div>
+                                        <small class="form-help">Verbose console logs for WebSocket messages (except stdout)</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="debug-registry-logs">
+                                            <label for="debug-registry-logs">Log Registry handling</label>
+                                        </div>
+                                        <small class="form-help">Verbose logs when the message registry validates/handles messages</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Debug Categories</label>
+                                        <div class="settings-table">
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-api-logs"><label for="debug-api-logs">API service logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-state-store-logs"><label for="debug-state-store-logs">State store logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-app-logs"><label for="debug-app-logs">App logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-settings-logs"><label for="debug-settings-logs">Settings logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-session-tabs-logs"><label for="debug-session-tabs-logs">Session tabs logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-session-list-logs"><label for="debug-session-list-logs">Session list logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-terminal-logs"><label for="debug-terminal-logs">Terminal view logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-terminal-session-logs"><label for="debug-terminal-session-logs">Terminal session logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-ansi-osc-logs"><label for="debug-ansi-osc-logs">Terminal ANSI/OSC logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-terminal-manager-logs"><label for="debug-terminal-manager-logs">Terminal manager logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-tab-manager-logs"><label for="debug-tab-manager-logs">Tab manager logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-responsive-toolbar-logs"><label for="debug-responsive-toolbar-logs">Responsive toolbar logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-mobile-viewport-logs"><label for="debug-mobile-viewport-logs">Mobile viewport logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-mobile-detection-logs"><label for="debug-mobile-detection-logs">Mobile detection logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-mobile-touch-logs"><label for="debug-mobile-touch-logs">Mobile touch logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-notes-logs"><label for="debug-notes-logs">Notes logs</label></div>
+                                            <div class="checkbox-wrapper"><input type="checkbox" id="debug-config-logs"><label for="debug-config-logs">Config logs</label></div>
+                                        </div>
+                                        <small class="form-help">Enable verbose console logs for specific modules. All are disabled by default.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-panel" data-section="import-export">
+                                <div class="settings-section">
+                                    <h3>Settings File</h3>
+                                    <div class="form-group">
+                                        <button type="button" id="export-settings-btn" class="btn btn-secondary">Export Settings</button>
+                                        <button type="button" id="import-settings-btn" class="btn">Import Settings</button>
+                                        <input type="file" id="import-settings-input" accept="application/json" style="display:none;" />
+                                        <small class="form-help">Browser: export/import your settings as a JSON file.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <button type="button" id="reload-settings-btn" class="btn btn-secondary">Reload From Disk</button>
+                                        <small class="form-help">Desktop only: reload settings saved on disk.</small>
+                                    </div>
+                                </div>
+                                <div class="settings-section">
+                                    <h3>State File</h3>
+                                    <div class="form-group">
+                                        <button type="button" id="export-state-btn" class="btn btn-secondary">Export State</button>
+                                        <button type="button" id="import-state-btn" class="btn">Import State</button>
+                                        <input type="file" id="import-state-input" accept="application/json" style="display:none;" />
+                                        <small class="form-help">Export/import application UI state (sidebar, overlays, last workspace, etc.).</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <button type="button" id="reload-state-btn" class="btn btn-secondary">Reload State From Disk</button>
+                                        <small class="form-help">Desktop only: reload state saved on disk.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="settings-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="settings-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+            <div id="keyboard-shortcuts-modal" class="modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="keyboard-shortcuts-title">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 id="keyboard-shortcuts-title">Keyboard Shortcuts</h2>
+                        <button class="modal-close" data-modal-close>&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="shortcuts-notes">
+                            Tip: In xterm, releasing a selection while holding <strong>Shift</strong> opens Send Text with the selection prefilled. In session notes, <strong>Cmd/Alt + Shift + Enter</strong> sends the selection to the terminal.
+                        </div>
+                        <div class="form-group">
+                            <label>App Shortcuts</label>
+                            <div class="dropdown-info" style="pointer-events: auto;">
+                                <div><strong>Cmd/Alt + Shift + I</strong> — Toggle Send Text (open/close)</div>
+                                <div><strong>Cmd/Alt + Shift + M</strong> — Toggle Quick Template Search (open/close)</div>
+                            </div>
+                        </div>
+                        <div class="shortcuts-controls">
+                    <button type="button" class="btn btn-primary" id="shortcuts-start">Start Capture</button>
+                    <button type="button" class="btn" id="shortcuts-stop" style="display:none;">Stop</button>
+                    <button type="button" class="btn btn-secondary" id="shortcuts-clear">Clear</button>
+                </div>
+                <div class="shortcuts-options">
+                    <label class="checkbox-inline"><input type="checkbox" id="shortcuts-exclusive"> Exclusive capture (stop propagation)</label>
+                    <label class="checkbox-inline"><input type="checkbox" id="shortcuts-prevent-default"> Prevent default</label>
+                    <small class="form-help">Exclusive capture may block app shortcuts while active.</small>
+                </div>
+                <div class="shortcuts-status">
+                    <div class="form-group">
+                        <label>Currently Pressed</label>
+                        <div id="shortcuts-pressed" class="shortcuts-pressed">None</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Captured</label>
+                        <div id="shortcuts-last" class="shortcuts-last">—</div>
+                        <small class="form-help" id="shortcuts-last-detail"></small>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Capture History</label>
+                    <div id="shortcuts-list" class="shortcuts-list"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-modal-close>Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Authentication Modal (blocking) -->
+    <div id="auth-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="auth-modal-title">Authentication Required</h2>
+                <button id="auth-toggle-api" class="btn btn-icon" title="API Settings" aria-label="API Settings">
+                    <span id="auth-settings-icon"></span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="auth-modal-form" onsubmit="return false" novalidate>
+                    <div class="form-group">
+                        <label for="auth-modal-username">Username</label>
+                        <input type="text" id="auth-modal-username" class="form-input" autocomplete="username" />
+                    </div>
+                    <div class="form-group">
+                        <label for="auth-modal-password">Password</label>
+                        <input type="password" id="auth-modal-password" class="form-input" autocomplete="current-password" />
+                    </div>
+                </form>
+                <div id="auth-api-settings" style="display:none; margin-top: 8px;">
+                    <h3 style="margin: 8px 0 6px; font-size: 1rem;">API Settings</h3>
+                    <div class="form-group">
+                        <label for="auth-api-url">API URL</label>
+                        <input type="text" id="auth-api-url" class="form-input" placeholder="https://your-backend-url" />
+                    </div>
+                    <div class="form-group" id="auth-api-proxy-group" style="margin-top:8px; display:none;">
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" id="auth-api-use-proxy">
+                            <label for="auth-api-use-proxy">Route API via local proxy (HTTP compatibility)</label>
+                        </div>
+                        <small class="form-help">
+                            When using the built-in local frontend (http://localhost), enable this to send API requests through the local app.
+                            Recommended when your backend API is HTTP-only on a different host.
+                        </small>
+                    </div>
+                    <div class="form-group" style="margin-top:10px;">
+                        <button class="btn" id="auth-generate-hash" type="button">Generate Password Hash</button>
+                    </div>
+                    <div class="form-group">
+                        <label for="auth-hash-output">Generated Hash</label>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="text" id="auth-hash-output" class="form-input" readonly placeholder="password_hash will appear here" />
+                            <button class="btn-icon" id="auth-hash-copy" type="button" title="Copy">
+                                <span class="bi-icon" id="auth-hash-copy-icon"></span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group" id="auth-profiles" style="margin-top:14px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                            <h3 style="margin: 6px 0; font-size: 1rem;">Saved Profiles</h3>
+                            <small class="form-help">Select to prefill, delete to remove</small>
+                        </div>
+                        <div id="auth-profiles-list" style="display:flex; flex-direction:column; gap:6px;"></div>
+                    </div>
+                    <!-- API URL saves automatically after a successful login -->
+                </div>
+                <div id="auth-modal-error" class="form-error" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="auth-modal-submit">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Reset Modal -->
+    <div id="password-reset-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="password-reset-modal-title" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="password-reset-modal-title">Reset Password</h2>
+            </div>
+            <div class="modal-body">
+                <form id="password-reset-form" onsubmit="return false" novalidate>
+                    <div class="form-group">
+                        <label for="password-reset-current">Current password</label>
+                        <input type="password" id="password-reset-current" class="form-input" autocomplete="current-password" />
+                    </div>
+                    <div class="form-group">
+                        <label for="password-reset-new">New password</label>
+                        <input type="password" id="password-reset-new" class="form-input" autocomplete="new-password" />
+                    </div>
+                    <div class="form-group">
+                        <label for="password-reset-confirm">Confirm new password</label>
+                        <input type="password" id="password-reset-confirm" class="form-input" autocomplete="new-password" />
+                    </div>
+                    <div id="password-reset-error" class="form-error" style="display:none;"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" id="password-reset-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="password-reset-submit">Update password</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Debug Overlay -->
+    <div id="debug-overlay" style="
+        position: fixed;
+        bottom: max(10px, env(safe-area-inset-bottom, 10px));
+        left: max(10px, env(safe-area-inset-left, 10px));
+        right: max(10px, env(safe-area-inset-right, 10px));
+        background: rgba(0, 0, 0, 0.95);
+        color: #0f0;
+        font-family: monospace;
+        font-size: 12px;
+        padding: 8px 10px;
+        border: 2px solid #0f0;
+        border-radius: 6px;
+        z-index: 2147483647;
+        max-height: min(40vh, 250px);
+        overflow-y: auto;
+        display: none;
+        box-shadow: 0 4px 20px rgba(0, 255, 0, 0.4);
+        pointer-events: auto;
+        touch-action: manipulation;
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+        will-change: transform;
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+        -webkit-overflow-scrolling: touch;
+    ">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+            <strong>Debug Log</strong>
+            <div>
+                <button id="debug-copy-btn" style="background: #0a0; color: white; border: none; padding: 2px 6px;">Copy</button>
+                <button id="debug-clear-btn" style="background: #ff0; color: black; border: none; padding: 2px 6px;">Clear</button>
+                <button id="debug-close-btn" style="background: #f00; color: white; border: none; padding: 2px 6px;">×</button>
+            </div>
+        </div>
+        <div id="debug-log"></div>
+    </div>
+
+    <!-- Configuration (can be customized) -->
+    <script src="config.js"></script>
+    
+    <!-- Load xterm.js from vendor directory -->
+    <script src="js/vendor/xterm/xterm.js"></script>
+    <script src="js/vendor/xterm/addon-fit.js"></script>
+    <script src="js/vendor/xterm/addon-web-links.js"></script>
+    
+    <!-- Console Overlay module is imported by Settings Manager and wires its own events -->
+    
+    <!-- Application Scripts -->
+    <script type="module" src="js/core/app.js"></script>
+</body>
+</html>

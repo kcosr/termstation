@@ -1,0 +1,12 @@
+{
+  "name": "termstation-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Zero-dependency Node.js server for termstation frontend",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

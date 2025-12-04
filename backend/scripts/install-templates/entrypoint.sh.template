@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Add custom environment variables here
+#export FOO=bar
+
+# Commands to run as root after launch
+#sudo iptables ...
+
+# Remove sudo if wanted
+#sudo rm /etc/sudoers.d/nopasswd
+
+exec "$@"
+

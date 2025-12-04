@@ -1,0 +1,22 @@
+module termstation_container_file 1.0;
+
+require {
+    type container_t;
+    type container_file_t;
+    class file { read write open getattr };
+    class dir { read search getattr };
+}
+
+# Allow containers to read and write files labeled container_file_t, even when
+# MCS categories differ (e.g., container A accessing files created by container B
+# or files created on the host). This is needed for AI CLI config files like
+# ~/.claude.json that are bind-mounted into containers but may have been created
+# outside the container context.
+#
+# Without this rule, SELinux MCS enforcement causes denials like:
+#   avc: denied { read } for comm="cat" name=".claude.json"
+#   scontext=container_t:s0:c267,c396 tcontext=container_file_t:s0:c26,c960
+
+allow container_t container_file_t:file { read write open getattr };
+allow container_t container_file_t:dir { read search getattr };
+

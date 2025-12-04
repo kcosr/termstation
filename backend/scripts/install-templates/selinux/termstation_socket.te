@@ -1,0 +1,18 @@
+module termstation_socket 1.0;
+
+require {
+    type container_t;
+    type unconfined_t;
+    type container_var_run_t;
+    type container_file_t;
+    class sock_file write;
+    class unix_stream_socket connectto;
+}
+
+# Allow containers to write to socket files
+allow container_t container_var_run_t:sock_file write;
+allow container_t container_file_t:sock_file write;
+
+# Allow containers to connect to unconfined user's unix sockets
+allow container_t unconfined_t:unix_stream_socket connectto;
+

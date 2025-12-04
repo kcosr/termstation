@@ -1,0 +1,7418 @@
+/* Terminal Manager Application Styles */
+
+:root {
+    /* Dynamic viewport variables - set by JavaScript */
+    --actual-viewport-height: 100vh;
+    --keyboard-height: 0px;
+    
+    /* Colors (default to dark) */
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #252526;
+    --bg-tertiary: #2d2d30;
+    --bg-hover: #3a3a3d;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --text-dim: #707070;
+    --border-color: #3a3a3d;
+    --accent-color: #007acc;
+    --accent-hover: #0098ff;
+    /* Back-compat for components expecting primary vars */
+    --primary-color: var(--accent-color);
+    --primary-rgb: 0, 122, 204;
+    --danger-color: #f44336;
+    --success-color: #4caf50;
+    --warning-color: #ff9800;
+    /* Logo-specific variables */
+    --logo-danger-color: var(--danger-color);
+    
+    /* Layout dimensions */
+    --app-header-height: 60px;
+    --terminal-header-height: 55px;
+    /* Use a single base height for both tab rows */
+    --tabs-row-height: 38px;
+    --session-tabs-height: var(--tabs-row-height);
+    --session-tab-title-max-width: 200px;
+    --terminal-tabs-height: var(--tabs-row-height);
+    --session-info-toolbar-height: 48px;
+    --session-info-toolbar-height-mobile: 46px;
+}
+
+/* Desktop loading gate: hide UI until ready (Electron only applies class) */
+html.app-loading #app {
+    opacity: 0;
+}
+html.app-ready #app {
+    opacity: 1;
+    transition: opacity 120ms ease;
+}
+
+/* Explicit dark theme (same as defaults) */
+:root[data-theme='dark'] {
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #252526;
+    --bg-tertiary: #2d2d30;
+    --bg-hover: #3a3a3d;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0a0;
+    --text-dim: #707070;
+    --border-color: #3a3a3d;
+    --accent-color: #007acc;
+    --accent-hover: #0098ff;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 0, 122, 204;
+    --danger-color: #f44336;
+    --success-color: #4caf50;
+    --warning-color: #ff9800;
+}
+
+/* Light theme overrides */
+:root[data-theme='light'] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-tertiary: #f1f3f5;
+    --bg-hover: #e9ecef;
+    --text-primary: #212529;
+    --text-secondary: #495057;
+    --text-dim: #868e96;
+    --border-color: #dee2e6;
+    --accent-color: #0d6efd;
+    --accent-hover: #0b5ed7;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 13, 110, 253;
+    --danger-color: #dc3545;
+    --success-color: #198754;
+    --warning-color: #fd7e14;
+}
+
+/* Auto theme: follow system preference when data-theme is auto or not set */
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme]), :root[data-theme='auto'] {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f8f9fa;
+        --bg-tertiary: #f1f3f5;
+        --bg-hover: #e9ecef;
+        --text-primary: #212529;
+        --text-secondary: #495057;
+        --text-dim: #868e96;
+        --border-color: #dee2e6;
+        --accent-color: #0d6efd;
+        --accent-hover: #0b5ed7;
+        --primary-color: var(--accent-color);
+        --primary-rgb: 13, 110, 253;
+        --danger-color: #dc3545;
+        --success-color: #198754;
+        --warning-color: #fd7e14;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]), :root[data-theme='auto'] {
+        --bg-primary: #1e1e1e;
+        --bg-secondary: #252526;
+        --bg-tertiary: #2d2d30;
+        --bg-hover: #3a3a3d;
+        --text-primary: #e0e0e0;
+        --text-secondary: #a0a0a0;
+        --text-dim: #707070;
+        --border-color: #3a3a3d;
+        --accent-color: #007acc;
+        --accent-hover: #0098ff;
+        --primary-color: var(--accent-color);
+        --primary-rgb: 0, 122, 204;
+        --danger-color: #f44336;
+        --success-color: #4caf50;
+        --warning-color: #ff9800;
+    }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Ensure base font applies broadly */
+html {
+    font-family: var(--app-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+}
+
+body {
+    font-family: var(--app-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile */
+    height: var(--actual-viewport-height, 100dvh); /* Use JS-calculated height when available */
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+/* Form controls and buttons should inherit the app font */
+button,
+input,
+select,
+textarea {
+    font-family: inherit;
+}
+
+/* App Layout */
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile */
+    height: var(--actual-viewport-height, 100dvh); /* Use JS-calculated height when available */
+    position: relative;
+    overflow: hidden;
+}
+
+/* Header */
+.app-header {
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* Desktop draggable titlebar (Electron) */
+    -webkit-app-region: drag;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.app-title {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.app-title h1 {
+    font-size: 1.2rem;
+    font-weight: 500;
+}
+
+/* App Logo */
+.app-logo {
+    display: inline-flex;
+    align-items: center;
+}
+
+.app-logo svg {
+    height: calc(var(--app-header-height, 60px) - 16px); /* slightly smaller for balance */
+    width: auto;
+    display: inline-block;
+}
+
+/* Logo color mappings to theme variables */
+.logo-frame { stroke: var(--border-color); }
+.logo-inner-bevel { stroke: var(--bg-primary); }
+.logo-screen { fill: var(--bg-primary); }
+.logo-prompt { stroke: var(--text-primary); }
+.logo-cursor { fill: var(--text-primary); }
+.logo-path-left { fill: var(--accent-color); }
+.logo-path-center { fill: var(--border-color); }
+.logo-path-right { fill: var(--logo-danger-color, var(--danger-color)); }
+.logo-icon-bg { fill: var(--bg-secondary); stroke: var(--bg-secondary); }
+.logo-icon-detail { fill: var(--text-primary); stroke: var(--text-primary); }
+
+/* Leave space for macOS traffic lights when using hiddenInset title bar */
+.is-electron.platform-mac .app-header {
+    /* Use a CSS variable so we can adjust for page zoom; defaults to 80px */
+    padding-left: var(--mac-header-left-inset, 80px);
+}
+
+/* In fullscreen, traffic lights are hidden – remove extra inset */
+.is-electron.platform-mac.is-fullscreen .app-header {
+    padding-left: 1rem; /* revert to default header padding */
+}
+
+/* Interactive elements within header must not be draggable */
+.app-header button,
+.app-header .nav-btn,
+.app-header a,
+.app-header input,
+.app-header select,
+.app-header .btn-icon,
+.app-header #settings-btn,
+.app-header .mobile-sidebar-toggle,
+.app-header .desktop-sidebar-toggle {
+    -webkit-app-region: no-drag;
+    -webkit-user-select: auto;
+    user-select: auto;
+}
+
+/* Prevent accidental text selection in header titles */
+.app-header h1,
+.app-header h2,
+.app-header .nav-text {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Sidebar watermark logo */
+.terminal-sidebar { position: relative; }
+.sidebar-logo {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    opacity: 0.14;
+    pointer-events: none;
+}
+.sidebar-logo svg, .sidebar-logo img {
+    width: 90%; /* slightly smaller again */
+    height: auto;
+    display: block;
+    margin: 0 auto; /* center within sidebar */
+}
+/* Ensure lists render above watermark */
+.terminal-sidebar .workspace-list,
+.terminal-sidebar .session-list {
+    position: relative;
+    z-index: 1;
+}
+
+/* Additional Themes */
+/* Dracula */
+:root[data-theme='dracula'] {
+    --bg-primary: #282a36;
+    --bg-secondary: #343746;
+    --bg-tertiary: #44475a;
+    --bg-hover: #50536a;
+    --text-primary: #f8f8f2;
+    --text-secondary: #e2e2dc;
+    --text-dim: #b9bbbe;
+    --border-color: #44475a;
+    --accent-color: #bd93f9;
+    --accent-hover: #ff79c6;
+    --danger-color: #ff5555;
+    --success-color: #50fa7b;
+    --warning-color: #f1fa8c;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 189, 147, 249;
+}
+
+/* Nord */
+:root[data-theme='nord'] {
+    --bg-primary: #2E3440;
+    --bg-secondary: #3B4252;
+    --bg-tertiary: #434C5E;
+    --bg-hover: #4C566A;
+    --text-primary: #D8DEE9;
+    --text-secondary: #E5E9F0;
+    --text-dim: #81A1C1;
+    --border-color: #4C566A;
+    --accent-color: #88C0D0;
+    --accent-hover: #81A1C1;
+    --danger-color: #BF616A;
+    --success-color: #A3BE8C;
+    --warning-color: #EBCB8B;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 136, 192, 208;
+}
+
+/* Solarized Dark */
+:root[data-theme='solarized-dark'] {
+    --bg-primary: #002b36;
+    --bg-secondary: #073642;
+    --bg-tertiary: #0b3a45;
+    --bg-hover: #0f3f4c;
+    --text-primary: #93a1a1;
+    --text-secondary: #839496;
+    --text-dim: #657b83;
+    --border-color: #073642;
+    --accent-color: #268bd2;
+    --accent-hover: #2aa198;
+    --danger-color: #dc322f;
+    --success-color: #859900;
+    --warning-color: #b58900;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 38, 139, 210;
+}
+
+/* Solarized Light */
+:root[data-theme='solarized-light'] {
+    --bg-primary: #fdf6e3;
+    --bg-secondary: #eee8d5;
+    --bg-tertiary: #e7dfc8;
+    --bg-hover: #e1d9c8;
+    --text-primary: #657b83;
+    --text-secondary: #586e75;
+    --text-dim: #93a1a1;
+    --border-color: #ddd4bf;
+    --accent-color: #268bd2;
+    --accent-hover: #2aa198;
+    --danger-color: #dc322f;
+    --success-color: #859900;
+    --warning-color: #b58900;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 38, 139, 210;
+}
+
+/* Gruvbox Dark */
+:root[data-theme='gruvbox-dark'] {
+    --bg-primary: #282828;
+    --bg-secondary: #32302f;
+    --bg-tertiary: #3c3836;
+    --bg-hover: #504945;
+    --text-primary: #ebdbb2;
+    --text-secondary: #d5c4a1;
+    --text-dim: #bdae93;
+    --border-color: #504945;
+    --accent-color: #fabd2f;
+    --accent-hover: #fe8019;
+    --danger-color: #cc241d;
+    --success-color: #b8bb26;
+    --warning-color: #d79921;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 250, 189, 47;
+}
+
+/* Monokai */
+:root[data-theme='monokai'] {
+    --bg-primary: #272822;
+    --bg-secondary: #2d2f26;
+    --bg-tertiary: #3b3d30;
+    --bg-hover: #49483e;
+    --text-primary: #f8f8f2;
+    --text-secondary: #e2e2dc;
+    --text-dim: #a6a69c;
+    --border-color: #49483e;
+    --accent-color: #66d9ef;
+    --accent-hover: #a1efe4;
+    --danger-color: #f92672;
+    --success-color: #a6e22e;
+    --warning-color: #f4bf75;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 102, 217, 239;
+}
+
+/* Tokyo Night */
+:root[data-theme='tokyo-night'] {
+    --bg-primary: #1a1b26;
+    --bg-secondary: #24283b;
+    --bg-tertiary: #2f334d;
+    --bg-hover: #3b3f5a;
+    --text-primary: #c0caf5;
+    --text-secondary: #a9b1d6;
+    --text-dim: #7aa2f7;
+    --border-color: #414868;
+    --accent-color: #7aa2f7;
+    --accent-hover: #bb9af7;
+    --danger-color: #f7768e;
+    --success-color: #9ece6a;
+    --warning-color: #e0af68;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 122, 162, 247;
+    /* For logo right path, borrow Nord danger color */
+    --logo-danger-color: #BF616A;
+}
+
+/* Catppuccin Mocha */
+:root[data-theme='catppuccin-mocha'] {
+    --bg-primary: #1e1e2e;
+    --bg-secondary: #242436;
+    --bg-tertiary: #2b2b3b;
+    --bg-hover: #313244;
+    --text-primary: #cdd6f4;
+    --text-secondary: #bac2de;
+    --text-dim: #a6adc8;
+    --border-color: #313244;
+    --accent-color: #89b4fa;
+    --accent-hover: #b4befe;
+    --danger-color: #f38ba8;
+    --success-color: #a6e3a1;
+    --warning-color: #f9e2af;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 137, 180, 250;
+}
+
+/* Catppuccin Latte */
+:root[data-theme='catppuccin-latte'] {
+    --bg-primary: #eff1f5;
+    --bg-secondary: #e6e9ef;
+    --bg-tertiary: #e0e4ea;
+    --bg-hover: #dce0e8;
+    --text-primary: #4c4f69;
+    --text-secondary: #5c5f77;
+    --text-dim: #6c6f85;
+    --border-color: #bcc0cc;
+    --accent-color: #1e66f5;
+    --accent-hover: #7287fd;
+    --danger-color: #d20f39;
+    --success-color: #40a02b;
+    --warning-color: #df8e1d;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 30, 102, 245;
+}
+
+/* One Dark */
+:root[data-theme='one-dark'] {
+    --bg-primary: #282c34;
+    --bg-secondary: #2c313a;
+    --bg-tertiary: #353b45;
+    --bg-hover: #3e4451;
+    --text-primary: #abb2bf;
+    --text-secondary: #c0c5ce;
+    --text-dim: #9da5b4;
+    --border-color: #3a3f4b;
+    --accent-color: #61afef;
+    --accent-hover: #56b6c2;
+    --danger-color: #e06c75;
+    --success-color: #98c379;
+    --warning-color: #e5c07b;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 97, 175, 239;
+}
+
+/* Night Owl */
+:root[data-theme='night-owl'] {
+    --bg-primary: #011627;
+    --bg-secondary: #0b2942;
+    --bg-tertiary: #112d4e;
+    --bg-hover: #1f4563;
+    --text-primary: #d6deeb;
+    --text-secondary: #c5e4fd;
+    --text-dim: #82aaff;
+    --border-color: #1d3b53;
+    --accent-color: #82aaff;
+    --accent-hover: #c792ea;
+    --danger-color: #ef5350;
+    --success-color: #22da6e;
+    --warning-color: #addb67;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 130, 170, 255;
+}
+
+/* Gruvbox Light */
+:root[data-theme='gruvbox-light'] {
+    --bg-primary: #fbf1c7;
+    --bg-secondary: #f2e5bc;
+    --bg-tertiary: #ebdbb2;
+    --bg-hover: #e0d3a4;
+    --text-primary: #3c3836;
+    --text-secondary: #504945;
+    --text-dim: #7c6f64;
+    --border-color: #ebdbb2;
+    --accent-color: #076678;
+    --accent-hover: #427b58;
+    --danger-color: #cc241d;
+    --success-color: #98971a;
+    --warning-color: #d79921;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 7, 102, 120;
+}
+
+/* Forest Dark */
+:root[data-theme='forest-dark'] {
+    --bg-primary: #0f1f17;
+    --bg-secondary: #13261c;
+    --bg-tertiary: #183322;
+    --bg-hover: #1e3f2a;
+    --text-primary: #dcefe2;
+    --text-secondary: #b9d5c2;
+    --text-dim: #8fb79d;
+    --border-color: #1e3f2a;
+    --accent-color: #2e7d32;
+    --accent-hover: #3fa04a;
+    --danger-color: #e57373;
+    --success-color: #66bb6a;
+    --warning-color: #d4a932;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 46, 125, 50;
+}
+
+/* Forest Light */
+:root[data-theme='forest-light'] {
+    --bg-primary: #eaf4ec;
+    --bg-secondary: #e1eee4;
+    --bg-tertiary: #d7e6db;
+    --bg-hover: #cfe0d4;
+    --text-primary: #2a4b31;
+    --text-secondary: #3a6042;
+    --text-dim: #5c8064;
+    --border-color: #c4d6c9;
+    --accent-color: #2e7d32;
+    --accent-hover: #1b5e20;
+    --danger-color: #c62828;
+    --success-color: #2e7d32;
+    --warning-color: #b8860b;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 46, 125, 50;
+}
+
+/* Everforest Dark */
+:root[data-theme='everforest-dark'] {
+    --bg-primary: #2b3339;
+    --bg-secondary: #323d43;
+    --bg-tertiary: #3a454a;
+    --bg-hover: #445055;
+    --text-primary: #d3c6aa;
+    --text-secondary: #c0b18b;
+    --text-dim: #a7c080;
+    --border-color: #3b4349;
+    --accent-color: #a7c080;
+    --accent-hover: #83c092;
+    --danger-color: #e67e80;
+    --success-color: #a7c080;
+    --warning-color: #dbbc7f;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 167, 192, 128;
+}
+
+/* Everforest Light */
+:root[data-theme='everforest-light'] {
+    --bg-primary: #f3f4f3;
+    --bg-secondary: #e8ebe7;
+    --bg-tertiary: #dde2dc;
+    --bg-hover: #d4dbd3;
+    --text-primary: #4c555a;
+    --text-secondary: #5c666b;
+    --text-dim: #6f7a7e;
+    --border-color: #cbd3c7;
+    --accent-color: #8da101;
+    --accent-hover: #a7c080;
+    --danger-color: #e68183;
+    --success-color: #8da101;
+    --warning-color: #dfa000;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 141, 161, 1;
+}
+
+/* Matrix */
+:root[data-theme='matrix'] {
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #111111;
+    --bg-hover: #1a1a1a;
+    --text-primary: #c8ffc8;
+    --text-secondary: #8cff8c;
+    --text-dim: #57d06c;
+    --border-color: #133313;
+    --accent-color: #00ff66;
+    --accent-hover: #33ff88;
+    --danger-color: #ff5555;
+    --success-color: #00e676;
+    --warning-color: #c6ff00;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 0, 255, 102;
+}
+
+/* Autumn Morning (light, warm) */
+:root[data-theme='autumn-morning'] {
+    --bg-primary: #FAF3E0; /* pale cream */
+    --bg-secondary: #F4E7CB;
+    --bg-tertiary: #ECDCC0;
+    --bg-hover: #E6D5B8;
+    --text-primary: #2C2A27; /* deep coffee */
+    --text-secondary: #5C5146;
+    --text-dim: #766953; /* darkened for WCAG AA */
+    --border-color: #DACBB5;
+    --accent-color: #B8640A; /* darkened amber for contrast */
+    --accent-hover: #C76E0A; /* darkened hover */
+    --danger-color: #C2410C; /* rust */
+    --success-color: #4D7C0F; /* olive */
+    --warning-color: #B45309; /* burnt orange */
+    --primary-color: var(--accent-color);
+    --primary-rgb: 184, 100, 10;
+}
+
+/* Autumn Afternoon (golden, mid-warm) */
+:root[data-theme='autumn-afternoon'] {
+    --bg-primary: #F6E6D1; /* warm parchment */
+    --bg-secondary: #EDD9BD;
+    --bg-tertiary: #E3CCAA;
+    --bg-hover: #DEC49F;
+    --text-primary: #2B1D12; /* dark walnut */
+    --text-secondary: #5A3E2B;
+    --text-dim: #755939; /* darkened for WCAG AA */
+    --border-color: #D6B893;
+    --accent-color: #C2410C; /* burnt sienna */
+    --accent-hover: #C74B0C; /* darkened hover for contrast */
+    --danger-color: #B91C1C;
+    --success-color: #256B48; /* darker moss for contrast */
+    --warning-color: #D97706; /* amber */
+    --primary-color: var(--accent-color);
+    --primary-rgb: 194, 65, 12;
+}
+
+/* Autumn Night (dark, cozy) */
+:root[data-theme='autumn-night'] {
+    --bg-primary: #1F1A17; /* deep brown */
+    --bg-secondary: #261F1B;
+    --bg-tertiary: #2D2520;
+    --bg-hover: #3A2F28;
+    --text-primary: #EADFD3; /* warm light */
+    --text-secondary: #CDB9A3;
+    --text-dim: #A69078;
+    --border-color: #3E322A;
+    --accent-color: #E58E26; /* pumpkin */
+    --accent-hover: #FF9F1C;
+    --danger-color: #D85858; /* adjusted for contrast */
+    --success-color: #7BA05B; /* sage */
+    --warning-color: #D97706; /* amber */
+    --primary-color: var(--accent-color);
+    --primary-rgb: 229, 142, 38;
+}
+
+/* Winter Morning (light, crisp) */
+:root[data-theme='winter-morning'] {
+    --bg-primary: #F2F7FB; /* icy white */
+    --bg-secondary: #E6F0F7;
+    --bg-tertiary: #D9E8F4;
+    --bg-hover: #D0E1EF;
+    --text-primary: #223047; /* deep slate */
+    --text-secondary: #3C4B63;
+    --text-dim: #5A6B85; /* meets WCAG AA on light bg */
+    --border-color: #C7D6E6;
+    --accent-color: #0EA5E9; /* sky blue */
+    --accent-hover: #0284C7; /* darker hover for contrast */
+    --danger-color: #B91C1C; /* cool red */
+    --success-color: #166534; /* deep green for contrast */
+    --warning-color: #B45309; /* muted amber */
+    --primary-color: var(--accent-color);
+    --primary-rgb: 14, 165, 233;
+}
+
+/* Winter Afternoon (cool, subdued) */
+:root[data-theme='winter-afternoon'] {
+    --bg-primary: #EAF2F8; /* soft blue-grey */
+    --bg-secondary: #DFEBF5;
+    --bg-tertiary: #D5E4F0;
+    --bg-hover: #CDDEEC;
+    --text-primary: #1F2A44; /* navy slate */
+    --text-secondary: #354764;
+    --text-dim: #556987;
+    --border-color: #C0D0E2;
+    --accent-color: #0369A1; /* darker icy blue for AA contrast */
+    --accent-hover: #0284C7;
+    --danger-color: #DC2626;
+    --success-color: #15803D;
+    --warning-color: #D97706;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 3, 105, 161;
+}
+
+/* Winter Night (dark, icy) */
+:root[data-theme='winter-night'] {
+    --bg-primary: #0B1220; /* deep navy */
+    --bg-secondary: #111A2B;
+    --bg-tertiary: #162034;
+    --bg-hover: #1F2A44;
+    --text-primary: #E6F0FA; /* frosted white */
+    --text-secondary: #C9D7E8;
+    --text-dim: #9CB2CC;
+    --border-color: #243554;
+    --accent-color: #38BDF8; /* ice */
+    --accent-hover: #22D3EE;
+    --danger-color: #F87171;
+    --success-color: #34D399;
+    --warning-color: #F59E0B;
+    --primary-color: var(--accent-color);
+    --primary-rgb: 56, 189, 248;
+}
+
+/* Connection Status */
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background-color: transparent; /* match header to avoid visible box */
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--text-dim);
+    transition: background-color 0.3s;
+}
+
+.status-indicator.connected {
+    background-color: var(--success-color);
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.disconnected {
+    background-color: var(--danger-color);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Subtle size+opacity pulse for sidebar activity indicators */
+@keyframes activity-pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2); /* slightly larger max size */
+    }
+}
+
+/* Navigation */
+.app-nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-buttons {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-tertiary);
+    border-radius: 6px;
+    padding: 0.25rem;
+    /* Use margin-based spacing on children for broad compatibility */
+}
+/* Default spacing between nav buttons (desktop) */
+.nav-buttons .nav-btn + .nav-btn { margin-left: 1rem; }
+
+.nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.nav-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.nav-btn.active {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.nav-icon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-text {
+    font-weight: 500;
+}
+
+/* Mobile: icons-only nav buttons */
+@media (max-width: 768px) {
+    .app-nav .nav-buttons { /* no flex gap to ensure cross-browser consistency */ }
+    /* Slightly tighter spacing and button width on mobile */
+    .nav-buttons .nav-btn + .nav-btn { margin-left: 0.5rem; }
+    .app-nav .nav-btn { padding: 0.4rem 0.6rem; gap: 0; }
+    .app-nav .nav-btn .nav-text { display: none; }
+}
+
+/* Notification center button spacing + alignment override */
+.header-notification-btn {
+    /* Remove border to visually group with avatar */
+    border: none;
+    /* Small positive gap before the avatar (account button) */
+    margin-right: 6px !important;
+    /* Ensure vertical centering matches account button */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Header reload button placed to the left of the bell */
+.header-reload-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Provide a small gap before the bell */
+    margin-right: 4px;
+    /* Borderless to match bell + avatar */
+    border: none;
+}
+
+/* Bring user menu button closer to the right edge */
+#user-menu-btn {
+    margin-right: -4px; /* nudge further right */
+}
+
+.nav-button {
+    padding: 0.5rem 1rem;
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.nav-button:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.nav-button.active {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+/* Version Display */
+.version-display {
+    margin-left: 0.25rem;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.version-text {
+    font-weight: 500;
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+/* Nudge version label right in user menu header */
+#user-menu-version-text { margin-left: 8px; }
+
+.environment-text {
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 0.125rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Version badge styling: same pill as environment but preserve lowercase 'v' */
+.version-badge {
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 0.125rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.625rem;
+    text-transform: none; /* keep lowercase 'v' */
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Notification origin badge (Server/Local) */
+.source-badge {
+    display: inline-block;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    letter-spacing: 0.2px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    width: fit-content;
+}
+.source-badge.server { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
+.source-badge.local { background: var(--bg-hover); color: var(--text-secondary); }
+
+/* Notification footer two-row layout helpers */
+.notification-item-bottom-row,
+.notification-bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Main Content */
+.app-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.page {
+    display: none;
+    height: 100%;
+}
+
+.page.active {
+    display: block;
+}
+
+/* Desktop layout: header at top, sidebar and content side-by-side below */
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile */
+}
+
+/* Container for sidebar and content - horizontal layout */
+.main-layout {
+    display: flex;
+    flex: 1;
+    min-height: 0; /* Allow flex items to shrink below content size */
+    overflow: hidden;
+    position: relative;
+}
+
+.app-content {
+    flex: 1;
+}
+
+/* Terminal Container */
+.terminal-container {
+    display: flex;
+    height: 100%;
+    flex: 1;
+    min-height: 0; /* Allow proper flexbox shrinking */
+    overflow: hidden;
+    position: relative;
+}
+
+/* Ensure xterm container fills available space */
+.xterm {
+    height: 100%;
+    width: 100%;
+    position: relative; /* allow hover overlay to position */
+}
+
+/* Override xterm viewport background to inherit from terminal theme */
+.xterm .xterm-viewport {
+    background-color: inherit !important;
+}
+
+/* Debug markers overlay removed */
+
+/* Minimal visual hint when dragging over xterm */
+.xterm.xterm-drop-hover::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px var(--accent-color);
+    border-radius: 2px;
+}
+
+/* Prevent scrolling issues on mobile */
+.keyboard-open .terminal-container {
+    /* Use all available space when keyboard is open */
+    height: 100%;
+    max-height: 100%;
+}
+
+/* Terminal Sidebar */
+.terminal-sidebar {
+    /* Use a CSS variable so JS can set width without overriding hidden state */
+    width: var(--sidebar-width, 380px); /* adjusted from 420px per feedback */
+    background-color: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    transition: width 0.3s ease, margin-left 0.3s ease;
+    position: relative; /* for resize handle positioning */
+}
+
+/* Disable transitions while actively resizing for smoother feel */
+.terminal-sidebar.resizing {
+    transition: none;
+}
+
+/* Sidebar Hidden States */
+.terminal-sidebar.sidebar-hidden {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    border-right: none;
+}
+
+/* Sidebar resize handle (desktop only) */
+.terminal-sidebar .sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: -3px; /* small overlap to make it easy to grab */
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 2;
+}
+
+.terminal-sidebar .sidebar-resizer:hover,
+.terminal-sidebar .sidebar-resizer.dragging {
+    background: var(--bg-hover);
+}
+
+/* Hide handle when sidebar is hidden */
+.terminal-sidebar.sidebar-hidden .sidebar-resizer {
+    display: none;
+}
+
+.main-layout:has(.terminal-sidebar.sidebar-hidden) .app-content {
+    margin-left: 0;
+    width: 100%;
+}
+
+/* Fallback for browsers that don't support :has() */
+.main-layout.sidebar-hidden .app-content {
+    margin-left: 0;
+    width: 100%;
+}
+
+.desktop-sidebar-toggle.sidebar-hidden {
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+.sidebar-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.sidebar-header h2 {
+    font-size: 1rem;
+    font-weight: 500;
+    margin: 0;
+}
+
+.sidebar-header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.mobile-sidebar-close {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.mobile-sidebar-close:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.mobile-sidebar-close:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+/* Search Container */
+.search-container {
+    /* Equalize vertical padding to center the input */
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.search-input::placeholder {
+    color: var(--text-dim);
+}
+
+.search-clear {
+    position: absolute;
+    right: 1.5rem;
+    top: calc(0.5rem + 0.5rem - 2px);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--text-dim);
+    color: var(--bg-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 0.8;
+    padding-top: 1px;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.search-clear:hover {
+    background-color: var(--text-secondary);
+}
+
+/* Template Filter Container */
+.template-filter-container {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+}
+
+.template-filter-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    align-items: center;
+}
+
+.template-filter-clear {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0;
+    width: 1.2rem;
+    height: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    transition: all 0.2s;
+    margin-left: 0.5rem;
+}
+
+.template-filter-clear:hover {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.template-filter-option {
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.template-filter-option:hover {
+    background: var(--bg-primary);
+    border-color: var(--accent-color);
+}
+
+.template-filter-option.selected {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+.template-filter-option.no-template {
+    font-style: italic;
+    opacity: 0.8;
+}
+
+/* Pinned Filter Container */
+.pinned-filter-container {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.pinned-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: var(--text-primary);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.pinned-filter-btn:hover {
+    background: var(--bg-primary);
+    border-color: var(--accent-color);
+}
+
+.pinned-filter-btn.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+.pinned-filter-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+}
+
+/* Session Filter Tabs */
+.session-filter-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+}
+
+.filter-tab {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    background-color: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 2px solid transparent;
+}
+
+.filter-tab:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.filter-tab.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+    background-color: var(--bg-tertiary);
+}
+
+/* Session List */
+.session-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+    min-height: 100px; /* Ensure container is a valid drop target */
+}
+
+/* Workspace List */
+.workspace-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+    min-height: 100px;
+}
+
+.workspace-item {
+    padding: 1rem;
+    margin-bottom: 0.85rem;
+    background-color: var(--bg-tertiary);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s, box-shadow 0.15s, border-color 0.15s;
+    display: block;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.workspace-item.collapsed {
+    padding-bottom: 0.5rem;
+}
+
+.workspace-item:hover { /* neutralize background/shadow on hover */
+    background-color: var(--bg-tertiary);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+/* Hover behavior based on selection */
+.workspace-item.active:hover { /* selected workspace: only thicker left accent using inset shadow */
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--accent-color);
+    /* keep original accent glow and add inset left bar without shifting content */
+    box-shadow: 0 0 0 2px rgba(100, 150, 250, 0.15), inset 3px 0 0 0 var(--accent-color);
+}
+.workspace-item:not(.active):hover {
+    box-shadow: inset 2px 0 0 0 var(--accent-color);
+}
+
+.workspace-item.active {
+    border: 1px solid var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(100, 150, 250, 0.15);
+}
+
+/* Drag styles for workspace items */
+.workspace-item.dragging {
+    opacity: 0.6;
+    cursor: move;
+}
+.workspace-item.drag-over-before {
+    border-top: 2px solid var(--accent-color);
+    padding-top: calc(0.75rem - 2px);
+}
+.workspace-item.drag-over-after {
+    border-bottom: 2px solid var(--accent-color);
+    padding-bottom: calc(0.75rem - 2px);
+}
+
+.workspace-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.workspace-stats {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Workspace picker in modal */
+.workspace-picker-group { position: relative; }
+.workspace-picker { display: flex; gap: 0.5rem; align-items: center; }
+.workspace-dropdown-btn { padding: 0.45rem 0.6rem; }
+.workspace-dropdown {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-top: 0.25rem;
+    z-index: 10002;
+    max-height: 220px;
+    overflow-y: auto;
+}
+.workspace-add-inline { display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center; }
+.workspace-add-inline input { flex: 1; }
+.form-error { color: #ff6b6b; font-size: 0.85rem; margin-top: 0.35rem; }
+.workspace-dropdown .workspace-item-option {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+}
+.workspace-dropdown .workspace-item-option:hover {
+    background: var(--bg-hover);
+}
+
+.session-item {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+}
+
+.session-item:hover {
+    /* Hover: blue left accent; keep background subtle */
+    background-color: var(--bg-hover);
+    box-shadow: inset 3px 0 0 0 var(--accent-color);
+}
+
+/* Ensure selected also gets left accent on hover (no border otherwise) */
+.session-item.selected:hover {
+    box-shadow: inset 3px 0 0 0 var(--accent-color);
+}
+
+/* Selected session uses the same alternate background to indicate selection */
+/* Selected: strong, consistent highlight similar to workspace */
+.session-item.selected {
+    /* Selected: simple background highlight, no border */
+    background-color: var(--bg-hover);
+}
+
+/* Subtle tint for local-only sessions in the sidebar */
+.session-item.session-local {
+    background-color: var(--bg-secondary);
+}
+
+/* When hovering another item, temporarily remove the selection background so only one highlight shows */
+/* Do not suppress the selected highlight when hovering elsewhere */
+
+.session-info {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Child login/container sessions listed under a parent session */
+.session-children {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.session-item.session-children-hidden .session-children {
+    display: none !important;
+}
+
+.session-child-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    padding: 4px 6px 4px 12px;
+    border-left: 2px solid var(--border-color);
+    border-radius: 2px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.session-child-item:hover {
+    background-color: var(--bg-hover);
+}
+
+.session-child-item.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    box-shadow: inset 3px 0 0 0 var(--accent-color);
+}
+
+.session-child-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    flex: 0 0 auto;
+}
+
+.session-child-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.session-child-ended {
+    margin-left: 8px;
+    font-size: 0.72rem;
+    color: var(--warning-color);
+}
+
+.session-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.session-template {
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Ensure inline elements keep fixed spacing regardless of sidebar width */
+    display: inline-flex;
+    align-items: center;
+}
+
+.template-badge {
+    display: inline-block;
+    background: none;
+    color: var(--accent-color);
+    border: 1px solid var(--accent-color);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin: 0 4px 0 0;
+    vertical-align: top;
+}
+
+/* Reserve space for visibility icon to the left of template badge in sidebar */
+.session-template .visibility-icon-slot,
+.visibility-icon-slot {
+    display: inline-flex;
+    width: 16px; /* match icon width */
+    margin-right: 6px;
+    vertical-align: middle;
+}
+/* Do not let the reserved slot shrink when the container narrows */
+.session-template .visibility-icon-slot { flex: 0 0 16px; }
+
+/* Ensure the visibility icon aligns nicely next to the badge */
+.session-template .visibility-icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    margin-right: 6px; /* spacing before badge when directly inserted */
+}
+.session-template .visibility-icon .bi { display: block; }
+
+/* Activity indicator (dot) sizing/spacing and theme color */
+/* Reserve space even when indicator is hidden */
+.activity-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start; /* no left gap */
+    width: 11px; /* slightly tighter, shared for dot and ring */
+    min-width: 11px; /* keep spacing consistent as sidebar shrinks */
+    height: 1em; /* align with text line */
+    line-height: 0; /* avoid baseline offsets for inner indicators */
+    vertical-align: middle;
+}
+/* When inside the template line, prevent shrinking */
+.session-template .activity-slot { flex: 0 0 11px; }
+.activity-indicator {
+    display: block;
+    width: 6px; /* slightly smaller base dot */
+    height: 6px;
+    margin: 0; /* spacing handled by slot width */
+    /* Fade control: default hidden, becomes visible when .active is present */
+    opacity: 0;
+    transition: opacity 0.18s ease;
+    will-change: opacity;
+    transform-origin: center center;
+}
+.activity-indicator.active { opacity: 1; }
+.activity-indicator.connected {
+    background-color: var(--accent-color) !important; /* use theme accent */
+    /* Use a slightly enlarging pulse for sidebar activity dots */
+    animation: activity-pulse 2s infinite;
+}
+/* Static "stopped while hidden" indicator: same accent dot with an outline ring */
+.activity-indicator.status-indicator.pending {
+    position: relative;
+    width: 9px;  /* slightly smaller ring */
+    height: 9px;
+    background-color: transparent;
+    border-radius: 50%;
+    border: 1.75px solid var(--accent-color); /* slightly thicker ring for clarity */
+    animation: none;
+    box-shadow: none;
+}
+
+/* Local session indicator badge */
+.local-badge {
+    display: inline-block;
+    background: none;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin: 0 6px 0 0;
+    vertical-align: top;
+}
+
+/* Remove right margin for badges in sidebar */
+.session-template .template-badge {
+    margin-right: 0;
+}
+
+/* Template badge opacity for inactive sessions */
+.session-item.terminated .template-badge,
+.session-item.idle .template-badge {
+    opacity: 0.6;
+}
+
+/* Apply the same dimming to LOCAL badge on inactive sessions for consistency */
+.session-item.terminated .local-badge,
+.session-item.idle .local-badge {
+    opacity: 0.6;
+}
+
+/* Template badge styling for active sessions - keep full opacity */
+.session-item.connected .template-badge,
+.session-item.selected .template-badge {
+    opacity: 1;
+}
+
+.session-command {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.session-details {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+}
+
+.session-id {
+    font-family: monospace;
+}
+
+.session-directory {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.session-time {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+}
+
+.session-status {
+    display: flex;
+    align-items: center;
+}
+
+/* Activity change indicator (small dot reserved next to badge) */
+/* Removed deprecated activity-dot styles (replaced by activity-indicator inside activity-slot) */
+
+/* Small numeric indicator for sidebar session ordering (1-9) */
+.session-number-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; /* slight increase for more padding */
+    height: 20px; /* keep square shape */
+    margin-left: 6px;
+    border-radius: 6px; /* rounded square */
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.status-connected {
+    color: var(--success-color);
+}
+
+.status-idle {
+    color: var(--text-dim);
+}
+
+.status-terminated {
+    color: var(--warning-color);
+}
+
+/* Status badge styles for client count display */
+.status-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1;
+    z-index: 10;
+}
+
+.status-badge.status-connected {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.status-badge.status-idle {
+    background-color: var(--text-dim);
+    color: white;
+}
+
+.session-status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 6px;
+    margin-right: 4px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-dim);
+}
+
+.session-status-pill--ended {
+    background-color: rgba(255, 152, 0, 0.16);
+    color: var(--warning-color, #ff9800);
+}
+
+/* Fast tooltip system */
+.status-badge[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: normal;
+    white-space: nowrap;
+    z-index: 1000;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    animation: tooltipFadeIn 0.15s ease-out;
+}
+
+.status-badge[data-tooltip]:hover::before {
+    content: "";
+    position: absolute;
+    top: 115%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-bottom-color: var(--border-color);
+    z-index: 1000;
+}
+
+@keyframes tooltipFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* Session status classes */
+.session-item.terminated {
+    opacity: 0.7;
+    border-left: 3px solid var(--warning-color);
+}
+
+.session-item.connected {
+    border-left: 3px solid var(--success-color);
+}
+
+.session-item.idle {
+    border-left: 3px solid var(--text-dim);
+}
+
+/* Relaunch/Fork button for terminated sessions */
+.relaunch-btn, .fork-btn {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+}
+
+.relaunch-btn:hover, .fork-btn:hover {
+    background: var(--accent-hover);
+    transform: scale(1.05);
+}
+
+.relaunch-btn:active, .fork-btn:active {
+    transform: scale(0.95);
+}
+
+/* Load History button for terminated sessions */
+.load-history-btn {
+    background: var(--info-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+}
+
+.load-history-btn:hover {
+    background: #117a8b; /* Darker blue */
+    transform: scale(1.05);
+}
+
+.load-history-btn:active {
+    transform: scale(0.95);
+}
+
+/* Pinned session styles */
+.session-item.pinned {
+    background-color: var(--bg-secondary);
+    position: relative;
+}
+
+.session-item.pinned:hover {
+    background-color: var(--bg-hover);
+}
+
+.session-item.pinned.selected {
+    /* Selected pinned: same simple highlight */
+    background-color: var(--bg-hover);
+}
+
+/* Drag and drop styles for session items */
+.session-item.dragging {
+    opacity: 0.5;
+    cursor: move;
+}
+
+.session-item.drag-over-before {
+    border-top: 2px solid var(--accent-color);
+    padding-top: calc(0.75rem - 2px);
+}
+
+.session-item.drag-over-after {
+    border-bottom: 2px solid var(--accent-color);
+    padding-bottom: calc(0.75rem - 2px);
+}
+
+.pin-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 14px;
+    height: 14px;
+    color: #ff4444;
+    z-index: 10;
+}
+
+/* Context Menu Styles */
+.terminal-context-menu {
+    position: fixed;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    min-width: 150px;
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    user-select: none;
+}
+
+.context-menu-item:hover {
+    background-color: var(--bg-hover);
+}
+
+.context-menu-icon {
+    margin-right: 0.75rem;
+    font-size: 1.1rem;
+    width: 1.5rem;
+    text-align: center;
+}
+
+.context-menu-label {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    flex: 1;
+}
+
+.context-menu-submenu {
+    position: relative;
+}
+
+.context-submenu-arrow {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin-left: 0.5rem;
+}
+
+.context-submenu {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    min-width: 140px;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    z-index: 10001;
+}
+
+/* Slightly wider submenus for session context menu (e.g., Copy submenu) */
+.terminal-context-menu.session-context-menu .context-submenu {
+    min-width: 200px;
+}
+
+.context-menu-submenu.submenu-open > .context-submenu {
+    visibility: visible;
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.context-submenu-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    user-select: none;
+}
+
+.context-submenu-item:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Non-clickable header row for nested submenus */
+.context-submenu-header {
+    cursor: default;
+    pointer-events: none;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+/* Mobile adjustments for context menu */
+@media (max-width: 768px) {
+    .terminal-context-menu {
+        min-width: 180px;
+    }
+    /* For session context menu only, apply fixed-left centering on mobile */
+    .terminal-context-menu.session-context-menu {
+        left: 12px !important;
+        top: 50% !important;
+        right: auto !important;
+        bottom: auto !important;
+        transform: translateY(-50%) !important;
+    }
+    
+    .context-menu-item {
+        padding: 0.75rem 1rem;
+    }
+    
+    .context-menu-label {
+        font-size: 1rem;
+    }
+    
+    /* Save History label removed */
+}
+/* Keyboard Shortcuts Modal (lightweight styling) */
+.shortcuts-controls {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0;
+}
+.shortcuts-options {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.shortcuts-status {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.shortcuts-pressed,
+.shortcuts-last {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 8px;
+    border-radius: 6px;
+    min-height: 32px;
+}
+.shortcuts-list {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 8px;
+    border-radius: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+}
+.shortcuts-item {
+    padding: 4px 0;
+    border-bottom: 1px dashed rgba(255,255,255,0.12);
+}
+.shortcuts-item:last-child {
+    border-bottom: none;
+}
+
+/* Terminal Main Area */
+.terminal-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.terminal-header {
+    padding: 0.75rem 1rem;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative; /* anchor for absolute-positioned dropdowns on mobile */
+}
+
+.terminal-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    /* Allow left area to shrink so controls stay visible */
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.terminal-session-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.50rem;
+    /* Allow child title row to shrink so ellipsis can work */
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.terminal-title {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    /* Align badge + title on one line and enable truncation */
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Slightly more spacing to match sidebar feel */
+    min-width: 0;
+}
+
+.session-status-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-dim);
+    margin-left: 6px;
+}
+
+.session-status-indicator--ended {
+    background-color: rgba(255, 152, 0, 0.16);
+    color: var(--warning-color, #ff9800);
+}
+
+/* Ensure badge doesn't consume flexible space */
+.terminal-title .template-badge { flex: 0 0 auto; }
+/* Ensure LOCAL badge in header doesn’t flex */
+.terminal-title .local-badge { flex: 0 0 auto; }
+
+/* Truncate long titles with ellipsis */
+.terminal-title .workspace-session-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.terminal-session-id {
+    color: var(--text-secondary);
+    font-family: monospace;
+    font-size: 0.75rem;
+    line-height: 1.2;
+}
+
+.terminal-status-message {
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-left: 0.5rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    background: rgba(128, 128, 128, 0.1);
+    transition: opacity 0.3s ease;
+    opacity: 0;
+    flex: 0 0 auto;
+}
+
+.terminal-status-message.show {
+    opacity: 1;
+}
+
+.terminal-status-message.error {
+    color: var(--danger);
+    background: rgba(255, 68, 68, 0.1);
+}
+
+.terminal-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* Ensure terminal toolbar buttons have perfectly centered labels */
+.terminal-controls .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Fix total height and remove vertical padding for proper centering */
+    height: 36px;
+    padding: 0 0.8rem;
+    line-height: 1;
+}
+
+/* Hide terminal control buttons by default to prevent flash on page load */
+/* XXX #terminal-clear-btn, */
+#terminal-detach-btn,
+#terminal-close-btn,
+#text-input-btn {
+    display: none;
+}
+
+/* When a session is selected, force-show the header controls to avoid race conditions on load */
+/* XXX body.session-selected #terminal-clear-btn, */
+body.session-selected #terminal-detach-btn,
+body.session-selected #terminal-close-btn,
+body.session-selected #text-input-btn {
+    display: inline-flex !important;
+}
+
+/* Save History container should also be visible when a session is selected */
+/* Save History control removed */
+
+/* Mobile Keyboard */
+.mobile-keyboard-container {
+    position: relative;
+}
+
+.mobile-keyboard-toggle {
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+/* Mobile Scroll Forward Toggle */
+.mobile-scroll-forward-toggle {
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.mobile-scroll-forward-toggle.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Active states for mobile toolbar buttons */
+.mobile-keyboard-toggle.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+#text-input-btn.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Terminal search toggle active state (match mobile keyboard style) */
+.terminal-search-toggle.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Match search toggle active styling for transitions button */
+.session-transitions-container .btn-icon.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Prevent text selection on toolbar buttons */
+.btn-icon {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    /* Standardize button heights */
+    min-height: 36px;
+    height: 36px;
+    /* Override browser default outline only */
+    outline: none;
+}
+
+/* Override browser default button states */
+.btn-icon:focus,
+.btn-icon:active,
+.btn-icon:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Only show our custom active states - preserve borders */
+.btn-icon:not(.active):focus,
+.btn-icon:not(.active):active {
+    background-color: transparent !important;
+    color: inherit !important;
+    /* Don't override borders - let them maintain their original styling */
+}
+
+/* Accessible focus indicators for header controls (keyboard only) */
+/* These override the global .btn-icon focus reset and apply only on :focus-visible */
+.app-header .btn-icon:focus-visible,
+.app-header .nav-btn:focus-visible,
+.header-notification-btn:focus-visible,
+.header-reload-btn:focus-visible,
+#clear-ended-btn:focus-visible,
+#user-menu-btn:focus-visible {
+    outline: 2px solid rgba(var(--primary-rgb), 0.9) !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.25) !important;
+}
+
+/* Invisible backdrop to prevent click-through to terminal */
+.mobile-keyboard-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999; /* Just below the dropdown */
+    background: transparent; /* Invisible but captures clicks */
+}
+
+.mobile-keyboard-backdrop.show {
+    display: block;
+}
+
+
+.mobile-keyboard-dropdown {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: var(--mobile-keyboard-z-index, 10000); /* Dynamic z-index */
+    min-width: 240px;
+    display: none;
+    padding: 0;
+    touch-action: none; /* Prevent default touch behavior when dragging */
+    opacity: 0.75; /* More transparent for better visibility of content behind */
+}
+
+.mobile-keyboard-dropdown.show {
+    display: block;
+}
+
+/* Dragging state */
+.mobile-keyboard-dropdown.dragging {
+    /* No longer needs opacity since it's always applied */
+    transition: none;
+}
+
+/* Mobile keyboard header for close button */
+.mobile-keyboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 0.5rem 0.25rem 0.5rem;
+}
+
+/* Content padding for keyboard keys */
+.mobile-keyboard-content {
+    padding: 0.5rem;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.mobile-keyboard-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.mobile-keyboard-close:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
+}
+
+.mobile-keyboard-dropdown.dragging .mobile-keyboard-content {
+    cursor: grabbing;
+}
+
+/* Column layout for keyboard */
+.mobile-keyboard-columns {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.mobile-keyboard-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    /* Ensure columns have equal height */
+    align-items: stretch;
+}
+
+.mobile-keyboard-column .mobile-key {
+    flex: 1;
+    /* Allow flex stretching for consistent height */
+    min-height: 2.5rem;
+}
+
+/* Row layout for arrows and navigation */
+.mobile-keyboard-row {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.mobile-keyboard-row .mobile-key {
+    flex: 1;
+    /* Keys in rows should stretch to fill available height */
+    height: 100%;
+    min-height: 2.5rem;
+}
+
+/* Override flex for rows within columns */
+.mobile-keyboard-column .mobile-keyboard-row {
+    /* Remove default margin and use flex for equal height distribution */
+    margin-bottom: 0;
+    flex: 1;
+    /* Ensure rows distribute height equally */
+    display: flex;
+    align-items: stretch;
+}
+
+/* Page navigation under arrow keys */
+.mobile-keyboard-page-nav {
+    display: flex;
+    gap: 0.25rem;
+    /* Remove margin and use flex for equal height */
+    margin-top: 0;
+    flex: 1;
+    align-items: stretch;
+}
+
+.mobile-keyboard-page-nav .page-nav-key {
+    flex: 1;
+    /* Page nav keys should stretch to fill available height */
+    height: 100%;
+    min-height: 2.5rem;
+}
+
+/* Navigation section for page up/down and home/end */
+.mobile-keyboard-navigation {
+    margin-bottom: 0.5rem;
+}
+
+/* Bottom row for number keys */
+.mobile-keyboard-bottom-row {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.mobile-keyboard-bottom-row .mobile-key {
+    flex: 1;
+    /* Consistent height for bottom row keys */
+    min-height: 2.5rem;
+}
+
+.mobile-keyboard-shortcuts-row {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+
+.mobile-keyboard-shortcuts-row .mobile-key {
+    flex: 1;
+    min-height: 2.5rem;
+}
+
+/* Enter row for enter key */
+.mobile-keyboard-enter-row {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+.mobile-keyboard-enter-row .mobile-key {
+    flex: 1;
+    /* Consistent height for enter row key */
+    min-height: 2.5rem;
+}
+
+.mobile-key {
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0.5rem;
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    touch-action: none;
+    /* Flexbox for perfect centering */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Remove margin that could affect layout */
+    margin: 0;
+}
+
+.mobile-key:hover {
+    background-color: var(--bg-hover);
+}
+
+.mobile-key:active {
+    background-color: var(--accent-color);
+}
+
+
+
+/* Terminal View */
+.terminal-view {
+    flex: 1;
+    background-color: var(--bg-primary);
+    position: relative;
+    overflow: hidden;
+    min-height: 0; /* Allow flexbox to shrink properly */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Mobile keyboard open state */
+.keyboard-open .terminal-view {
+    /* Terminal adapts to available space when keyboard is open */
+    height: 100%;
+}
+
+.keyboard-open .xterm-viewport {
+    /* Prevent viewport scrolling when keyboard is open */
+    overflow: hidden !important;
+}
+
+.terminal-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+    font-size: 1.1rem;
+}
+
+/* Full-screen overlay for terminal area while fetching/rendering */
+.terminal-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1000;
+    background: var(--bg-primary);
+}
+
+
+.attach-button-container {
+    flex-direction: column;
+    text-align: center;
+    gap: 20px;
+}
+
+/* Empty state container in terminal view with CTA */
+.empty-state-container {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+}
+
+.attach-prompt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.attach-session-btn {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.attach-description {
+    font-size: 14px;
+    opacity: 0.8;
+    margin: 0;
+}
+
+/* Terminal Terminated Message */
+.terminal-terminated {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    color: var(--text-dim);
+}
+
+.terminal-terminated p {
+    margin: 0 0 1rem 0;
+}
+
+.view-history-btn {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.view-history-btn:hover {
+    background-color: var(--accent-color-hover);
+}
+
+/* Session Tabs Header */
+.session-tabs-container {
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    height: var(--session-tabs-height);
+    box-sizing: border-box; /* include border in declared height */
+}
+
+.session-tabs-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 1rem;
+    position: relative; /* allows absolute-positioned + button */
+    height: var(--session-tabs-height);
+    box-sizing: border-box;
+}
+
+.session-tabs-bar .session-tabs {
+    padding: 0; /* avoid double padding when wrapped */
+}
+
+.session-tabs {
+    display: flex;
+    padding: 0 1rem;
+    gap: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    scroll-behavior: smooth; /* Smooth scrolling behavior */
+    flex: 0 1 auto; /* content width until constrained */
+    min-width: 0; /* enable horizontal scroll when constrained */
+}
+
+.session-tabs::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
+.session-tab {
+    background: none;
+    border: none;
+    padding: 0 1rem; /* vertical size controlled by explicit height */
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    min-width: 120px; /* Minimum width to trigger horizontal scrolling */
+    position: relative;
+    flex-shrink: 0; /* Prevent tabs from shrinking below min-width */
+    height: var(--session-tabs-height);
+    box-sizing: border-box;
+}
+/* Compact width for workspace Notes pseudo-tab (session tabs row) */
+.session-tab.session-tab--workspace-notes { min-width: 44px; padding: 0 0.5rem; }
+.session-tab.session-tab--workspace-notes .session-tab-title { max-width: 28px; }
+
+.session-tab--terminated {
+    opacity: 0.85;
+}
+
+.session-tab-ended {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    text-transform: uppercase;
+    background-color: rgba(255, 152, 0, 0.16);
+    color: var(--warning-color, #ff9800);
+}
+
+.session-tab:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.session-tab.active {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-bottom-color: var(--accent-color);
+}
+
+.session-tab-title {
+    flex: 1;
+    min-width: 0;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: var(--session-tab-title-max-width, 200px);
+}
+
+.session-tab-color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--accent-color);
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+.session-tab-link-indicator {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 0.25rem;
+    opacity: 0.7;
+    color: var(--accent-color);
+    flex-shrink: 0;
+}
+
+/* Right-aligned status area in tabs */
+.session-tab-status {
+    margin-left: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.session-tab-link-indicator svg {
+    width: 12px;
+    height: 12px;
+}
+
+.session-tab:hover .session-tab-link-indicator {
+    opacity: 1;
+}
+
+/* Drag-and-drop indicators for session tabs */
+.session-tab.dragging { opacity: 0.6; }
+.session-tab.drag-over-before { box-shadow: inset 2px 0 0 0 var(--accent-color); }
+.session-tab.drag-over-after { box-shadow: inset -2px 0 0 0 var(--accent-color); }
+
+/* Add Session Button (+) in Session Tabs */
+.session-tab-add {
+    background: none;
+    border: none;
+    padding: 0 1rem; /* vertical size controlled by explicit height */
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    min-width: 40px;
+    position: relative; /* sit as flex item, not scrollable */
+    opacity: 0.7;
+    flex-shrink: 0;
+    height: var(--session-tabs-height);
+    box-sizing: border-box;
+    /* Avoid text selection/highlight on click */
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.session-tab-add:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+.session-tab-add .session-tab-title {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}
+
+/* Tab Interface for Terminal + Link Viewing */
+.terminal-tabs-bar {
+    display: flex;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 1rem;
+    gap: 0;
+    align-items: stretch;
+    height: var(--terminal-tabs-height);
+    box-sizing: border-box; /* include border in declared height */
+}
+
+.terminal-tabs-bar .terminal-tab-add {
+    /* Ensure consistent vertical alignment inside the bar */
+    align-self: stretch;
+}
+
+.terminal-tabs-bar .terminal-tabs {
+    background: transparent;
+    border-bottom: none;
+    padding: 0;
+}
+.terminal-tabs {
+    display: flex;
+    background-color: var(--bg-secondary);
+    /* border handled by .terminal-tabs-bar to avoid double height */
+    padding: 0 1rem;
+    gap: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    scroll-behavior: smooth; /* Smooth scrolling behavior */
+    flex: 0 1 auto; /* shrink to content width until constrained */
+    min-width: 0; /* allow horizontal scroll when constrained */
+}
+
+.terminal-tabs::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
+.terminal-tab {
+    background: none;
+    border: none;
+    padding: 0 1rem; /* vertical size controlled by explicit height */
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    min-width: 120px; /* Minimum width to trigger horizontal scrolling */
+    position: relative;
+    flex-shrink: 0; /* Prevent tabs from shrinking below min-width */
+    height: var(--terminal-tabs-height);
+    box-sizing: border-box;
+    /* Prevent mobile long-press selection/callout on tab headers */
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+/* Compact width for note tabs (content tabs row) */
+.terminal-tab.terminal-tab--note { min-width: 44px; padding: 0 0.5rem; }
+.terminal-tab.terminal-tab--note .terminal-tab-title { max-width: 28px; }
+
+.terminal-tab:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.terminal-tab.active {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-bottom-color: var(--accent-color);
+}
+
+.terminal-tab-title {
+    flex: 1;
+    min-width: 0;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 200px;
+    /* Reinforce non-selectable to avoid stray highlights */
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+/* Show note icon only for note tabs (session) */
+.terminal-tab.terminal-tab--note .terminal-tab-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.terminal-tab.terminal-tab--note .terminal-tab-title .bi {
+    fill: var(--text-secondary);
+}
+.terminal-tab.terminal-tab--note.terminal-tab--has-note .terminal-tab-title .bi {
+    fill: var(--accent-color);
+}
+
+/* Workspace Notes pseudo-tab icon coloring */
+.session-tab.session-tab--workspace-notes .session-tab-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.session-tab.session-tab--workspace-notes .session-tab-title .bi {
+    fill: var(--text-secondary);
+}
+.session-tab.session-tab--workspace-notes.session-tab--has-note .session-tab-title .bi {
+    fill: var(--accent-color);
+}
+
+/* Workspace list: note indicator + selected visuals */
+.workspace-item .workspace-note-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem; /* restore larger clickable area */
+}
+.workspace-item .workspace-note-indicator .bi { fill: var(--text-secondary); }
+.workspace-item.has-note .workspace-note-indicator .bi { fill: var(--accent-color); }
+/* When notes are selected, apply only the hover highlight background to the icon area */
+.workspace-item.notes-selected .workspace-note-indicator { background: var(--bg-hover); }
+.workspace-item.notes-selected .workspace-header { background: transparent; }
+
+.terminal-tab-note-indicator {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.terminal-tab-note-indicator .bi-icon {
+    display: flex;
+}
+
+/* Loading spinner on tab buttons */
+.terminal-tab.loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 6px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.terminal-tab-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.2rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    line-height: 1;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.terminal-tab-close:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+.terminal-tab-refresh {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.2rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+    line-height: 1;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    margin-right: 0.2rem;
+}
+
+.terminal-tab-refresh:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+.terminal-tab.terminal-tab:hover .terminal-tab-close,
+.terminal-tab.terminal-tab:hover .terminal-tab-refresh {
+    opacity: 1;
+}
+
+/* Add Tab Button */
+.terminal-tab-add {
+    background: none;
+    border: none;
+    padding: 0 1rem; /* vertical size controlled by explicit height */
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    min-width: 40px;
+    position: relative; /* sit as flex item, not scrollable */
+    opacity: 0.7;
+    z-index: auto;
+    /* Avoid text selection/highlight on click */
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    height: var(--terminal-tabs-height);
+    box-sizing: border-box;
+}
+
+.terminal-tab-add:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+.terminal-tab-add .terminal-tab-title {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}
+
+/* Tab Content Areas */
+.terminal-content-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.terminal-content-view {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+}
+
+.terminal-content-view.active {
+    display: block;
+}
+
+.terminal-content-view.terminal-view.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.terminal-content-view.url-view.active {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0; /* Ensure flex children (iframe/webview) can shrink correctly */
+}
+
+/* Remove frame container approach: keep direct child layout */
+
+.terminal-content-view.terminal-view {
+    background-color: var(--bg-primary);
+}
+
+.terminal-content-view.url-view {
+    background-color: var(--bg-primary);
+    flex-direction: column;
+}
+
+.url-controls {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    align-items: center;
+}
+
+.url-input {
+    flex: 1;
+    padding: 6px 10px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-family: inherit; /* Use normal system font, not monospace */
+}
+
+.url-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.3);
+    font-family: inherit; /* Ensure normal font is maintained when focused */
+}
+
+.url-go-btn {
+    padding: 6px 12px;
+    background-color: var(--accent-color);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.url-go-btn:hover {
+    background-color: var(--accent-hover);
+}
+
+.url-go-btn:active {
+    transform: translateY(1px);
+}
+
+.url-iframe {
+    width: 100%;
+    height: 97%;
+    flex: 1;
+    min-height: 0;
+    border: none;
+    background-color: var(--bg-primary);
+    display: block;
+    /* Prevent iframe from being focusable and interfering with keyboard navigation */
+    pointer-events: auto; /* Allow clicking but not focus */
+}
+
+
+.url-iframe:focus {
+    outline: none !important; /* Remove any focus outline from iframe */
+    border: none !important;
+}
+
+/* Ensure iframe never shows focus indicators */
+.url-iframe:focus-visible,
+.url-iframe:focus-within {
+    outline: none !important;
+    border: none !important;
+}
+
+
+.url-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--text-dim);
+    font-size: 1.1rem;
+}
+
+.url-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--text-dim);
+    font-size: 1.1rem;
+    font-style: italic;
+}
+
+/* Workspace files view */
+
+.workspace-files-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    background-color: var(--bg-primary);
+}
+
+.workspace-files-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+}
+
+.workspace-files-path-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.workspace-files-path {
+    font-family: var(--font-monospace, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.workspace-files-up-btn {
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.workspace-files-up-btn:hover {
+    background-color: var(--bg-hover);
+}
+
+.workspace-files-actions {
+    display: flex;
+    align-items: center;
+}
+
+.workspace-files-upload-label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background-color: var(--accent-color);
+    color: #fff;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.workspace-files-upload-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.workspace-files-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+.workspace-files-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.workspace-files-table th,
+.workspace-files-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.workspace-files-table th {
+    text-align: left;
+    font-weight: 500;
+    background-color: var(--bg-secondary);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.workspace-files-name-btn {
+    border: none;
+    background: none;
+    padding: 0;
+    margin: 0;
+    color: var(--accent-color);
+    cursor: pointer;
+    text-align: left;
+}
+
+.workspace-files-name-btn:hover {
+    text-decoration: underline;
+}
+
+.workspace-files-open-btn,
+.workspace-files-download-btn {
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.workspace-files-open-btn:hover,
+.workspace-files-download-btn:hover {
+    background-color: var(--bg-hover);
+}
+
+.workspace-files-empty {
+    padding: 12px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+}
+
+.workspace-files-status {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-subtle);
+}
+
+.url-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--danger-color);
+    text-align: center;
+    padding: 2rem;
+}
+
+.url-error h3 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.url-error button {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.url-error button:hover {
+    background-color: var(--accent-hover);
+}
+
+/* History Viewer */
+.history-viewer {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-primary);
+}
+
+.history-header {
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+}
+
+.history-title {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--warning-color);
+}
+
+.history-details {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    display: block;
+}
+
+.history-output {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: var(--bg-primary);
+}
+
+.history-output pre {
+    margin: 0;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Buttons */
+.btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+/* Compact button size */
+.btn-sm {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.button-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+#auth-modal-submit:disabled {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    opacity: 1;
+}
+
+.btn-primary {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover);
+}
+
+.btn-info {
+    background-color: var(--info-color);
+    color: white;
+}
+
+.btn-info:hover {
+    background-color: #117a8b; /* Darker blue */
+}
+
+.btn-secondary {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background-color: var(--bg-hover);
+}
+
+.btn-danger {
+    background-color: transparent;
+    color: var(--danger-color);
+}
+
+.btn-danger:hover {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.btn-icon {
+    padding: 0.5rem 0.8rem;
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    font-size: 0.85rem;
+    min-height: 34px;
+}
+
+.btn-icon:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.btn-icon:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    height: var(--actual-viewport-height, 100dvh); /* Match dynamic viewport height on mobile */
+    background-color: rgba(0, 0, 0, 0.5);
+    /* Above sidebar (1201), dropdown backdrop (1050), and other overlays */
+    z-index: 20000;
+}
+
+.modal.show {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 5vh; /* Move modal closer to top for more available space */
+    padding-top: calc(var(--actual-viewport-height, 100dvh) * 0.05); /* Ensure padding respects real viewport */
+}
+
+/* Center Auth modal with stronger backdrop */
+#auth-modal.modal {
+    background-color: rgba(0, 0, 0, 0.65);
+    z-index: 999999;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+#auth-modal.modal.show {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding-top: 0 !important;
+}
+
+/* Ensure admin confirmation modal appears above Settings modal */
+#confirm-admin-action-modal.modal {
+    z-index: 20010;
+}
+
+/* Grey overlay for dedicated secondary windows waiting for auth */
+#secondary-auth-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--actual-viewport-height, 100dvh);
+    background-color: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    /* Below the auth modal overlay, above app UI */
+    z-index: 999998;
+}
+#secondary-auth-overlay.show {
+    display: block;
+}
+
+.modal-content {
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-height: 90vh; /* Increase modal height to use more viewport space */
+    max-height: calc(var(--actual-viewport-height, 100dvh) * 0.9); /* Respect dynamic viewport height */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Make new session modal specifically taller */
+#new-session-modal .modal-content {
+    max-height: 95vh; /* Even taller for new session modal */
+    max-height: calc(var(--actual-viewport-height, 100dvh) * 0.95); /* Keep footer visible on mobile */
+    /* Remove min-height - let it size naturally */
+}
+
+/* Make Prompt Editor modal sit a bit lower and taller */
+#prompt-editor-modal.modal.show {
+    /* Desktop/web baseline alignment (match New Session default) */
+    padding-top: 5vh;
+    padding-top: calc(var(--actual-viewport-height, 100dvh) * 0.05);
+}
+#prompt-editor-modal .modal-content {
+    /* Let content define height; keep a safe max (slightly taller to avoid scroll) */
+    max-height: 95vh;
+    max-height: calc(var(--actual-viewport-height, 100dvh) * 0.95);
+}
+#prompt-editor-modal .modal-body {
+    /* Shrink-wrap body to content so the modal is just tall enough */
+    flex: 0 1 auto;
+}
+#prompt-editor-modal textarea {
+    /* Larger editing area (controlled via rows attr) */
+    width: 100%;
+}
+
+
+.modal-header {
+    padding: 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close:hover {
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 1.25rem;
+    overflow-y: auto; /* Make body scrollable */
+    flex: 1;
+    min-height: 0; /* Allow shrinking for flex */
+}
+
+.modal-footer {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+/* Remove focus outlines on modal buttons to match destructive-confirm modals */
+.modal .btn:focus,
+.modal .btn:focus-visible,
+.modal .modal-close:focus,
+.modal .modal-close:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Accessible focus indicators in New Session modal (Issue #861) */
+#new-session-modal .btn:focus-visible,
+#new-session-modal .modal-close:focus-visible {
+    outline: 1px solid var(--accent-color) !important;
+    outline-offset: 2px;
+}
+/* Explicitly cover inline action and workspace (+) controls */
+#new-session-modal .btn-inline:focus-visible,
+#new-session-modal .workspace-dropdown-btn:focus-visible {
+    outline: 1px solid var(--accent-color) !important;
+    outline-offset: 2px;
+}
+/* Checkbox focus ring inside the New Session modal */
+#new-session-modal .checkbox-wrapper input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--accent-color) !important;
+    outline-offset: 2px;
+}
+
+/* Accessible focus indicators in Scheduled Input Add Rule modal */
+#scheduled-input-add-rule-modal .btn:focus-visible,
+#scheduled-input-add-rule-modal .modal-close:focus-visible {
+    outline: 1px solid var(--accent-color) !important;
+    outline-offset: 2px;
+}
+#scheduled-input-add-rule-modal .checkbox-wrapper input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--accent-color) !important;
+    outline-offset: 2px;
+}
+
+/* Accessible focus indicators in Move to Workspace modal */
+#move-workspace-modal .btn:focus-visible,
+#move-workspace-modal .modal-close:focus-visible {
+    outline: 1px solid var(--accent-color) !important;
+    outline-offset: 2px;
+}
+/* Explicitly cover inline add/cancel and the (+) dropdown button */
+#move-workspace-modal .workspace-dropdown-btn:focus-visible,
+#move-workspace-modal .btn-inline:focus-visible {
+    outline: 1px solid var(--accent-color) !important;
+    outline-offset: 2px;
+}
+
+/* Hide the New Session modal while Prompt Editor is open */
+#new-session-modal.temporarily-hidden {
+    display: none !important;
+}
+
+/* Scheduled Inputs: List modal and table styles */
+#scheduled-input-list-rules-modal.modal--wide .modal-content {
+    max-width: 1000px;
+    width: 95%;
+}
+#scheduled-input-list-rules-modal.modal--narrow .modal-content {
+    max-width: 600px;
+    width: auto;
+}
+.si-rules-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.si-rules-table th,
+.si-rules-table td {
+    padding: 6px 4px;
+    text-align: left;
+}
+.si-preview-cell {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 420px;
+}
+.si-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+/* Form Elements */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* Checkbox wrapper styles */
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+}
+
+.checkbox-wrapper label {
+    display: inline;
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.form-group select {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.form-group textarea,
+.form-control {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-family: var(--app-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.5rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-family: var(--app-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+    height: 2.5rem; /* Standard input height */
+}
+
+.form-group textarea:focus,
+.form-control:focus,
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.form-help {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+#template-parameters {
+    margin-top: 1rem;
+}
+
+#template-parameters .form-group {
+    margin-bottom: 0.75rem;
+}
+
+/* Inline action button next to single-line inputs (e.g., Prompt editor) */
+.input-with-action {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+.input-with-action .input-with-action-field {
+    flex: 1 1 auto;
+}
+.input-with-action .btn-inline {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+/* Inline suggestions overlay for text inputs with dynamic options */
+.input-with-suggestions {
+    position: relative;
+}
+.input-with-suggestions .suggestions-dropdown {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 1000;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    max-height: 260px;
+    overflow-y: auto;
+    font-size: 0.9rem; /* match standard form text size */
+}
+.input-with-suggestions .suggestions-dropdown .suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.input-with-suggestions .suggestions-dropdown .suggestion-item:hover {
+    background: var(--bg-hover);
+}
+.input-with-suggestions::after {
+    content: '▼';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    pointer-events: none;
+    font-size: 0.75rem;
+}
+.input-with-suggestions .input-with-action-field {
+    padding-right: 1.6rem; /* make room for chevron */
+}
+.input-with-suggestions .suggestions-dropdown .suggestion-item.highlighted {
+    background: var(--bg-hover);
+    outline: 1px solid var(--primary-color);
+    outline-offset: -1px;
+}
+
+.template-parameter-required {
+    color: var(--danger-color);
+}
+
+/* Removed .form-row styles since we no longer have column/row inputs */
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--bg-hover);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+/* Mobile Sidebar Toggle */
+.mobile-sidebar-toggle,
+.toolbar-sidebar-toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 28px;
+    height: 24px;
+    padding: 3px 0;
+    margin-right: 0.75rem;
+    position: relative;
+    -webkit-app-region: no-drag;
+}
+
+/* Desktop Sidebar Toggle */
+.desktop-sidebar-toggle {
+    display: flex;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 28px;
+    height: 24px;
+    padding: 3px 0;
+    margin-right: 0.75rem;
+    position: relative;
+}
+
+.hamburger-line {
+    width: 100%;
+    height: 2px;
+    background-color: var(--text-primary);
+    transition: all 0.3s ease;
+    border-radius: 2px;
+    display: block;
+}
+
+.mobile-sidebar-toggle:hover .hamburger-line,
+.desktop-sidebar-toggle:hover .hamburger-line,
+.toolbar-sidebar-toggle:hover .hamburger-line {
+    background-color: var(--accent-color);
+}
+
+.mobile-sidebar-toggle:focus,
+.desktop-sidebar-toggle:focus,
+.toolbar-sidebar-toggle:focus {
+    outline: none;
+}
+.toolbar-sidebar-toggle { -webkit-tap-highlight-color: transparent; }
+
+/* Session Info Toolbar */
+.session-info-toolbar {
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    height: var(--session-info-toolbar-height);
+    box-sizing: border-box;
+    display: flex; /* host hamburger + content */
+    align-items: center;
+}
+
+.session-info-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+    gap: 0.125rem;
+}
+
+.session-title-line {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+}
+
+.session-id-line {
+    color: var(--text-secondary);
+    font-family: monospace;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+}
+
+.session-info-toolbar.hidden {
+    display: none !important;
+}
+
+/* Workspace Scroller (web + mobile) */
+.workspace-scroller {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    position: relative; /* allow anchored add button */
+    gap: 0;
+    /* Reduce right padding so + button sits closer to edge */
+    padding: 0 0 0 1rem; /* top right bottom left */
+}
+.workspace-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    padding: 0.125rem 0.25rem;
+    flex: 1 1 auto;          /* take remaining space next to + button */
+    min-width: 0;            /* enable horizontal scrolling when constrained */
+}
+.workspace-row::-webkit-scrollbar { display: none; }
+.workspace-route {
+    flex: 0 0 auto;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.workspace-route:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+.workspace-route.active {
+    background-color: var(--accent-color);
+    color: #fff;
+}
+
+/* Add Workspace (+) button in workspace toolbar */
+.workspace-add-btn {
+    background: none;
+    border: none;
+    padding: 0.6rem 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    min-width: 40px;
+    opacity: 0.7;
+    flex-shrink: 0;           /* keep visible when row scrolls */
+    /* Avoid text selection/highlight on click */
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Preserve accessible focus while avoiding mouse/touch click highlight */
+.session-tab-add:focus,
+.terminal-tab-add:focus,
+.workspace-add-btn:focus {
+    outline: none;
+}
+.session-tab-add:focus-visible,
+.terminal-tab-add:focus-visible,
+.workspace-add-btn:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+.workspace-add-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    opacity: 1;
+}
+
+/* Terminal view height calculations for desktop - no session info toolbar */
+.terminal-content-area {
+    height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height));
+    height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height));
+}
+
+/* When session tabs are visible, adjust the height */
+.session-tabs-visible .terminal-content-area {
+    height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--session-tabs-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height));
+    height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--session-tabs-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height));
+}
+
+/* Small Screen Height - Hide toolbars for more terminal space */
+@media screen and (max-height: 200px) {
+    /* Hide app header */
+    .app-header {
+        display: none !important;
+    }
+    
+    /* Hide terminal header */
+    .terminal-header {
+        display: none !important;
+    }
+    
+    /* Hide session tabs */
+    .session-tabs-container {
+        display: none !important;
+    }
+    
+    /* Hide session info toolbar */
+    .session-info-toolbar {
+        display: none !important;
+    }
+    
+    /* Hide terminal tabs */
+    .terminal-tabs {
+        display: none !important;
+    }
+    
+    /* Adjust main layout to use full height */
+    #app {
+        height: 100vh;
+        height: 100dvh;
+    }
+    
+    /* Adjust terminal content area to fill entire screen */
+    .terminal-content-area {
+        /* Use calculated height - CSS variables will be set to 0px for hidden headers */
+        height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        height: calc(var(--actual-viewport-height, 100dvh) - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        max-height: none !important; /* Remove any max-height restrictions */
+    }
+    
+    /* Ensure terminal view uses full space */
+    .terminal-view {
+        height: 100% !important;
+        flex: none !important; /* Override flex to use explicit height */
+    }
+    
+    /* Ensure xterm fills the terminal view completely */
+    .terminal-view .xterm {
+        height: 100% !important;
+        width: 100% !important;
+    }
+    
+    /* Ensure xterm viewport uses full height */
+    .terminal-view .xterm .xterm-viewport {
+        height: 100% !important;
+    }
+    
+    /* Hide sidebar by default on small heights */
+    .terminal-sidebar {
+        display: none !important;
+    }
+    
+    /* Make app content use full width when sidebar is hidden */
+    .app-content {
+        width: 100% !important;
+        margin-left: 0 !important;
+    }
+    
+    /* Body should use full height */
+    body {
+        height: 100vh;
+        height: 100dvh;
+        height: var(--actual-viewport-height, 100dvh);
+        overflow: hidden;
+    }
+}
+
+/* (removed legacy medium-height hide rules; JS-driven classes handle responsive states) */
+
+/* JavaScript-controlled responsive states for enhanced behavior */
+/* Minimal state - hide all toolbars for maximum terminal space */
+body.responsive-minimal .app-header,
+body.responsive-minimal .terminal-header,
+body.responsive-minimal .session-tabs-container,
+body.responsive-minimal .session-tabs-bar,
+body.responsive-minimal .session-info-toolbar,
+body.responsive-minimal .terminal-tabs,
+body.responsive-minimal .terminal-tabs-bar,
+body.responsive-minimal .terminal-sidebar {
+    display: none !important;
+}
+
+body.responsive-minimal #app {
+    height: 100vh;
+    height: 100dvh;
+    height: var(--actual-viewport-height, 100dvh);
+}
+
+body.responsive-minimal .terminal-content-area {
+    /* Use calculated height - variables will be set to 0px for hidden headers */
+    height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+    height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+    height: calc(var(--actual-viewport-height, 100dvh) - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+    max-height: none !important; /* Remove any max-height restrictions */
+}
+
+/* Ensure terminal view fills the entire content area in minimal mode */
+body.responsive-minimal .terminal-view {
+    height: 100% !important;
+    flex: none !important; /* Override flex to use explicit height */
+}
+
+/* Ensure xterm fills the terminal view completely */
+body.responsive-minimal .terminal-view .xterm {
+    height: 100% !important;
+    width: 100% !important;
+}
+
+/* Dedicated window state - hide app chrome and sidebar, keep terminal header and tabs */
+body.responsive-window .app-header,
+body.responsive-window .session-tabs-container,
+body.responsive-window .session-info-toolbar {
+    display: none !important;
+}
+
+body.responsive-window #app {
+    height: 100vh;
+    height: 100dvh;
+    height: var(--actual-viewport-height, 100dvh);
+}
+
+/* Terminal content should account for terminal header + terminal tabs in dedicated window */
+body.responsive-window .terminal-content-area {
+    height: calc(100vh - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+    height: calc(100dvh - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+    height: calc(var(--actual-viewport-height, 100dvh) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+    max-height: none !important;
+}
+
+/* Dedicated window: make terminal header act as draggable titlebar (Electron) */
+body.responsive-window .terminal-header {
+    -webkit-app-region: drag;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Dedicated window: sidebar behaves like an overlay that slides in/out */
+body.responsive-window .terminal-sidebar {
+    width: clamp(280px, 80vw, 420px);
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height */
+    /* Above dropdown-blocker-backdrop (1050) */
+    z-index: 1201;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    display: block !important; /* ensure visible in window mode */
+}
+body.responsive-window .terminal-sidebar.mobile-visible {
+    transform: translateX(0);
+}
+
+/* Interactive elements within terminal header must not be draggable */
+body.responsive-window .terminal-header button,
+body.responsive-window .terminal-header .btn,
+body.responsive-window .terminal-header .btn-icon,
+body.responsive-window .terminal-header a,
+body.responsive-window .terminal-header input,
+body.responsive-window .terminal-header select,
+body.responsive-window .terminal-header .dropdown,
+body.responsive-window .terminal-header .dropdown-toggle,
+body.responsive-window .terminal-header .dropdown-menu {
+    -webkit-app-region: no-drag;
+    -webkit-user-select: auto;
+    user-select: auto;
+}
+
+/* Ensure the hamburger itself is not selectable */
+.toolbar-sidebar-toggle {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* macOS traffic lights inset for dedicated window header */
+.is-electron.platform-mac body.responsive-window .terminal-header {
+    padding-left: var(--mac-header-left-inset, 80px);
+}
+.is-electron.platform-mac.is-fullscreen body.responsive-window .terminal-header {
+    padding-left: 1rem;
+}
+
+/* Ensure xterm viewport uses full height */
+body.responsive-minimal .terminal-view .xterm .xterm-viewport {
+    height: 100% !important;
+}
+
+body.responsive-minimal .app-content {
+    width: 100% !important;
+    margin-left: 0 !important;
+}
+
+body.responsive-minimal {
+    height: 100vh;
+    height: 100dvh;
+    height: var(--actual-viewport-height, 100dvh);
+    overflow: hidden;
+}
+
+/* Compact state - hide secondary toolbars but keep main controls */
+body.responsive-compact .session-info-toolbar,
+body.responsive-compact .session-tabs-container {
+    display: none !important;
+}
+
+body.responsive-compact .terminal-content-area {
+    height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+    height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+    height: calc(var(--actual-viewport-height, 100dvh) - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+    max-height: none !important; /* Remove any max-height restrictions */
+}
+
+/* Ensure terminal view fills the content area in compact mode */
+body.responsive-compact .terminal-view {
+    height: 100% !important;
+    flex: none !important; /* Override flex to use explicit height */
+}
+
+/* Ensure xterm fills the terminal view completely in compact mode */
+body.responsive-compact .terminal-view .xterm {
+    height: 100% !important;
+    width: 100% !important;
+}
+
+/* Ensure xterm viewport uses full height in compact mode */
+body.responsive-compact .terminal-view .xterm .xterm-viewport {
+    height: 100% !important;
+}
+
+/* In compact height mode, hide the "+" add button to align with hidden session tabs */
+body.responsive-compact .terminal-tab-add {
+    display: none !important;
+}
+
+/* Dedicated window mode also hides the add (+) button to match reduced chrome */
+body.responsive-window .terminal-tab-add {
+    display: none !important;
+}
+
+/* Show hamburger in terminal header for dedicated window mode */
+body.responsive-window #window-sidebar-toggle.toolbar-sidebar-toggle {
+    display: inline-flex !important;
+    margin-right: 0.75rem;
+}
+
+/* Electron desktop overrides: disable mobile layout behaviors regardless of width */
+.is-electron .mobile-sidebar-toggle { display: none !important; }
+.is-electron .desktop-sidebar-toggle { display: inline-flex !important; }
+.is-electron .main-layout { flex-direction: row !important; }
+.is-electron .terminal-sidebar {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    height: 100% !important;
+    transform: none !important;
+}
+.is-electron .terminal-sidebar .sidebar-resizer { display: block !important; }
+.is-electron .terminal-session-info { display: flex !important; }
+.is-electron .session-id-line { display: inline !important; }
+
+/* Electron dedicated window: force overlay behavior for sidebar regardless of width */
+.is-electron body.responsive-window .terminal-sidebar {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    transform: translateX(-100%) !important;
+    /* Above dropdown-blocker-backdrop (1050) */
+    z-index: 1201 !important;
+}
+.is-electron body.responsive-window .terminal-sidebar.mobile-visible {
+    transform: translateX(0) !important;
+}
+
+/* Backdrop for overlay sidebar */
+#sidebar-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background: rgba(0,0,0,0.35);
+    z-index: 900;
+    -webkit-app-region: no-drag;
+}
+body.mobile-sidebar-open #sidebar-backdrop { display: block; }
+
+/* macOS traffic lights inset for dedicated window session info toolbar */
+.is-electron.platform-mac body.responsive-window .session-info-toolbar {
+    padding-left: var(--mac-header-left-inset, 80px);
+}
+
+/* When in compact height (toolbars reduced), hide session tabs wrappers to eliminate extra borders/space */
+body.responsive-compact .session-tabs-bar,
+body.responsive-compact .session-tabs-container {
+    display: none !important;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px), 
+       screen and (max-device-width: 768px),
+       screen and (orientation: portrait) and (max-width: 1024px) {
+    .mobile-sidebar-toggle {
+        display: flex !important;
+    }
+    /* Do not show the session toolbar toggle in standard mobile mode to avoid duplicate hamburgers */
+    #toolbar-sidebar-toggle.toolbar-sidebar-toggle { display: none !important; }
+    
+    .desktop-sidebar-toggle {
+        display: none !important;
+    }
+    
+    /* Override desktop layout for mobile */
+    .main-layout {
+        flex-direction: column;
+        position: relative;
+    }
+    
+    .terminal-sidebar {
+        /* On mobile, width is forced to 100% regardless of saved size */
+        width: 100%;
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        height: 100dvh; /* Dynamic viewport height for mobile */
+        /* Ensure the sidebar sits above all global backdrops/overlays */
+        z-index: 1201;
+        pointer-events: auto; /* Explicitly allow interaction */
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+
+    /* Hide the desktop resize handle on mobile layout */
+    .terminal-sidebar .sidebar-resizer {
+        display: none;
+    }
+    
+    .terminal-sidebar.mobile-visible {
+        transform: translateX(0);
+    }
+    
+    .terminal-main {
+        margin-left: 0;
+        width: 100%;
+        transition: transform 0.3s ease;
+    }
+    
+    /* Hide content when sidebar is open (sidebar is now outside app-content) */
+    .app-header,
+    .app-content {
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    
+    body.mobile-sidebar-open .app-header,
+    body.mobile-sidebar-open .app-content {
+        opacity: 0;
+        visibility: hidden;
+    }
+    /* When a modal is open, keep background UI visible and hide the sidebar backdrop */
+    /* Note: modals have a very high z-index, so the background can remain dimmed.
+       No special overrides needed while a modal is open. */
+    
+    .app-title h1 {
+        display: none;
+    }
+    
+    .terminal-header {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+        justify-content: space-between;
+    }
+    
+    /* Show session info toolbar on mobile */
+    .session-info-toolbar {
+        display: flex !important;
+        height: var(--session-info-toolbar-height-mobile);
+        padding: 0.5rem 1rem; /* symmetric to center content between header/tabs lines */
+        align-items: center;
+    }
+    
+    /* Hide terminal header session info on mobile */
+    .terminal-session-info {
+        display: none;
+    }
+    
+    .session-info-content {
+        gap: 0;
+    }
+    
+    .session-title-line {
+        font-size: 1.1rem;
+        color: var(--text-secondary); /* Make mobile title grey like other text */
+    }
+    
+    .session-id-line {
+        display: none; /* Hide session ID on mobile */
+    }
+
+    /* Workspace Scroller */
+    .workspace-scroller {
+        display: flex;            /* center row vertically */
+        align-items: center;      /* center between the two lines */
+        height: 100%;
+        width: 100%;
+        overflow: hidden;         /* container for scroller row */
+    }
+    .workspace-row {
+        display: flex;
+        align-items: center;      /* ensure buttons align vertically */
+        gap: 0.5rem;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none; /* Firefox */
+        padding: 0.125rem 0.25rem; /* minimal vertical padding; centering handled by container */
+    }
+    .workspace-row::-webkit-scrollbar { display: none; }
+    .workspace-route {
+        flex: 0 0 auto;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        padding: 0.6rem 0.8rem;   /* taller buttons */
+        border-radius: 6px; /* more squarish, like nav buttons */
+        font-size: 0.9rem;
+        line-height: 1;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .workspace-route:hover {
+        background-color: var(--bg-hover);
+        color: var(--text-primary);
+    }
+    .workspace-route.active {
+        background-color: var(--accent-color);
+        color: #fff;
+    }
+    
+    /* Mobile-specific modal positioning */
+    #new-session-modal.modal.show {
+        /* Move up by ~50px from base 5vh (up ~10px from prior) */
+        padding-top: calc(5vh - 50px);
+        padding-top: calc(var(--actual-viewport-height, 100dvh) * 0.05 - 50px);
+    }
+
+    /* Mobile: nudge modal content itself down slightly for clear visual difference */
+    #new-session-modal .modal-content,
+    #prompt-editor-modal .modal-content {
+        margin-top: 20px; /* move both up ~10px from prior */
+    }
+
+    /* Mobile: align Prompt Editor modal with the same offset */
+    #prompt-editor-modal.modal.show {
+        padding-top: calc(5vh - 50px);
+        padding-top: calc(var(--actual-viewport-height, 100dvh) * 0.05 - 50px);
+    }
+    /* Ensure Prompt Editor content can grow without scrolling on mobile */
+    #prompt-editor-modal .modal-content {
+        max-height: calc(var(--actual-viewport-height, 100dvh) - 20px);
+    }
+    
+    
+    /* Fix terminal content area height on mobile - account for session info toolbar and tabs */
+    .terminal-content-area {
+        height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height-mobile));
+        height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height-mobile));
+        /* Fallback for browsers without dvh support */
+        height: calc(var(--vh, 1vh) * 100 - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height-mobile));
+        /* Removed safety margin - dynamic CSS variables handle proper sizing */
+    }
+    
+    /* When session tabs are visible on mobile */
+    .session-tabs-visible .terminal-content-area {
+        height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--session-tabs-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height-mobile));
+        height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--session-tabs-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height-mobile));
+        /* Fallback for browsers without dvh support */
+        height: calc(var(--vh, 1vh) * 100 - var(--app-header-height) - var(--terminal-header-height) - var(--session-tabs-height) - var(--terminal-tabs-height) - var(--session-info-toolbar-height-mobile));
+        /* Removed safety margin - dynamic CSS variables handle proper sizing */
+    }
+    
+    /* Override for responsive minimal mode - use calculated height with dynamic variables */
+    body.responsive-minimal .terminal-content-area {
+        height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        height: calc(var(--actual-viewport-height, 100dvh) - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        max-height: none !important; /* Remove any max-height restrictions */
+    }
+    
+    /* Ensure complete terminal element chain fills space in minimal mode on mobile */
+    body.responsive-minimal .terminal-view {
+        height: 100% !important;
+        flex: none !important;
+    }
+    
+    body.responsive-minimal .terminal-view .xterm {
+        height: 100% !important;
+        width: 100% !important;
+    }
+    
+    body.responsive-minimal .terminal-view .xterm .xterm-viewport {
+        height: 100% !important;
+    }
+    
+    /* Override for responsive compact mode - only subtract visible toolbar heights */
+    body.responsive-compact .terminal-content-area {
+        height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        height: calc(var(--actual-viewport-height, 100dvh) - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        max-height: none !important; /* Remove any max-height restrictions */
+    }
+    
+    /* Ensure complete terminal element chain fills space in compact mode on mobile */
+    body.responsive-compact .terminal-view {
+        height: 100% !important;
+        flex: none !important;
+    }
+    
+    body.responsive-compact .terminal-view .xterm {
+        height: 100% !important;
+        width: 100% !important;
+    }
+    
+    body.responsive-compact .terminal-view .xterm .xterm-viewport {
+        height: 100% !important;
+    }
+    
+    /* Mobile-specific layout fixes for responsive modes */
+    /* Ensure main layout uses full height in responsive modes on mobile */
+    body.responsive-minimal .main-layout {
+        height: 100vh !important;
+        height: 100dvh !important;
+        height: var(--actual-viewport-height, 100dvh) !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+    }
+    
+    body.responsive-compact .main-layout {
+        height: calc(100vh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        height: calc(100dvh - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        height: calc(var(--actual-viewport-height, 100dvh) - var(--app-header-height) - var(--terminal-header-height) - var(--terminal-tabs-height)) !important;
+        flex: none !important;
+        min-height: 0 !important;
+    }
+    
+    /* Ensure app-content uses full available height in responsive modes */
+    body.responsive-minimal .app-content {
+        height: 100% !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+    }
+    
+    body.responsive-compact .app-content {
+        height: 100% !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+    }
+    
+    /* Ensure terminal-main uses full height in responsive modes */
+    body.responsive-minimal .terminal-main {
+        height: 100% !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+    }
+    
+    body.responsive-compact .terminal-main {
+        height: 100% !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+    }
+    
+    /* Show close button only on mobile */
+    .mobile-sidebar-close {
+        display: flex !important;
+    }
+    
+    /* Save History label removed */
+}
+
+/* Settings Modal */
+#settings-modal.modal.show {
+    padding-top: 5vh; /* Move modal much closer to top */
+    align-items: flex-start;
+}
+
+#settings-modal .modal-content {
+    max-width: 900px;
+    max-height: 85vh; /* Allow more height since we're starting higher */
+    display: flex;
+    flex-direction: column;
+}
+
+#settings-modal .modal-body {
+    overflow-y: auto; /* Make body scrollable */
+    flex: 1;
+    max-height: calc(85vh - 140px); /* Account for header and footer */
+}
+
+.settings-section {
+    margin-bottom: 2rem;
+}
+
+.settings-section:last-child {
+    margin-bottom: 0;
+}
+
+.settings-section h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Settings layout with sidebar navigation */
+.settings-layout {
+    display: flex;
+    gap: 16px;
+}
+
+.settings-sidebar {
+    width: 220px;
+    flex: 0 0 220px;
+    border-right: 1px solid var(--border-color);
+    padding-right: 12px;
+}
+
+.settings-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.settings-nav-button {
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.settings-nav-button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.settings-nav-button.active {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+.settings-content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.settings-panel { display: none; }
+.settings-panel.active { display: block; }
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-color);
+}
+
+.checkbox-wrapper label {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.range-value {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-left: 0.5rem;
+    min-width: 40px;
+    display: inline-block;
+}
+
+input[type="range"] {
+    width: 100%;
+    height: 4px;
+    background: var(--bg-tertiary);
+    outline: none;
+    border-radius: 2px;
+    appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+/* Header Settings Button */
+.header-settings-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    padding: 0.5rem;
+    /* Tighter spacing to move closer to right edge and bell */
+    margin: 0 0.25rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease;
+    /* Ensure perfect vertical centering of avatar */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.header-settings-btn:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
+}
+
+/* User menu avatar (single letter) */
+#user-menu-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Slightly lower the letter inside the avatar circle for better optical centering */
+#user-menu-avatar .avatar-initial {
+    position: relative;
+    top: 1px;
+    display: inline-block;
+    line-height: 1;
+}
+
+.user-menu-name { display: none; }
+
+/* Session Links Dropdown */
+.session-links-container {
+    position: relative;
+    display: none;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Activity transitions dropdown (timeline) */
+.session-transitions-container {
+    position: relative;
+    display: none;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* Explicit toolbar ordering to ensure placement: Detach, Terminate, Transitions, Search, Text Input, Mobile controls, Prompts */
+.terminal-controls .session-links-container { order: 8; }
+.terminal-controls #terminal-detach-btn { order: 10; }
+.terminal-controls #terminal-close-btn { order: 11; }
+.terminal-controls #session-transitions-container { order: 12; }
+.terminal-controls .terminal-search-container { order: 13; }
+.terminal-controls #text-input-btn { order: 14; }
+.terminal-controls #mobile-scroll-forward-btn { order: 15; }
+.terminal-controls .mobile-keyboard-container { order: 16; }
+.terminal-controls .prompts-queue-container { order: 17; }
+
+/* Deferred inputs + stop inputs dropdown */
+.prompts-queue-container {
+    position: relative;
+}
+
+.prompts-queue-toggle.active {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.prompts-queue-badge {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background-color: var(--danger);
+    color: #fff;
+    font-size: 10px;
+    line-height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.prompts-queue-dropdown {
+    min-width: 500px;
+    max-width: 700px;
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-top: 6px;
+}
+
+.prompts-dropdown-section {
+    padding: 0.5rem 0.75rem;
+}
+
+.prompts-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.prompts-dropdown-divider {
+    border-top: 1px solid var(--border-color);
+    margin: 0.25rem 0;
+}
+
+.prompts-queue-list,
+.stop-inputs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.prompts-queue-item {
+    padding: 0.35rem 0.4rem;
+    border-radius: 4px;
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+}
+
+.prompts-queue-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+}
+
+.prompts-queue-preview {
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    margin-bottom: 0.3rem;
+    word-break: break-word;
+}
+
+.prompts-queue-empty,
+.stop-inputs-empty {
+    font-size: 0.8rem;
+    color: var(--text-primary);
+}
+
+.stop-inputs-enabled-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+}
+
+.stop-inputs-enabled-toggle input {
+    margin: 0;
+}
+
+.stop-inputs-rearm-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0.25rem 0 0.4rem 0;
+}
+
+.stop-inputs-rearm-label {
+    font-size: 0.75rem;
+    color: var(--text-primary);
+}
+
+.stop-inputs-rearm-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stop-inputs-rearm-control input[type="range"] {
+    flex: 1;
+}
+
+.stop-inputs-rearm-value {
+    font-size: 0.75rem;
+    color: var(--text-primary);
+    min-width: 1.5rem;
+    text-align: right;
+}
+
+.stop-prompt-row {
+    padding: 0.35rem 0.4rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle);
+    background-color: var(--bg-elevated);
+}
+
+.stop-prompt-main {
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+    word-break: break-word;
+}
+
+.stop-prompt-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-primary);
+}
+
+.stop-prompt-armed {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.stop-prompt-armed input {
+    margin: 0;
+}
+
+.stop-prompt-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.stop-prompt-delete-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.stop-inputs-add-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.25rem 0 0.35rem 0;
+}
+
+.stop-inputs-add-row .stop-inputs-add-input {
+    flex: 1;
+    height: 24px;
+    padding: 2px 6px;
+    font-size: 0.8rem;
+}
+
+.stop-inputs-add-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.session-transitions-dropdown {
+    /* Width handled by #session-transitions-dropdown; keep non-size styles here */
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
+.session-transitions-dropdown .transitions-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.session-transitions-dropdown .transitions-controls .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+.session-transitions-dropdown .transitions-list {
+    padding: 0.25rem 0;
+}
+
+.session-transitions-dropdown .date-header {
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 0.25rem 0.75rem;
+    text-align: center;
+}
+
+.session-transitions-dropdown .transition-item {
+    padding: 0.25rem 0.75rem;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.session-transitions-dropdown .transition-item:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Keyboard selection highlight */
+.session-transitions-dropdown .transition-item.selected {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Remove focus outline highlight around dropdown and items */
+.session-transitions-dropdown:focus { outline: none; box-shadow: none; }
+.session-transitions-dropdown .transition-item:focus { outline: none; box-shadow: none; }
+.session-transitions-dropdown .transition-item:focus-visible { outline: none; box-shadow: none; }
+
+/* Ensure transitions button uses bordered icon style like Search */
+.session-transitions-container .btn-icon {
+    border: 1px solid var(--border-color);
+}
+/* If dropdown-toggle remains on the button, force border as well */
+/* Removed dropdown-toggle border override for transitions button */
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-toggle {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.dropdown-toggle:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    min-width: 200px;
+    z-index: 1000;
+    display: none;
+    padding: 0.25rem 0;
+    /* Ensure touch interactions on the menu don't translate into viewport/terminal gestures */
+    touch-action: pan-y;
+}
+
+/* Open user menu inward to the left when anchored on the right */
+#user-menu-container .dropdown-menu {
+    right: 0;
+    left: auto;
+}
+/* User menu: remove border from Settings icon button in dropdown header */
+#user-menu-open-settings.btn-icon { border: none; }
+/* Header trio (reload, bell, avatar): remove borders and tighten spacing */
+.app-header .header-reload-btn,
+.app-header .header-notification-btn {
+    border: none !important;
+    padding: 0.5rem 0.6rem; /* slightly narrower for tighter grouping */
+}
+
+.app-header .header-reload-btn {
+    margin-right: 2px; /* gap between reload and bell */
+}
+
+.app-header .header-notification-btn {
+    margin-right: 2px !important; /* gap between bell and avatar */
+}
+
+#user-menu-btn.header-settings-btn {
+    margin-left: 2px; /* reduce avatar left gap to tighten trio */
+}
+
+/* Extra-tight header spacing on small screens */
+@media (max-width: 768px) {
+    /* Compact the top-right trio: reload, bell, avatar */
+    .app-header .header-reload-btn,
+    .app-header .header-notification-btn,
+    #user-menu-btn.header-settings-btn {
+        padding: 0.35rem 0.45rem !important;
+    }
+    .app-header .header-reload-btn { margin-right: 1px !important; }
+    .app-header .header-notification-btn { margin-right: 1px !important; }
+    #user-menu-btn.header-settings-btn { margin-left: 1px !important; }
+    /* Slightly smaller avatar on mobile to reclaim width */
+    #user-menu-avatar { width: 26px; height: 26px; }
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+/* Ensure session links dropdown sits above terminal touch overlay */
+#session-links-dropdown { z-index: 1100; }
+#session-transitions-dropdown { z-index: 1100; min-width: 0 !important; width: fit-content; }
+#terminal-search-dropdown { z-index: 1100; right: 0; left: auto; min-width: 380px; max-width: min(560px, 90vw); }
+#global-links-dropdown { z-index: 1100; }
+#user-menu-dropdown { z-index: 1200; }
+#prompts-queue-dropdown { z-index: 1100; right: 0; left: auto; min-width: 500px; max-width: 700px; }
+/* Terminal search dropdown */
+.terminal-search-dropdown {
+    min-width: 260px; /* overridden on desktop via #terminal-search-dropdown */
+    padding: 8px;
+}
+.terminal-search-row { display: flex; align-items: center; gap: 8px; }
+.terminal-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* Mobile: make search bar full-width */
+@media (max-width: 640px) {
+    .terminal-search-container.dropdown { position: static; display: block; }
+    .terminal-search-dropdown {
+        left: 8px !important;
+        right: 8px !important;
+        min-width: 0;
+        width: auto;
+    }
+}
+
+/* Backdrop to intercept touches/clicks while a dropdown is open */
+#dropdown-blocker-backdrop {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    z-index: 1050; /* Between terminal overlay (1000) and dropdown (1100) */
+    touch-action: none;
+}
+
+/* While any dropdown is open, ignore pointer events on terminal touch overlay and xterm */
+body.dropdown-open .terminal-touch-overlay { pointer-events: none !important; }
+body.dropdown-open .xterm,
+body.dropdown-open .xterm-viewport,
+body.dropdown-open .xterm-screen,
+body.dropdown-open .xterm-rows { pointer-events: none !important; }
+
+.dropdown-menu .dropdown-header {
+    padding-top: 0.375rem;   /* small top padding */
+    padding-bottom: 0.25rem;
+    padding-left: 0.75rem;   /* emphasize left padding slightly */
+    padding-right: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.dropdown-menu .dropdown-divider {
+    height: 1px;
+    margin: 0.25rem 0;
+    background-color: var(--border-color);
+}
+
+/* Slight offset for the header Global Links dropdown */
+.global-links-container .dropdown-menu {
+    margin-top: 4px; /* move menu down slightly */
+    /* Allow the menu to auto-size to its content up to a reasonable maximum */
+    min-width: 280px;
+    max-width: min(480px, 95vw);
+    width: max-content;
+}
+
+/* Make the global-links search input span the menu width */
+.global-links-container .dropdown-menu .dropdown-search {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Prevent global link labels from wrapping while keeping extreme cases readable */
+.global-links-container .dropdown-menu .dropdown-item {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.global-links-container .dropdown-menu .dropdown-header {
+    white-space: nowrap;
+}
+
+.dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    color: var(--text-primary);
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-size: 0.9rem;
+}
+
+.dropdown-item:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.dropdown-item:focus {
+    outline: none;
+    background-color: var(--bg-hover);
+}
+
+/* Subtext for dropdown items (e.g., defaulted parameters) */
+/* Make dropdown parameter subtext clearly lighter than title */
+.dropdown-menu .dropdown-item .dropdown-subtext {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    opacity: 0.45;
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Title row for dropdown items: left = title, right = shortcut */
+.dropdown-menu .dropdown-item .dropdown-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.dropdown-menu .dropdown-item .dropdown-title-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.dropdown-menu .dropdown-item .dropdown-shortcut {
+    flex: 0 0 auto;
+    font-size: inherit; /* match title font size */
+    color: inherit;     /* match title color */
+    opacity: 1;         /* no dimming; same emphasis as title */
+    font-weight: inherit;
+}
+
+/* Non-interactive info rows in dropdowns */
+.dropdown-info {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    color: var(--text-secondary);
+    cursor: default;
+    pointer-events: none;
+}
+/* User menu: make status line smaller and remove bold username */
+#user-menu-status { font-size: 0.85rem; }
+#user-menu-status strong { font-weight: normal; }
+.dropdown-footer {
+    border-top: 1px solid var(--border-color);
+    margin-top: 6px;
+    padding-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+/* Use default .version-text and .environment-text styles for footer */
+
+/* Floating Modal Styles (base) */
+.floating-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    width: 450px;
+    min-width: 400px;
+    max-width: 550px;
+    border-radius: 8px;
+    background-color: var(--bg-secondary);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    touch-action: none; /* Prevent default touch behavior when dragging */
+    opacity: 0.75;
+    /* Base floating modals are not resizable; specific modals may override */
+    resize: none;
+    overflow: auto;
+}
+
+.floating-modal.show {
+    display: block;
+}
+
+.floating-modal.dragging {
+    user-select: none;
+    cursor: move;
+}
+
+.floating-modal-content {
+    width: 100%;
+    height: 100%;
+    cursor: move; /* Indicates entire area is draggable */
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.floating-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1rem 0.5rem 1rem; /* Keep original top, increased sides and bottom */
+    min-height: 2rem; /* Ensure adequate drag area */
+}
+
+.floating-modal-body {
+    padding: 0.5rem 1.5rem 1.5rem 1.5rem; /* Increased side and bottom padding */
+}
+
+.floating-modal-body .form-control {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.75rem;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    /* Disable native textarea resize; the modal is resizable instead */
+    resize: none;
+    min-height: 36px; /* allow a single-line textarea height */
+    cursor: text; /* Override drag cursor for text input */
+    user-select: text; /* Allow text selection in input */
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    touch-action: auto; /* Allow normal touch behavior for text input */
+}
+
+/* Send Text modal: Included label and initial hidden state */
+.text-input-divider { display: none; }
+/* Default hidden; shown when the modal has .send-text--has-included */
+#text-input-included,
+#text-input-modal .text-input-divider { display: none; }
+#text-input-modal.send-text--has-included #text-input-included,
+#text-input-modal.send-text--has-included .text-input-divider { display: block; }
+
+/* Thin divider between Included and main input */
+.text-input-divider { border-top: 1px solid var(--border-color); margin: 0.5rem 0; }
+
+/* Shortcuts modal note */
+.shortcuts-notes { margin-bottom: 0.5rem; color: var(--text-dim); font-size: 0.9rem; }
+
+/* Included/reference text area in Send Text modal */
+#text-input-included {
+    /* Match xterm dynamic font settings (configurable + zoomable) */
+    font-family: var(--terminal-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+    font-size: var(--terminal-font-size, 14px);
+    line-height: 1.35;
+    /* Allow collapsing when space is constrained; scroll when overflow */
+    flex: 0 1 auto; /* prefer to shrink before main input */
+    min-height: 0;
+    height: auto;
+    max-height: 50vh; /* Cap height to avoid oversized modal */
+    overflow-y: auto; /* Scroll long referenced text */
+    margin-bottom: 0.5rem;
+    white-space: pre-wrap; /* Preserve formatting while allowing wrapping */
+}
+
+/* Main input in Send Text modal: match xterm dynamic font */
+#text-input-text {
+    /* Use normal proportional UI font; inherit base sizing */
+    font-family: inherit;
+    font-size: inherit;
+    /* Grow to fill available space in the modal */
+    flex: 1 1 auto; /* grows to fill remaining height */
+    min-height: 2.5rem; /* ~1 line */
+    overflow: auto;
+}
+
+/* Form input styling in floating modals */
+.floating-modal-body .form-input {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.75rem;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    height: 2.5rem; /* Standard input height */
+}
+
+.floating-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    /* Keep actions at the bottom of the modal */
+    flex: 0 0 auto;
+}
+
+.floating-modal-buttons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap; /* Keep buttons visible on narrow widths */
+}
+
+.floating-modal-actions .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.floating-modal-actions .btn:hover {
+    background-color: var(--bg-hover);
+}
+
+.floating-modal-actions .btn-primary {
+    background-color: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.floating-modal-actions .btn-primary:hover {
+    background-color: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+.floating-modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.floating-modal-close:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
+}
+
+/* Mobile responsiveness for floating modal */
+@media screen and (max-width: 768px) {
+    .floating-modal {
+        width: auto; /* Auto width on mobile */
+        min-width: 300px;
+        max-width: calc(100vw - 20px);
+    }
+    
+    .floating-modal-header {
+        padding: 0 1rem 0.5rem 1rem; /* Keep original top padding on mobile too */
+    }
+    
+    .floating-modal-body {
+        padding: 0.5rem 1rem 1rem 1rem; /* Increased padding on mobile too */
+    }
+    
+    .floating-modal-body .form-control {
+        min-height: 60px; /* slightly smaller on mobile */
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+    
+    /* Form input styling on mobile */
+    .floating-modal-body .form-input {
+        height: 2.75rem; /* Slightly taller on mobile for easier touch */
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+    
+    .floating-modal-actions .btn {
+        padding: 0.5rem 0.875rem;
+        font-size: 0.9rem;
+    }
+    
+    .floating-modal-close {
+        width: 24px;
+        height: 24px;
+        font-size: 1rem;
+    }
+}
+
+/* Icon positioning adjustments */
+.bi-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+}
+
+/* Adjust ONLY chat bubble icon position in text input button */
+#text-input-btn .bi-icon,
+#text-input-icon .bi-icon,
+#floating-modal-icon .bi-icon {
+    position: relative;
+    top: 1px; /* Move chat icon down by 1px for better visual centering */
+}
+
+/* Ensure consistent icon sizing in buttons */
+.btn-icon .bi-icon svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+}
+
+/* Highlight prompts queue icon when stop inputs are enabled for the active session */
+#prompts-queue-icon.stop-inputs-enabled {
+    color: var(--accent-color);
+}
+
+/* Unify link icon sizes (header + terminal) */
+#session-links-btn .bi-icon svg,
+#session-links-icon .bi-icon svg,
+#global-links-btn .bi-icon svg,
+#global-links-icon .bi-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Multi-select dropdown styles */
+.multi-select-container {
+    position: relative;
+    width: 100%;
+}
+
+/* Dynamic padding for modal body when dropdown is open - padding-bottom set via JavaScript */
+#new-session-modal .modal-body.dropdown-open {
+    /* Padding-bottom will be set dynamically based on dropdown content */
+}
+
+.template-search-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.template-search {
+    width: 100%;
+    padding: 0.75rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    cursor: text;
+}
+
+.template-search:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+.template-search::placeholder {
+    color: var(--text-dim);
+}
+
+.selected-templates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    min-height: 0;
+}
+
+.selected-templates:empty {
+    display: none;
+}
+
+.selected-template-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    background-color: var(--accent-color);
+    color: white;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: all 0.15s ease;
+}
+
+.selected-template-tag:hover {
+    background-color: var(--accent-hover);
+}
+
+.selected-template-tag .remove-tag {
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: white;
+    padding: 2px;
+    margin-left: 0.25rem;
+    font-size: 1rem;
+    line-height: 1;
+    opacity: 0.7;
+    border-radius: 2px;
+    transition: opacity 0.15s ease;
+}
+
+.selected-template-tag .remove-tag:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.template-dropdown {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    right: 0;
+    max-height: 60vh; /* Much taller to utilize modal space */
+    overflow-y: auto;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    z-index: 99999;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.template-dropdown:focus {
+    outline: none;
+}
+
+.template-option {
+    position: relative;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.15s ease;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.template-option:last-child {
+    border-bottom: none;
+}
+
+.template-option:hover {
+    background-color: var(--bg-hover);
+}
+
+.template-option:hover::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    background-color: var(--accent-color);
+    border-radius: 50%;
+    opacity: 0.7;
+}
+
+
+.template-option.selected {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.template-option.selected .template-option-name {
+    color: white;
+}
+
+.template-option.selected .template-option-group {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.template-option.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.template-option.focused {
+    background-color: var(--bg-hover);
+    outline: 1px solid var(--accent-color);
+    outline-offset: -1px;
+}
+
+.template-group-option {
+    background-color: var(--bg-secondary);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.template-group-option:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.template-group-option.focused {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+    outline: 1px solid var(--accent-color);
+    outline-offset: -1px;
+}
+
+.template-group-option::before {
+    content: "📁 ";
+    opacity: 0.7;
+}
+
+.template-group-option .group-count {
+    float: right;
+    font-size: 0.8rem;
+    opacity: 0.7;
+    font-weight: normal;
+}
+
+/* Removed blue highlighting for search-match groups to avoid confusion with selection */
+
+
+.template-option-label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.template-option-name {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.template-option-group {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+}
+
+.template-dropdown::-webkit-scrollbar {
+    width: 8px;
+}
+
+.template-dropdown::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+.template-dropdown::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.template-dropdown::-webkit-scrollbar-thumb:hover {
+    background: var(--text-dim);
+}
+
+/* Dropdown header with close button */
+.template-dropdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.dropdown-title-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.dropdown-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dropdown-hint {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-weight: normal;
+    opacity: 0.8;
+}
+
+/* Text Input modal specific overrides to isolate from other floating modals */
+#text-input-modal {
+    z-index: var(--text-input-modal-z-index, 9999);
+    min-width: 220px;
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 40px);
+    min-height: 160px; /* allow 1-line input + actions */
+    resize: both;
+    overflow: auto;
+}
+
+#text-input-modal .floating-modal-content {
+    display: flex;
+    flex-direction: column;
+}
+
+#text-input-modal .floating-modal-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+}
+
+.dropdown-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 3px;
+    transition: all 0.15s ease;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dropdown-close-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.dropdown-close-btn:active {
+    background-color: var(--border-color);
+}
+
+/* Shutdown Loading Overlay */
+.shutdown-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 999999;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.shutdown-overlay.show {
+    display: flex;
+}
+
+.shutdown-content {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    padding: 2rem;
+    max-width: 400px;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.shutdown-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border-color);
+    border-top: 4px solid var(--accent-color);
+    border-radius: 50%;
+    animation: shutdown-spin 1s linear infinite;
+    margin: 0 auto 1.5rem auto;
+}
+
+@keyframes shutdown-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.shutdown-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.shutdown-message {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.4;
+    margin-bottom: 1rem;
+}
+
+.shutdown-status {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+/* History Page Styles */
+#history-page {
+    flex: 1;
+    background-color: var(--bg-primary);
+    overflow: hidden;
+    display: none; /* Hidden by default */
+}
+
+#history-page.active {
+    display: flex !important;
+    flex-direction: column;
+}
+
+.history-page-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1rem;
+    gap: 1rem;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.history-title-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    font-size: 0.9rem;
+}
+
+.back-btn:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--accent-color);
+}
+
+.history-title {
+    font-size: 1.00rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.history-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.column-visibility-control {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.column-visibility-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+}
+
+.column-visibility-caret {
+    font-size: 0.75rem;
+    line-height: 1;
+    opacity: 0.7;
+}
+
+.column-visibility-menu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    min-width: 200px;
+    padding: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    box-shadow: 0px 12px 32px rgba(0, 0, 0, 0.35);
+    display: none;
+    z-index: 30;
+}
+
+.column-visibility-menu.open {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.column-visibility-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+
+.column-visibility-option:hover {
+    background-color: var(--bg-hover);
+}
+
+.column-visibility-option-label {
+    flex: 1;
+    font-size: 0.9rem;
+}
+
+.column-visibility-option input[type="checkbox"] {
+    accent-color: var(--accent-color);
+    cursor: pointer;
+}
+
+.column-visibility-option input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+.column-visibility-option-note {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.column-visible {
+    display: table-cell;
+}
+
+.column-hidden {
+    display: none !important;
+}
+
+.history-search-container {
+    position: relative;
+    min-width: 300px;
+}
+
+.history-search-input {
+    width: 100%;
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+.history-search-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.history-search-input::placeholder {
+    color: var(--text-dim);
+}
+
+.history-search-clear {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0.25rem;
+    border-radius: 50%;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.history-search-clear:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-hover);
+}
+
+.history-filters {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.history-filter-select {
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.history-filter-select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.history-refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.history-refresh-btn:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--accent-color);
+}
+
+.refresh-icon {
+    transition: transform 0.3s;
+}
+
+.history-refresh-btn:active .refresh-icon {
+    transform: rotate(180deg);
+}
+
+.history-stats {
+    display: flex;
+    gap: 2rem;
+    padding: 0.5rem 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.history-stats .stat {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.history-stats strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.history-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-top: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.pagination-btn {
+    padding: 0.5rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+    min-width: 40px;
+    text-align: center;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background-color: var(--bg-hover);
+    border-color: var(--accent-color);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.page-input {
+    width: 60px;
+    padding: 0.25rem 0.5rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.page-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.page-size-select {
+    padding: 0.5rem 0.75rem;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.history-table-container {
+    flex: 1;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch; /* smooth scrolling on mobile */
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    position: relative;
+}
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    gap: 1rem;
+    color: var(--text-secondary);
+}
+
+.loading-spinner .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-color);
+    border-top: 3px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.sort-indicator {
+    margin-left: 0.5rem;
+    opacity: 0.5;
+    font-size: 0.7rem;
+    display: inline-block;
+    min-width: 10px;
+    pointer-events: none;
+}
+
+.sort-indicator.active {
+    opacity: 1;
+    color: var(--accent-color);
+}
+
+.sort-indicator.active.asc::after {
+    content: "↑";
+}
+
+.sort-indicator.active.desc::after {
+    content: "↓";
+}
+
+/* Container page styles */
+.session-connected-icon { display: inline-flex; align-items: center; }
+
+.session-id code {
+    background-color: var(--bg-tertiary);
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--accent-color);
+}
+
+.session-command,
+.session-directory {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.session-template {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.session-title {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.session-created,
+.session-ended {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.exit-code {
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    min-width: 30px;
+    display: inline-block;
+}
+
+.exit-code.exit-success {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: var(--success-color);
+}
+
+.exit-code.exit-error {
+    background-color: rgba(244, 67, 54, 0.2);
+    color: var(--danger-color);
+}
+
+.session-actions {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.view-history-btn {
+    padding: 0.25rem 0.75rem;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.view-history-btn:hover {
+    background-color: var(--accent-hover);
+}
+
+.history-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    color: var(--text-secondary);
+    text-align: center;
+    gap: 1rem;
+}
+
+.history-empty .empty-icon {
+    opacity: 0.5;
+    margin-bottom: 0.5rem;
+}
+
+.history-empty h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.2rem;
+}
+
+.history-empty p {
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+/* Responsive design for history page */
+@media (max-width: 1024px) {
+    .history-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .history-controls {
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+    
+    .history-search-container {
+        min-width: 250px;
+        order: 1;
+        flex: 1;
+    }
+    
+    .history-table {
+        font-size: 0.8rem;
+    }
+    
+    .history-table th,
+    .history-table td {
+        padding: 0.4rem 0.3rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .history-page-content {
+        padding: 0.5rem;
+        gap: 0.5rem;
+    }
+    
+    .history-title {
+        font-size: 1.25rem;
+    }
+    
+    .history-search-container {
+        min-width: 200px;
+    }
+    
+    .history-stats {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}
+/* Sidebar inline add sizing tweaks so buttons don't overflow */
+.workspace-list .workspace-add-inline { flex-wrap: nowrap; }
+.workspace-list .workspace-add-inline input {
+    flex: 0 1 60%;
+    max-width: calc(100% - 9rem); /* leave room for two buttons */
+    min-width: 120px;
+}
+.workspace-list .workspace-add-inline .btn { flex: 0 0 auto; white-space: nowrap; }
+.workspace-header { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 0.35rem; }
+.workspace-sessions { margin-top: 0.5rem; padding-top: 0; border-top: none; width: 100%; }
+.workspace-section-label { font-size: 0.72rem; color: var(--text-secondary); margin: 0.35rem 0 0.25rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.workspace-session-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0.6rem 0.75rem 0.6rem 0.625rem; /* reduce left padding from 0.75rem */
+    margin: 0.15rem 0;
+    background: transparent; /* no dark background at rest */
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 400;
+    min-height: 42px;
+    line-height: 1.25;
+    border: 1px solid var(--border-color);
+}
+.workspace-session-row:hover {
+    background: var(--bg-hover); /* normal hover color */
+    box-shadow: inset 2px 0 0 0 var(--accent-color); /* left accent without layout shift */
+}
+.workspace-session-row.selected {
+    /* Selected: simple background highlight, no border */
+    background: var(--bg-hover);
+}
+/* Keep left accent on hover even when selected */
+.workspace-session-row.selected:hover {
+    box-shadow: inset 2px 0 0 0 var(--accent-color);
+}
+.workspace-item.workspace-session-drop {
+    outline: 2px dashed var(--accent-color);
+}
+.workspace-session-row.drag-over-before { border-top: 2px solid var(--accent-color); }
+.workspace-session-row.drag-over-after { border-bottom: 2px solid var(--accent-color); }
+.workspace-toggle-btn { padding: 0.25rem 0.35rem; }
+
+/* Badges for workspace stats */
+/* Removed deprecated workspace badges styles */
+/* Unique template badges per workspace (row under title) */
+.workspace-template-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0.15rem 0 0.75rem; /* increased bottom spacing to 0.75rem */
+}
+/* Removed deprecated workspace tabs styles */
+.workspace-session-title { 
+    vertical-align: middle; 
+    /* Truncate long titles within workspace rows */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    flex: 1 1 auto;
+}
+.workspace-session-content { 
+    display: flex; 
+    align-items: center; 
+    gap: 6px; 
+    /* Allow children to shrink so ellipsis works */
+    min-width: 0;
+    width: 100%;
+}
+.workspace-session-content { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; }
+.workspace-session-status { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+.client-display-indicator { color: var(--accent-color); }
+.terminal-title .visibility-icon { 
+    display: inline-flex; 
+    align-items: center; 
+    line-height: 1; 
+    flex: 0 0 auto; 
+}
+.terminal-title .visibility-icon .bi { display: block; }
+
+/* Ensure consistent alignment for visibility icons in sidebar rows as well */
+.workspace-session-content .visibility-icon { 
+    display: inline-flex; 
+    align-items: center; 
+    line-height: 1; 
+}
+
+/* Child login/container entries under workspace session rows */
+.workspace-session-children {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 4px 0 6px 18px;
+}
+
+.workspace-session-child {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    padding: 4px 6px 4px 12px;
+    border-left: 2px solid var(--border-color);
+    border-radius: 2px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.workspace-session-child:hover { background: var(--bg-hover); }
+.workspace-session-child.active {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    box-shadow: inset 3px 0 0 0 var(--accent-color);
+}
+.workspace-session-child .session-child-dot { width: 8px; height: 8px; border-radius: 999px; background: #f5f5f5; }
+.workspace-session-child-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.note-view {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    overflow: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* Session note view should not add horizontal padding so content spans edge-to-edge */
+.terminal-content-view.note-view {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.note-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.note-toolbar-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.note-toolbar-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.note-toolbar-group {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.note-toolbar-button {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+}
+
+.note-toolbar-button + .note-toolbar-button {
+    border-left: 1px solid var(--border-color);
+}
+
+.note-toolbar-button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.note-toolbar-button.active {
+    background: var(--accent-color);
+    color: #fff;
+}
+
+.note-toolbar-button.note-split-toggle {
+    padding: 6px;
+    min-width: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+}
+
+.note-split-toggle-icon .bi {
+    transition: transform 160ms ease;
+}
+
+.note-split-toggle--vertical .note-split-toggle-icon .bi {
+    transform: rotate(90deg);
+}
+
+.note-toolbar-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.note-status {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    transition: color 160ms ease;
+    padding-right: 6px;
+}
+
+
+
+.note-status--saving {
+    color: var(--accent-color);
+}
+
+.note-status--success {
+    color: var(--success-color);
+}
+
+.note-status--error {
+    color: var(--danger-color);
+}
+
+.note-status--warning {
+    color: var(--warning-color);
+}
+
+.note-status--editing {
+    color: var(--accent-hover);
+}
+
+.note-load-remote {
+    border: 1px solid var(--warning-color);
+    background: transparent;
+    color: var(--warning-color);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+}
+
+.note-load-remote:hover {
+    background: var(--warning-color);
+    color: #000;
+}
+
+.note-send-selection {
+    border: 1px solid var(--accent-color);
+    background: var(--accent-color);
+    color: #fff;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+    white-space: nowrap;
+}
+
+.note-send-selection:hover:not([disabled]) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+.note-send-selection[disabled] {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.note-editor-container {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+    overflow: hidden;
+    min-height: 0;
+    height: 100%;
+}
+
+.note-editor-stack { position: relative; height: 100%; }
+.note-highlights {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    padding: 12px; /* restore left/right padding */
+    font-family: var(--terminal-font-family, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace);
+    font-size: var(--terminal-font-size, 14px);
+    line-height: 1.6;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    pointer-events: none;
+}
+.note-highlights-content { will-change: transform; }
+.note-hl { background: rgba(255, 230, 120, 0.6); border-radius: 2px; }
+.note-hl.note-hl--current { background: rgba(255, 200, 0, 0.9); }
+
+.note-editor-stack .note-editor {
+    position: relative;
+    background: var(--bg-primary);
+}
+.note-editor-stack.note-editor--with-highlights .note-editor {
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text-primary);
+    border-color: transparent; /* border drawn by highlights layer */
+}
+
+@media (max-width: 1024px) {
+    .note-editor-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.note-editor {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 12px; /* restore left/right padding */
+    font-family: var(--terminal-font-family, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace);
+    font-size: var(--terminal-font-size, 14px);
+    line-height: 1.6;
+    resize: none;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.note-editor:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.35);
+}
+
+.note-editor--readonly,
+.note-editor[readonly] {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
+.note-preview {
+    height: 100%;
+    min-height: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: 12px;
+    overflow-y: auto;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.note-preview p {
+    margin: 0 0 12px;
+}
+
+.note-preview .note-paragraph-spacer {
+    height: 12px;
+}
+
+.note-preview a {
+    color: var(--accent-color);
+    text-decoration: underline;
+}
+
+.note-preview code {
+    background: var(--bg-hover);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.9em;
+}
+
+.note-preview pre {
+    margin: 0 0 12px;
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--bg-primary);
+    overflow-x: auto;
+}
+
+.note-preview ul.note-list {
+    margin: 0 0 12px;
+    padding-left: 20px;
+}
+
+.note-preview .note-heading {
+    margin: 0 0 12px;
+    line-height: 1.3;
+}
+
+.note-code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.9rem;
+}
+
+.note-view--mode-plain .note-preview {
+    display: none;
+}
+
+.note-view--mode-plain .note-editor-container {
+    grid-template-columns: 1fr;
+}
+
+.note-view--mode-markdown .note-editor {
+    display: none;
+}
+
+.note-view--mode-markdown .note-editor-container {
+    grid-template-columns: 1fr;
+}
+
+.note-view--mode-split .note-editor {
+    display: block;
+}
+
+.note-view--mode-split .note-preview {
+    display: block;
+}
+
+.note-view--split-horizontal .note-editor-container {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto;
+}
+
+.note-view--split-vertical .note-editor-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.note-view--split-vertical .note-editor,
+.note-view--split-vertical .note-preview {
+    min-height: 0;
+}
+
+/* Note Search Panel (inline under toolbar) */
+.note-search-panel {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+    width: 100%;
+}
+.note-search-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    cursor: move;
+    user-select: none;
+    margin-bottom: 8px;
+}
+.note-search-close {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-radius: 4px;
+    padding: 4px 6px;
+    cursor: pointer;
+}
+.note-search-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.note-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 6px 8px;
+}
+.note-search-nav, .note-search-action {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 6px 8px;
+    cursor: pointer;
+}
+.note-search-count { margin-left: auto; color: var(--text-secondary); font-size: 0.85rem; }
+
+/* Resizable Table Styles */
+.resizable-table-wrapper {
+    width: 100%;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.resizable-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-size: 0.875rem;
+    background: var(--bg-secondary);
+}
+
+.resizable-table thead {
+    background: var(--bg-tertiary);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.resizable-table th {
+    position: relative;
+    padding: 0;
+    border-right: 1px solid var(--border-color);
+    border-bottom: 2px solid var(--border-color);
+    font-weight: 600;
+    user-select: none;
+    overflow: hidden;
+}
+
+.resizable-table th:last-child {
+    border-right: none;
+}
+
+.resizable-table .th-content {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    min-height: 44px;
+}
+
+.resizable-table th.sortable {
+    cursor: pointer;
+}
+
+.resizable-table th.sortable:hover {
+    background: var(--bg-hover);
+}
+
+.resizable-table .th-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.resizable-table .sort-indicator {
+    margin-left: 8px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    opacity: 0.3;
+    transition: opacity 0.2s;
+}
+
+.resizable-table .sort-indicator::before {
+    content: '';
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 6px solid currentColor;
+}
+
+.resizable-table .sort-indicator.active {
+    opacity: 1;
+}
+
+.resizable-table .sort-indicator.desc::before {
+    border-bottom: none;
+    border-top: 6px solid currentColor;
+}
+
+.resizable-table .resize-handle {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 1;
+}
+
+.resizable-table .resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 1px;
+    height: 60%;
+    background: var(--border-color);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.resizable-table .resize-handle:hover::after {
+    opacity: 1;
+}
+
+.resizable-table.resizing {
+    user-select: none;
+}
+
+.resizable-table td {
+    padding: 10px 12px;
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.resizable-table td:last-child {
+    border-right: none;
+}
+
+.resizable-table tbody tr {
+    transition: background-color 0.15s;
+}
+
+.resizable-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+.resizable-table tbody tr.selectable {
+    cursor: pointer;
+}
+
+/* Column Visibility Control */
+.column-visibility-control {
+    position: relative;
+    display: inline-block;
+}
+
+.column-visibility-control .column-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 200px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    padding: 8px 0;
+}
+
+.column-visibility-control .column-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.column-visibility-control .column-item:hover {
+    background: var(--bg-hover);
+}
+
+.column-visibility-control .column-item input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.column-visibility-control .column-item span {
+    flex: 1;
+    user-select: none;
+}
+
+/* Filter checkbox styling */
+.filter-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.filter-checkbox input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.filter-checkbox:hover {
+    color: var(--text-primary);
+}
+/* Quick Open modal sizing/positioning (moved from inline styles) */
+#template-quick-open-modal.quick-open-modal {
+    top: 20vh;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 1;
+    /* Make Quick Search ~20% wider */
+    width: min(684px, 83vw);
+    min-width: 0;
+    max-width: none;
+    resize: none; /* never resizable */
+}
+
+/* Quick Open: restore neutral content behavior (no drag cursor or selection blocking) */
+#template-quick-open-modal .floating-modal-content {
+    height: auto;
+    cursor: default;
+    user-select: auto;
+    -webkit-user-select: auto;
+    -moz-user-select: auto;
+    -ms-user-select: auto;
+}
+
+/* Ensure quick-open modal does not clip its dropdown */
+#template-quick-open-modal { overflow: visible; }
+
+/* Ensure quick-open dropdown shows reliably and above inner content */
+#template-quick-open-dropdown {
+    position: absolute;
+    left: 0; right: 0;
+    width: auto;
+    max-height: 40vh;
+    overflow: auto;
+    z-index: 10001;
+}
+#template-quick-open-dropdown.show { display: block !important; }

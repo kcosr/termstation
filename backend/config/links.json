@@ -1,0 +1,26 @@
+{
+  "groups": [
+    {
+      "name": "Repos",
+      "links": [
+        {
+          "name": "kcosr/termstation",
+          "url": "https://github.com/kcosr/termstation"
+        }
+      ]
+    },
+    {
+      "name": "Sites",
+      "links": [
+        {
+          "name": "ChatGPT",
+          "url": "https://www.chatgpt.com"
+        },
+        {
+          "name": "Claude",
+          "url": "https://claude.ai"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; padding: 10px; font-family: Arial; }
+        .test-container {
+            padding: 10px;
+            background: #f0f0f0;
+            margin-bottom: 10px;
+        }
+        .dimensions {
+            background: #e0e0e0;
+            padding: 5px;
+            font-family: monospace;
+        }
+        
+        /* Import the responsive styles */
+        @media screen and (max-height: 480px) {
+            .toolbar-test {
+                display: none !important;
+            }
+            .height-indicator::after {
+                content: " - MINIMAL MODE (≤480px)";
+                color: red;
+                font-weight: bold;
+            }
+        }
+        
+        @media screen and (max-height: 600px) and (min-height: 481px) {
+            .secondary-toolbar-test {
+                display: none !important;
+            }
+            .height-indicator::after {
+                content: " - COMPACT MODE (481-600px)";
+                color: orange;
+                font-weight: bold;
+            }
+        }
+        
+        @media screen and (min-height: 601px) {
+            .height-indicator::after {
+                content: " - NORMAL MODE (≥601px)";
+                color: green;
+                font-weight: bold;
+            }
+        }
+        
+        .toolbar-test {
+            background: #007acc;
+            color: white;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        
+        .secondary-toolbar-test {
+            background: #ff9800;
+            color: white;
+            padding: 8px;
+            margin: 5px 0;
+        }
+        
+        .terminal-simulator {
+            background: #1e1e1e;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            padding: 10px;
+            margin: 10px 0;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #3a3a3d;
+        }
+        
+        /* Simulate the responsive terminal behavior */
+        @media screen and (max-height: 480px) {
+            .terminal-simulator {
+                height: calc(100vh - 40px);  /* Full height minus test container */
+                min-height: unset;
+                border: 2px solid #4caf50; /* Green border to show it's using full space */
+            }
+            
+            .test-container:last-child {
+                display: none; /* Hide instructions to see full terminal effect */
+            }
+        }
+        
+        @media screen and (max-height: 600px) and (min-height: 481px) {
+            .terminal-simulator {
+                height: calc(100vh - 120px); /* Height minus visible toolbars */
+                min-height: unset;
+                border: 2px solid #ff9800; /* Orange border for compact mode */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h2>Responsive Toolbar Test <span class="height-indicator"></span></h2>
+        <div class="dimensions" id="dimensions"></div>
+    </div>
+    
+    <div class="toolbar-test">Main Toolbar (hidden when height ≤ 480px)</div>
+    <div class="secondary-toolbar-test">Secondary Toolbar (hidden when height ≤ 600px)</div>
+    
+    <div class="terminal-simulator">
+        Terminal Area - Should expand to use available space when toolbars are hidden
+    </div>
+    
+    <div class="test-container">
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Resize your browser window height to test different modes</li>
+            <li><strong>≤ 480px height:</strong> All toolbars hidden, terminal uses full height (MINIMAL)</li>
+            <li><strong>481-600px height:</strong> Secondary toolbars hidden, terminal adjusts (COMPACT)</li>
+            <li><strong>≥ 601px height:</strong> All toolbars visible, normal layout (NORMAL)</li>
+        </ol>
+        <p><strong>Key Fixes:</strong> 
+            <br>1. CSS variables for header heights are dynamically set to 0px when headers are hidden
+            <br>2. Removed 10px safety margins that were causing wasted space
+            <br>3. Disabled auto-focus on mobile to prevent keyboard interference
+        </p>
+        <p><strong>Debug:</strong> Open browser console to see header height variables and responsive state changes.</p>
+        <p>On mobile, try rotating to landscape mode to trigger small height.</p>
+    </div>
+    
+    <script>
+        function updateDimensions() {
+            const dims = document.getElementById('dimensions');
+            const vvHeight = window.visualViewport ? window.visualViewport.height : 'N/A';
+            dims.innerHTML = `
+                Window: ${window.innerWidth} × ${window.innerHeight}px<br>
+                Visual Viewport: ${window.innerWidth} × ${vvHeight}px<br>
+                Screen: ${screen.width} × ${screen.height}px<br>
+                Device Pixel Ratio: ${window.devicePixelRatio || 1}<br>
+                Orientation: ${screen.orientation ? screen.orientation.angle : 'N/A'}°
+            `;
+        }
+        
+        updateDimensions();
+        window.addEventListener('resize', updateDimensions);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateDimensions, 100);
+        });
+        
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateDimensions);
+        }
+    </script>
+</body>
+</html>

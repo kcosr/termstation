@@ -1,0 +1,162 @@
+{
+  "name": "TermStation",
+  "version": "1.0.0",
+  "description": "Desktop application for TermStation",
+  "homepage": "https://termstation.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://termstation.dev"
+  },
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "start:dev": "electron . dev --dev",
+    "start:test": "electron . test",
+    "start:prod": "electron . prod",
+    "update-version": "node update-version.js",
+    "prebuild": "npm run update-version",
+    "build": "electron-builder",
+    "prebuild:win": "npm run update-version",
+    "build:win": "electron-builder --win",
+    "prebuild:mac": "npm run update-version",
+    "build:mac": "electron-builder --mac",
+    "prebuild:linux": "npm run update-version",
+    "build:linux": "electron-builder --linux",
+    "prebuild:mac:x64:dmg": "npm run update-version",
+    "build:mac:x64:dmg": "electron-builder --mac dmg --x64 --publish=never",
+    "prebuild:all": "npm run update-version",
+    "build:all": "electron-builder --win --mac --linux",
+    "predist": "npm run update-version",
+    "dist": "electron-builder --publish=never",
+    "predist:all": "npm run update-version",
+    "dist:all": "electron-builder --win --mac --linux --publish=never",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "keywords": [
+    "TermStation",
+    "termstation",
+    "terminal",
+    "station",
+    "session-manager",
+    "electron",
+    "desktop",
+    "xterm"
+  ],
+  "author": "TermStation",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.16.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.1.0-beta27"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.8.0"
+  },
+  "build": {
+    "appId": "com.termstation.desktop",
+    "productName": "TermStation",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "persistence.js",
+      "preload.js",
+      "package.json",
+      "!../frontend/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": ".frontend-stage",
+        "to": "frontend",
+        "filter": [
+          "**/*",
+          "!node_modules",
+          "!.*"
+        ]
+      },
+      {
+        "from": "../shared",
+        "to": "shared",
+        "filter": [
+          "**/*",
+          "!node_modules",
+          "!.*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "publish": null
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Development"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "dmg": {
+      "title": "TermStation ${version}"
+    },
+    "deb": {
+      "packageCategory": "devel",
+      "maintainer": "TermStation"
+    },
+    "rpm": {
+      "packageCategory": "Development/Tools",
+      "vendor": "TermStation"
+    }
+  }
+}

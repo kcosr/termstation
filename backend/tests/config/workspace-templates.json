@@ -1,0 +1,74 @@
+{
+  "templates": [
+    {
+      "id": "ai-assistant-base",
+      "name": "AI Assistant Base (workspace)",
+      "description": "Base configuration for workspace AI assistants",
+      "stop_inputs": [
+        {
+          "id": "workspace-timeout",
+          "prompt": "The workspace has been inactive. Summarize the current context and next steps.",
+          "armed": true,
+          "source": "template"
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "extends": "ai-assistant-base",
+      "name": "Claude (workspace)",
+      "description": "Workspace Claude assistant",
+      "stop_inputs": [
+        {
+          "id": "workspace-timeout",
+          "prompt": "Summarize the current issue and propose the next coding steps.",
+          "armed": true,
+          "source": "template"
+        }
+      ]
+    },
+    {
+      "id": "opencode",
+      "extends": "ai-assistant-base",
+      "name": "opencode (workspace)",
+      "description": "Workspace opencode assistant",
+      "stop_inputs": [
+        {
+          "id": "workspace-timeout",
+          "prompt": "Summarize the current workspace state and outline follow-up tasks.",
+          "armed": true,
+          "source": "template"
+        }
+      ]
+    },
+    {
+      "id": "codex",
+      "extends": "ai-assistant-base",
+      "name": "Codex (workspace)",
+      "description": "Workspace Codex assistant",
+      "stop_inputs": [
+        {
+          "id": "workspace-timeout",
+          "prompt": "Summarize the current TermStation task and suggest next actions.",
+          "armed": true,
+          "source": "template"
+        }
+      ]
+    },
+    {
+      "id": "codex-termstation",
+      "extends": "codex",
+      "name": "Codex - TermStation (workspace)",
+      "description": "Workspace Codex assistant preconfigured for the TermStation repo",
+      "stop_inputs": [
+        {
+          "id": "workspace-timeout",
+          "prompt": "Summarize the current TermStation issue and recommend concrete steps.",
+          "armed": true,
+          "source": "template"
+        }
+      ]
+    }
+  ]
+}
+

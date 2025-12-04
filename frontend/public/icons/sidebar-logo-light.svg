@@ -1,0 +1,33 @@
+<svg viewBox="85 45 345 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="">
+  <!-- Frame and inner bevel -->
+  <path d="M 110 250 L 110 75 Q 110 70, 115 70 L 385 70 Q 390 70, 390 75 L 390 250" fill="none" stroke="#dee2e6" stroke-width="45" stroke-linecap="square"/>
+  <path d="M 133 250 L 133 96 Q 133 91, 138 91 L 362 91 Q 367 91, 367 96 L 367 250" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="square"/>
+
+  <!-- Screen and prompt -->
+  <rect x="150" y="104" width="200" height="150" rx="5" ry="5" fill="#ffffff"/>
+  <path d="M 210 164 L 235 179 L 210 194" fill="none" stroke="#212529" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="250" y="192" width="30" height="6" fill="#212529"/>
+
+  <!-- Path pillars -->
+  <path d="M 110 380 Q 135 320, 180 265 L 210 265 Q 185 320, 170 380 Z" fill="#0d6efd" opacity="0.9"/>
+  <path d="M 220 380 L 280 380 L 265 265 L 235 265 Z" fill="#dee2e6" opacity="0.9"/>
+  <path d="M 330 380 Q 315 320, 290 265 L 320 265 Q 365 320, 390 380 Z" fill="#dc3545" opacity="0.9"/>
+
+  <!-- Small icon details along the bottom -->
+  <g transform="translate(148, 358)">
+    <rect x="-8" y="-12" width="16" height="24" rx="2" fill="#f8f9fa" stroke="#f8f9fa" stroke-width="1.5"/>
+    <circle cx="0" cy="9" r="1.5" fill="#212529"/>
+  </g>
+  <g transform="translate(250, 357)">
+    <rect x="-12" y="-10" width="24" height="20" rx="1" fill="#f8f9fa" stroke="#f8f9fa" stroke-width="1.5"/>
+    <line x1="-12" y1="-4" x2="12" y2="-4" stroke="#212529" stroke-width="1.5"/>
+    <circle cx="-7" cy="-7" r="1" fill="#212529"/>
+    <circle cx="-3" cy="-7" r="1" fill="#212529"/>
+    <circle cx="1" cy="-7" r="1" fill="#212529"/>
+  </g>
+  <g transform="translate(352, 356)">
+    <rect x="-14" y="-10" width="28" height="18" rx="1" fill="#f8f9fa" stroke="#f8f9fa" stroke-width="1.5"/>
+    <rect x="-3" y="8" width="6" height="4" fill="#212529"/>
+    <rect x="-6" y="12" width="12" height="2" fill="#212529"/>
+  </g>
+</svg>

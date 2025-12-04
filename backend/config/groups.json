@@ -1,0 +1,13 @@
+[
+  {
+    "name": "admins",
+    "permissions": "*",
+    "features": "*",
+    "allow_templates": "*"
+  },
+  {
+    "name": "developers",
+    "features": { "notes_enabled": true },
+    "allow_templates": ["codex","claude","cursor"]
+  }
+]

@@ -1,0 +1,38 @@
+FROM node:lts
+
+# Standard tools
+RUN apt update && \
+    apt install --no-install-recommends -y \
+        jq vim curl unzip sudo socat ripgrep tree
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Allow passwordless sudo
+RUN echo "ALL ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/nopasswd \
+    && chmod 440 /etc/sudoers.d/nopasswd
+
+# Codex and Claude
+RUN npm install -g @openai/codex@latest
+RUN npm install -g @anthropic-ai/claude-code@latest
+
+# Dev tools
+RUN npm install -g typescript vitest
+
+# Cursor-agent
+RUN curl https://cursor.com/install -fsS | bash
+RUN cp -r /root/.local/* /usr/local/
+RUN curl -fsSL https://bun.sh/install | bash
+RUN cp /root/.bun/bin/bun /usr/local/bin/
+RUN ln -sfn "$(readlink -n /usr/local/bin/cursor-agent | sed 's#^/root/.local#/usr/local#')" /usr/local/bin/cursor-agent
+
+# @@FORGE_BLOCKS@@
+
+# Terminal type
+ENV TERM=xterm-256color
+
+# Default working directory
+WORKDIR /workspace
+
+# Entrypoint
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 755 /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

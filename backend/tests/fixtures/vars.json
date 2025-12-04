@@ -1,0 +1,6 @@
+{
+  "session_id": "TEST-SESSION",
+  "SESSIONS_BASE_URL": "http://localhost/sessions",
+  "code_review": "true",
+  "branch": "feature/test-branch"
+}

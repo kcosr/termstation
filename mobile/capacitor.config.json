@@ -1,0 +1,9 @@
+{
+  "appId": "devtools.terminals",
+  "appName": "TermStation",
+  "webDir": "../frontend/public",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

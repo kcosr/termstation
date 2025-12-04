@@ -1,0 +1,10 @@
+Common text A.
+{% if variant eq "alpha" %}
+Alpha branch
+{% elif variant eq "beta" %}
+Beta branch
+{% else %}
+Default branch
+{% endif %}
+Tail A.
+

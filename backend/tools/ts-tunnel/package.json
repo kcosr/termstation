@@ -1,0 +1,12 @@
+{
+  "name": "ts-tunnel",
+  "version": "0.1.0",
+  "description": "Reverse WebSocket tunnel helper for Termstation service proxy",
+  "type": "module",
+  "bin": {
+    "ts-tunnel": "bin/ts-tunnel.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2"
+  }
+}

@@ -1,0 +1,333 @@
+{
+  "templates": [
+    {
+      "id": "ai-assistant-base",
+      "name": "AI Assistant Base",
+      "description": "Base configuration for AI assistant runners",
+      "user": "daemon_user",
+      "container_image": "termstation",
+      "env_vars": {
+        "REPO": "{repo}",
+        "ISSUE_ID": "{issue_id}",
+        "BRANCH": "{branch}",
+        "FORGE": "{FORGE}",
+        "FORGE_HOST": "{FORGE_HOST}",
+        "FORGE_TYPE": "{FORGE_TYPE}"
+      },
+      "XXX":  "mkdir -p ~/.ssh && chmod 700 ~/.ssh",
+      "pre_commands": [
+        "if [ -n \"{repo}\" ]; then echo Cloning {repo}; mkdir -p \"$(dirname \"{repo}\")\"; git clone {FORGE_CLONE_URL} \"{repo}\"; fi",
+        "if [ -n \"{branch}\" ] && [ -n \"{repo}\" ]; then git -C \"{repo}\" fetch origin {branch} || true; git -C \"{repo}\" checkout -B {branch} origin/{branch} 2>/dev/null || git -C \"{repo}\" checkout {branch} || true; fi",
+        "if [ -n \"{repo}\" ]; then echo \"cd {repo}\"; cd \"{repo}\"; fi"
+      ],
+      "fork_pre_commands": [
+        "if [ -n \"$SESSION_WORKSPACE_DIR\" ]; then echo 'fork: cd $SESSION_WORKSPACE_DIR'; cd \"$SESSION_WORKSPACE_DIR\"; elif [ -n \"{SESSION_WORKSPACE_DIR}\" ]; then echo 'fork: cd {SESSION_WORKSPACE_DIR}'; cd \"{SESSION_WORKSPACE_DIR}\"; else echo 'fork: no workspace directory set'; fi",
+        "if [ -n \"{repo}\" ]; then echo 'fork: cd {repo}'; cd \"{repo}\"; fi"
+      ],
+      "post_commands": [
+        "{% if repo nonempty %}cd \"{repo}\" && rm -rf node_modules target *.o {% endif %}"
+      ],
+      "working_directory": "$HOME",
+      "group": "AI Assistants",
+      "load_history": true,
+      "display": false,
+      "capture_activity_transitions": false,
+      "forward_services": true,
+      "links": [
+        {
+          "url": "{FORGE_ISSUE_URL}",
+          "name": "#{issue_id}",
+          "skip_if_unresolved": true
+        }
+      ],
+      "parameters": [
+        {
+          "name": "forge",
+          "label": "Forge",
+          "type": "select",
+          "options_source": "forges",
+          "required": false,
+          "default": "GitHub",
+          "display": true 
+        },
+        {
+          "name": "clone_protocol",
+          "label": "Protocol",
+          "type": "select",
+          "options": [
+            { "value": "", "label": "Default" },
+            { "value": "SSH", "label": "SSH" },
+            { "value": "HTTPS", "label": "HTTPS" }
+          ],
+          "default": "https",
+          "display": true
+        },
+        {
+          "name": "repo",
+          "label": "Repository",
+          "type": "select",
+          "options_source": "forge",
+          "options_forge_key": "list_repos",
+          "required": false,
+          "depends_on": [
+            "forge"
+          ],
+          "strict_options": false
+        },
+        {
+          "name": "branch",
+          "label": "Branch",
+          "type": "select",
+          "options_source": "forge",
+          "options_forge_key": "list_branches",
+          "required": false,
+          "depends_on": [
+            "forge",
+            "repo"
+          ]
+        },
+        {
+          "name": "prompt",
+          "label": "Prompt",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "issue_id",
+          "label": "Issue ID",
+          "type": "string",
+          "required": false,
+          "display": true
+        }
+      ],
+      "workspace_service_enabled": true,
+      "isolation_overrides": {
+        "container_working_dir": "/workspace",
+        "container_map_user": true,
+        "container_cap_add": ["NET_ADMIN"],
+        "save_workspace_dir": true,
+        "merge_write_files": true,
+        "merge_pre_commands": true,
+        "merge_post_commands": true,
+        "write_files": [
+          { "source": "{CONFIG_DIR}/files/AGENTS.md", "target": "/workspace/.cursor/AGENTS.md", "interpolate": true },
+          { "source": "{CONFIG_DIR}/files/AGENTS.md", "target": "/workspace/.codex/AGENTS.md", "interpolate": true },
+          { "source": "{CONFIG_DIR}/files/AGENTS.md", "target": "/workspace/.claude/CLAUDE.md", "interpolate": true }
+
+        ]
+      }
+    },
+    {
+      "id": "bash",
+      "name": "Bash",
+      "description": "Standard bash",
+      "command": "/usr/bin/bash",
+      "working_directory": "$HOME",
+      "default": true,
+      "user": "login_user",
+      "group": "Shells",
+      "color": "lightblue"
+    },
+    {
+      "id": "cursor",
+      "extends": "ai-assistant-base",
+      "name": "Cursor",
+      "description": "Run Cursor",
+      "isolation": "container",
+      "write_files": [
+        { "source": "$HOME/.config/cursor/auth.json", "target": "/workspace/.config/cursor/auth.json" },
+        { "source": "$HOME/.cursor/cli-config.json", "target": "/workspace/.cursor/cli-config.json" }
+      ],
+      "command": "{% if repo nonempty %}cd \"{repo}\" && {% endif %}cursor-agent --force --model composer-1 {% if prompt nonempty %} \"{prompt}\"{% endif %}",
+      "fork_command": "{% if repo nonempty %}cd \"{repo}\" && {% endif %}cursor-agent --force --model composer-1 resume",
+      "env_vars": {
+        "AGENT": "cursor"
+      },
+      "display": true,
+      "color": "#C0C0C0"
+    },
+    { 
+      "id": "claude",
+      "extends": "ai-assistant-base",
+      "name": "Claude",
+      "description": "Run Claude Code",
+      "isolation": "container",
+      "stop_inputs_enabled": false,
+      "stop_inputs": [
+        { "prompt": "Ensure that te review has been completed and that you have provided feedback to the orchestration using agents.js.", "armed": true }
+      ],
+      "write_files": [
+        { "source": "$HOME/.claude/.credentials.json", "target": "/workspace/.claude/.credentials.json" },
+        { "source": "$HOME/.claude.json", "target": "/workspace/.claude.json" }
+      ],
+      "command": "{% if repo nonempty %}cd \"{repo}\" && {% endif %}IS_SANDBOX=1 claude --dangerously-skip-permissions{% if prompt nonempty %} \"{prompt}\"{% endif %}",
+      "command_tabs_XXX": [
+        {
+          "name": "File Reads",
+          "command": "cat ~/.claude/projects/-workspace*/*.jsonl | jq -r 'select(.type == \"assistant\") | .message.content[] | select(.type == \"tool_use\" and .name == \"Read\") | .input.file_path'"
+        } 
+      ],  
+      "fork_command": "IS_SANDBOX=1 claude --dangerously-skip-permissions /resume",
+      "env_vars": {
+        "AGENT": "claude"
+      },
+      "display": true,
+      "color": "#ce7b5b",
+      "links": [
+        { 
+          "name": "Chat Log",
+          "url": "about:blank",
+          "show_url_bar": false,
+          "pass_theme_colors": true,
+          "refresh_on_view_active": true,
+          "output_filename": "claude-chat.html",
+          "pre_view_command": "set -euo pipefail;\nLOG=$(find \"{SESSION_DIR}/workspace/.claude/projects\" -type f -name '*.jsonl' 2>/dev/null | grep -v '/agent-' | sort | tail -n 1);\nif [ -z \"$LOG\" ]; then echo \"No Claude sessions found\" >&2; exit 1; fi;\n{SCRIPTS_DIR}/chat-to-html.js   --bg-page \"{THEME_BG_PRIMARY}\"   --bg-card \"{THEME_BG_SECONDARY}\"   --bg-accent \"{THEME_BG_SECONDARY}\"   --text-main \"{THEME_TEXT_PRIMARY}\"   --text-muted \"{THEME_TEXT_SECONDARY}\"   --border \"{THEME_TEXT_SECONDARY}\"   --accent-user \"{THEME_ACCENT_COLOR}\"   --accent-assistant \"{THEME_SUCCESS_COLOR}\"   --accent-tool \"{THEME_DANGER_COLOR}\"   --accent-result \"{THEME_WARNING_COLOR}\" --accent-thinking \"{THEME_TEXT_DIM}\"   --accent-harness \"{THEME_BORDER_COLOR}\"  --font-ui '{THEME_FONT_UI}'   --font-code '{THEME_FONT_CODE}'   --output-file \"{OUTPUT_HTML}\"   \"$LOG\"",
+          "refresh_on_view_inactive": true
+        }
+      ]
+    },
+    {
+      "id": "codex",
+      "extends": "ai-assistant-base",
+      "name": "Codex",
+      "description": "Run codex",
+      "isolation": "container",
+      "stop_inputs_enabled": false,
+      "stop_inputs": [
+        { "prompt": "Ensure that your pending tasks are complete, including spawning Claude and requesting review using agents.js, and providing review feedback to the orchestrator using agents.js.", "armed": true }
+      ],
+      "write_files": [
+        { "source": "$HOME/.codex/auth.json", "target": "/workspace/.codex/auth.json" },
+        { "source": "$HOME/.codex/config.toml", "target": "/workspace/.codex/config.toml" }
+      ],
+      "command": "{% if repo nonempty %}cd \"{repo}\" && {% endif %}codex --dangerously-bypass-approvals-and-sandbox --model {model} --config model_reasoning_effort=\"{model_reasoning_effort}\"{% if prompt nonempty %} \"{prompt}\"{% endif %}",
+      "fork_command": "codex --dangerously-bypass-approvals-and-sandbox --model {model} --config model_reasoning_effort=\"{model_reasoning_effort}\" resume \"$(tail -n1 ~/.codex/history.jsonl | jq -r '.session_id')\" \"{prompt}\"",
+      "env_vars": {
+        "AGENT": "codex"
+      },
+      "display": true,
+      "color": "#4a90e2",
+      "parameters": [
+        {
+          "name": "model",
+          "label": "Model",
+          "required": true,
+          "type": "select",
+          "default": "gpt-5.1",
+          "options": [
+            {
+              "value": "gpt-5.1",
+              "label": "gpt-5.1"
+            },
+            {
+              "value": "gpt-5.1-codex",
+              "label": "gpt-5.1-codex"
+            }
+          ]
+        },
+        {
+          "name": "model_reasoning_effort",
+          "label": "Model Reasoning Effort",
+          "required": true,
+          "type": "select",
+          "default": "high",
+          "options": [
+            {
+              "value": "high",
+              "label": "high"
+            },
+            {
+              "value": "medium",
+              "label": "medium"
+            },
+            {
+              "value": "low",
+              "label": "low"
+            },
+            {
+              "value": "minimal",
+              "label": "minimal (gpt-5 only)"
+            }
+          ]
+        }
+      ],
+      "links": [
+        { 
+          "name": "Chat Log",
+          "url": "about:blank",
+          "show_url_bar": false,
+          "pass_theme_colors": true,
+          "refresh_on_view_active": true,
+          "output_filename": "codex-chat.html",
+          "pre_view_command": "set -euo pipefail;\nLOG=$(find \"{SESSION_DIR}/workspace/.codex/sessions\" -type f -name '*.jsonl' 2>/dev/null | sort | tail -n 1);\nif [ -z \"$LOG\" ]; then echo \"No Codex sessions found\" >&2; exit 1; fi;\n{SCRIPTS_DIR}/chat-to-html.js   --bg-page \"{THEME_BG_PRIMARY}\"   --bg-card \"{THEME_BG_SECONDARY}\"   --bg-accent \"{THEME_BG_SECONDARY}\"   --text-main \"{THEME_TEXT_PRIMARY}\"   --text-muted \"{THEME_TEXT_SECONDARY}\"   --border \"{THEME_TEXT_SECONDARY}\"   --accent-user \"{THEME_ACCENT_COLOR}\"   --accent-assistant \"{THEME_SUCCESS_COLOR}\"   --accent-tool \"{THEME_DANGER_COLOR}\"   --accent-result \"{THEME_WARNING_COLOR}\" --accent-thinking \"{THEME_TEXT_DIM}\"   --accent-harness \"{THEME_BORDER_COLOR}\"  --font-ui '{THEME_FONT_UI}'   --font-code '{THEME_FONT_CODE}'   --output-file \"{OUTPUT_HTML}\"   \"$LOG\"",
+          "refresh_on_view_inactive": false
+        }
+      ]
+    },
+    {   
+      "id": "codex-termstation",
+      "shortcut": "tsc",
+      "badge_label": "Codex",
+      "extends": "codex",
+      "name": "Codex- TermStation",
+      "description": "Codex preconfigurd for kcsor/termstation",
+      "color": "#4a90e2",
+      "parameters": [
+        {
+          "name": "model",
+          "required": true,
+          "type": "string",
+          "default": "gpt-5"
+        },
+        {
+          "name": "model_reasoning_effort",
+          "type": "string",
+          "required": true,
+          "default": "high"
+        },
+        { 
+          "name": "repo",
+          "type": "string",
+          "required": true,
+          "default": "kcosr/termstation"
+        } 
+      ]   
+    },
+    {
+      "id": "claude-termstation-web",
+      "extends": "claude",
+      "name": "Claude - TermStation Web",
+      "description": "Claude preconfigured for kcosr/termstation-web",
+      "shortcut": "tsw",
+      "links": [
+        {
+          "url": "{SESSIONS_API_BASE_URL}/sessions/{SESSION_ID}/service/3000/",
+          "name": "Web",
+          "show_active": true,
+          "show_inactive": false,
+          "skip_if_unresolved": true
+        }
+      ],
+      "badge_label": "Claude",
+      "pre_commands": [
+        "node dev-server.js &"
+      ],
+      "parameters": [
+        { "name": "repo", "default": "kcosr/termstation-web" }
+      ]
+    },
+    {
+      "id": "sandbox",
+      "extends": "ai-assistant-base",
+      "name": "Sandbox",
+      "description": "Generic sandbox",
+      "isolation": "container",
+      "command": "/usr/bin/bash",
+      "user": "daemon_user",
+      "working_directory": "$HOME",
+      "group": "Development",
+      "color": "#28a745",
+      "display": true
+    }
+  ]
+}
