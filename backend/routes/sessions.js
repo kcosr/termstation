@@ -46,6 +46,7 @@ import { usersConfigCache, groupsConfigCache } from '../utils/json-config-cache.
 import { isWorkspaceServiceEnabledForSession, computeWorkspaceServicePort } from '../utils/workspace-service-flags.js';
 import { canAccessSessionFromRequest } from '../utils/session-access.js';
 import { sanitizeOutputFilename } from '../utils/session-links.js';
+import { createBindMountClassifier } from '../utils/workspace-mountinfo.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2626,18 +2627,23 @@ async function handleWorkspaceList(req, res) {
     const rel = path.relative(root, target) || '';
     const logicalPath = normalizeWorkspaceLogicalPath(rel);
     const outEntries = [];
+    const classifyBind = createBindMountClassifier(root);
     for (const entry of entries) {
       if (!entry || typeof entry.name !== 'string') continue;
       const name = entry.name;
       const isHidden = name.startsWith('.');
       const isDir = typeof entry.isDirectory === 'function' ? entry.isDirectory() : false;
       const childRel = rel ? path.posix.join(rel.replace(/\\/g, '/'), name) : name;
-      outEntries.push({
+      const fullPath = path.join(target, name);
+      const bindMode = classifyBind(fullPath);
+      const outEntry = {
         name,
         type: isDir ? 'directory' : 'file',
         path: normalizeWorkspaceLogicalPath(childRel.replace(/\\/g, '/')),
         hidden: isHidden
-      });
+      };
+      if (bindMode) outEntry.bind = bindMode;
+      outEntries.push(outEntry);
     }
     return res.json({
       ok: true,

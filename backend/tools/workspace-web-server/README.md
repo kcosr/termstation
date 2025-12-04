@@ -60,7 +60,8 @@ noted.
       "entries": [
         { "name": "file.txt", "type": "file", "path": "/subdir/file.txt", "hidden": false },
         { "name": ".env", "type": "file", "path": "/subdir/.env", "hidden": true },
-        { "name": "child", "type": "directory", "path": "/subdir/child", "hidden": false }
+        { "name": "child", "type": "directory", "path": "/subdir/child", "hidden": false },
+        { "name": ".cargo", "type": "directory", "path": "/subdir/.cargo", "hidden": true, "bind": "rw" }
       ]
     }
     ```

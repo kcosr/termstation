@@ -52,6 +52,7 @@ export class WorkspaceFilesView {
             <tr>
               <th scope="col">Name</th>
               <th scope="col">Type</th>
+              <th scope="col">Bind</th>
               <th scope="col">Actions</th>
             </tr>
           </thead>
@@ -192,6 +193,10 @@ export class WorkspaceFilesView {
       const typeCell = document.createElement('td');
       typeCell.textContent = tr.dataset.type === 'directory' ? 'Directory' : 'File';
 
+      const bindCell = document.createElement('td');
+      const bindValue = (entry && typeof entry.bind === 'string' && entry.bind) ? entry.bind : '';
+      bindCell.textContent = bindValue;
+
       const actionsCell = document.createElement('td');
       if (tr.dataset.type === 'directory') {
         const openBtn = document.createElement('button');
@@ -209,6 +214,7 @@ export class WorkspaceFilesView {
 
       tr.appendChild(nameCell);
       tr.appendChild(typeCell);
+      tr.appendChild(bindCell);
       tr.appendChild(actionsCell);
       this.tbody.appendChild(tr);
     }
@@ -384,4 +390,3 @@ export class WorkspaceFilesView {
     await this.loadPath(base);
   }
 }
-
