@@ -1,6 +1,6 @@
 # TermStation
 
-![TermStation interface](https://termstation.dev/assets/termstation-interface.png)
+![TermStation interface](https://github.com/kcosr/termstation-web/blob/main/docs/assets/termstation-interface.png)
 
 ## Pre-Alpha Warning
 
