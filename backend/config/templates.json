@@ -59,7 +59,7 @@
             { "value": "SSH", "label": "SSH" },
             { "value": "HTTPS", "label": "HTTPS" }
           ],
-          "default": "https",
+          "default": "HTTPS",
           "display": true
         },
         {
@@ -269,7 +269,7 @@
       "shortcut": "tsc",
       "badge_label": "Codex",
       "extends": "codex",
-      "name": "Codex- TermStation",
+      "name": "Codex - TermStation",
       "description": "Codex preconfigurd for kcsor/termstation",
       "color": "#4a90e2",
       "parameters": [
