@@ -39,6 +39,37 @@ The installer will:
 
 **Note**: The installer does not install Node.js automatically. Rocky Linux 10 ships with Node.js 22. On Ubuntu, you may need to install it first (see below).
 
+## Upgrading TermStation
+
+If you already have TermStation installed (default: `/opt/termstation`), the installer detects it after you enter the app install directory and offers to run an in-place upgrade.
+
+What Upgrade does:
+- Updates application code in the install directory (backend, frontend, shared)
+- Reinstalls dependencies in `backend/` and `frontend/`, and rebuilds backend tools
+- Optionally builds/updates external helpers (chat-to-html, pty-to-html)
+- Preserves your runtime configuration and data (keeps `CONFIG_DIR`, `DATA_DIR`, and all JSON files unchanged)
+- Leaves generated start scripts and the Dockerfile as-is
+- Skips system package installation, SELinux policies, SSH key setup, forge CLI copying, and install-time interpolation
+
+The upgrade does not rebuild the container image. To rebuild later, run one of:
+
+```bash
+# Podman
+podman build -f "$TERMSTATION_CONFIG_DIR/Dockerfile" -t termstation "$TERMSTATION_CONFIG_DIR"
+
+# Docker
+docker build -f "$TERMSTATION_CONFIG_DIR/Dockerfile" -t termstation "$TERMSTATION_CONFIG_DIR"
+```
+
+To upgrade:
+1) Run the installer from your cloned repo:
+```bash
+cd termstation
+./install.sh
+```
+2) When prompted for the app install directory, enter your existing path (e.g., `/opt/termstation`).
+3) Choose “Upgrade” and confirm. Configuration files and data remain untouched.
+
 ## Pre-Installation
 
 ### Node.js 22 (Ubuntu only)
