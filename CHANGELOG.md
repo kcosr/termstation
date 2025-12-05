@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.0.2] - 2025-12-05
+
 ### Added
 
 - Installer: interactive upgrade mode when the selected app install directory already exists. Prompts Upgrade/Reinstall/Cancel before other prompts. ([#4])
