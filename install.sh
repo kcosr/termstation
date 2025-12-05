@@ -62,6 +62,8 @@ CREATE_SERVICE_USER=false
 SERVICE_USER=""
 SERVICE_USER_HOME=""
 INSTALL_DIR="/opt/termstation"
+UPGRADE_MODE=false
+UPGRADE_REINSTALL_DEPS=false
 CONFIG_DIR=""
 DATA_DIR=""
 BIND_ADDRESS=""
@@ -324,7 +326,6 @@ menu_basic_config() {
         echo -e "Home directory: ${CYAN}$SERVICE_USER_HOME${NC}\n"
     fi
 
-    prompt_input "App install directory" "$INSTALL_DIR" "INSTALL_DIR"
     prompt_input "Config directory" "$CONFIG_DIR" "CONFIG_DIR"
     prompt_input "Data directory" "$DATA_DIR" "DATA_DIR"
 
@@ -351,6 +352,187 @@ menu_basic_config() {
 
     prompt_input "Backend port" "$DEFAULT_BACKEND_PORT" "BACKEND_PORT"
     prompt_input "Frontend port" "$DEFAULT_FRONTEND_PORT" "FRONTEND_PORT"
+}
+
+# Early: Select install location and offer upgrade before service user prompts
+menu_install_location() {
+    print_header
+    echo -e "${BOLD}Install Location${NC}\n"
+    prompt_input "App install directory" "$INSTALL_DIR" "INSTALL_DIR"
+
+    # If install dir already exists and appears to be a TermStation install,
+    # offer Upgrade/Reinstall/Cancel immediately (before service user prompts).
+    if [ -d "$INSTALL_DIR/backend" ] || [ -f "$INSTALL_DIR/backend/start.sh" ]; then
+        echo ""
+        echo -e "${YELLOW}Existing TermStation installation detected at:${NC} ${CYAN}$INSTALL_DIR${NC}\n"
+        echo -e "Choose an action:\n"
+        echo -e "  1) ${GREEN}Upgrade${NC} (update app code and dependencies; keep config and Dockerfile)"
+        echo -e "  2) ${RED}Reinstall (fresh)${NC} (run full installer)"
+        echo -e "  3) Cancel\n"
+
+        local upgrade_choice=""
+        prompt_input "Select option" "1" "upgrade_choice"
+        case "$upgrade_choice" in
+            1)
+                UPGRADE_MODE=true
+                populate_from_existing_install || true
+                menu_upgrade_summary
+                # Initialize install log for upgrade
+                INSTALL_LOG="$(pwd)/termstation-install.log"
+                mkdir -p "$(dirname "$INSTALL_LOG")"
+                echo "=== TermStation Installation Log (Upgrade) ===" > "$INSTALL_LOG"
+                echo "Started: $(date)" >> "$INSTALL_LOG"
+                echo "User: $(whoami)" >> "$INSTALL_LOG"
+                echo "Host: $(hostname)" >> "$INSTALL_LOG"
+                echo "" >> "$INSTALL_LOG"
+                log_info "Installation log: $INSTALL_LOG"
+                upgrade_termstation
+                if [ "$INSTALL_CHAT_TO_HTML" = "true" ] || [ "$INSTALL_PTY_TO_HTML" = "true" ]; then
+                    build_optional_dependencies
+                fi
+                print_upgrade_completion
+                exit 0
+                ;;
+            2)
+                UPGRADE_MODE=false
+                ;;
+            3)
+                echo -e "\n${RED}Installation cancelled.${NC}"
+                exit 0
+                ;;
+            *)
+                UPGRADE_MODE=true
+                populate_from_existing_install || true
+                menu_upgrade_summary
+                INSTALL_LOG="$(pwd)/termstation-install.log"
+                mkdir -p "$(dirname "$INSTALL_LOG")"
+                echo "=== TermStation Installation Log (Upgrade) ===" > "$INSTALL_LOG"
+                echo "Started: $(date)" >> "$INSTALL_LOG"
+                echo "User: $(whoami)" >> "$INSTALL_LOG"
+                echo "Host: $(hostname)" >> "$INSTALL_LOG"
+                echo "" >> "$INSTALL_LOG"
+                log_info "Installation log: $INSTALL_LOG"
+                upgrade_termstation
+                if [ "$INSTALL_CHAT_TO_HTML" = "true" ] || [ "$INSTALL_PTY_TO_HTML" = "true" ]; then
+                    build_optional_dependencies
+                fi
+                print_upgrade_completion
+                exit 0
+                ;;
+        esac
+    fi
+}
+
+# Read existing config from start scripts to populate summary fields for upgrade mode
+populate_from_existing_install() {
+    local backend_start="$INSTALL_DIR/backend/start.sh"
+    local frontend_start="$INSTALL_DIR/frontend/start.sh"
+    # Pull config dir and backend bind/port from backend start script
+    if [ -f "$backend_start" ]; then
+        local v
+        v=$(grep -E '^export\s+TERMSTATION_CONFIG_DIR=' "$backend_start" 2>/dev/null | head -1 | sed -E 's/^export\s+TERMSTATION_CONFIG_DIR=\"?(.*)\"?/\1/')
+        if [ -n "${v:-}" ]; then CONFIG_DIR="$v"; fi
+        v=$(grep -E '^export\s+TERMSTATION_BACKEND_BIND_ADDRESS=' "$backend_start" 2>/dev/null | head -1 | sed -E 's/^export\s+TERMSTATION_BACKEND_BIND_ADDRESS=\"?(.*)\"?/\1/')
+        if [ -n "${v:-}" ]; then BIND_ADDRESS="$v"; fi
+        v=$(grep -E '^export\s+TERMSTATION_BACKEND_PORT=' "$backend_start" 2>/dev/null | head -1 | sed -E 's/^export\s+TERMSTATION_BACKEND_PORT=\"?(.*)\"?/\1/')
+        if [ -n "${v:-}" ]; then BACKEND_PORT="$v"; fi
+    fi
+    # Pull frontend bind/port
+    if [ -f "$frontend_start" ]; then
+        local v
+        v=$(grep -E '^export\s+TERMSTATION_FRONTEND_BIND_ADDRESS=' "$frontend_start" 2>/dev/null | head -1 | sed -E 's/^export\s+TERMSTATION_FRONTEND_BIND_ADDRESS=\"?(.*)\"?/\1/')
+        # Frontend start template does not carry bind address yet; ignore if empty
+        if [ -n "${v:-}" ]; then :; fi
+        v=$(grep -E '^export\s+TERMSTATION_FRONTEND_PORT=' "$frontend_start" 2>/dev/null | head -1 | sed -E 's/^export\s+TERMSTATION_FRONTEND_PORT=\"?(.*)\"?/\1/')
+        if [ -n "${v:-}" ]; then FRONTEND_PORT="$v"; fi
+    fi
+}
+
+# Minimal summary for upgrade mode with optional container rebuild prompt
+menu_upgrade_summary() {
+    print_header
+    echo -e "${BOLD}Upgrade Summary${NC}\n"
+    echo -e "  ${BOLD}Install dir:${NC}       $INSTALL_DIR"
+    echo ""
+    echo -e "This will:${NC}"
+    echo -e "  - Update application files (backend, frontend, shared)"
+    echo -e "  - Optionally re-install npm dependencies and rebuild backend tools"
+    echo -e "  - Leave config, data, start scripts, and Dockerfile untouched"
+    echo -e "  - Skip system packages, SELinux policies, SSH, forge config, templates, and interpolation"
+    echo -e "  - Optionally update external helpers (chat-to-html, pty-to-html)\n"
+
+    # External helpers (optional)
+    prompt_yes_no "Build/update chat-to-html helper" "n" "INSTALL_CHAT_TO_HTML"
+    prompt_yes_no "Build/update pty-to-html helper" "n" "INSTALL_PTY_TO_HTML"
+    echo ""
+    local PROCEED_UPGRADE=false
+    prompt_yes_no "Proceed with upgrade" "y" "PROCEED_UPGRADE"
+    if [ "$PROCEED_UPGRADE" != "true" ]; then
+        echo -e "\n${RED}Upgrade cancelled.${NC}"
+        exit 0
+    fi
+}
+
+# Perform in-place upgrade of app files and dependencies only
+upgrade_termstation() {
+    log_step "Upgrading TermStation application files"
+
+    # Verify repo structure exists
+    if [ ! -d "$SCRIPT_DIR/backend" ] || [ ! -d "$SCRIPT_DIR/frontend" ] || [ ! -d "$SCRIPT_DIR/shared" ]; then
+        die "This script must be run from the termstation repository root. Missing backend/, frontend/, or shared/ directory in: $SCRIPT_DIR"
+    fi
+
+    # Ensure install dir exists
+    if ! sudo mkdir -p "$INSTALL_DIR" 2>&1 | tee -a "$INSTALL_LOG"; then
+        die "Failed to ensure install directory"
+    fi
+
+    # Use rsync to update files (without --delete to preserve generated files like start.sh)
+    log_info "Syncing backend/ frontend/ shared/ to $INSTALL_DIR"
+    if ! command -v rsync >/dev/null 2>&1; then
+        log_warn "rsync not found; falling back to cp -r"
+        sudo cp -r "$SCRIPT_DIR/backend" "$INSTALL_DIR/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to copy backend"
+        sudo cp -r "$SCRIPT_DIR/frontend" "$INSTALL_DIR/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to copy frontend"
+        sudo cp -r "$SCRIPT_DIR/shared" "$INSTALL_DIR/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to copy shared"
+    else
+        sudo rsync -a "$SCRIPT_DIR/backend/" "$INSTALL_DIR/backend/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to sync backend"
+        sudo rsync -a "$SCRIPT_DIR/frontend/" "$INSTALL_DIR/frontend/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to sync frontend"
+        sudo rsync -a "$SCRIPT_DIR/shared/" "$INSTALL_DIR/shared/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to sync shared"
+    fi
+
+    # Fix permissions
+    sudo chmod -R a+rX "$INSTALL_DIR" 2>&1 | tee -a "$INSTALL_LOG" || true
+
+    # Always re-install deps and rebuild backend tools (backend)
+    log_info "Installing frontend dependencies..."
+    (cd "$INSTALL_DIR/frontend" && sudo npm install 2>&1 | tee -a "$INSTALL_LOG") || die "Failed to install frontend dependencies"
+    log_info "Installing backend dependencies..."
+    (cd "$INSTALL_DIR/backend" && sudo npm install 2>&1 | tee -a "$INSTALL_LOG") || die "Failed to install backend dependencies"
+    log_info "Building backend tools..."
+    local bun_path="$HOME/.bun/bin"
+    (cd "$INSTALL_DIR/backend" && sudo PATH="$bun_path:$PATH" npm run build 2>&1 | tee -a "$INSTALL_LOG") || die "Failed to build backend tools"
+
+    log_info "Upgrade of application files complete"
+}
+
+print_upgrade_completion() {
+    print_header
+    echo -e "${GREEN}${BOLD}Upgrade Complete!${NC}\n"
+    echo -e "${BOLD}Summary:${NC}\n"
+    echo -e "  ${BOLD}App install dir:${NC}   $INSTALL_DIR"
+    echo ""
+    echo -e "${BOLD}Next Steps:${NC}\n"
+    echo -e "${YELLOW}Note:${NC} If the backend or frontend are currently running, stop them before restarting."
+    echo -e "      For example: press Ctrl+C in the terminal where they run,"
+    echo -e "      or stop any service/supervisor that launched them.\n"
+    echo -e "1. Start the backend:"
+    echo -e "   ${CYAN}$INSTALL_DIR/backend/start.sh${NC}\n"
+    echo -e "2. Start the frontend (another terminal):"
+    echo -e "   ${CYAN}$INSTALL_DIR/frontend/start.sh${NC}\n"
+    if [ -n "$CONFIG_DIR" ]; then
+        echo -e "3. Rebuild container later if needed:"
+        echo -e "   ${CYAN}$CONTAINER_RUNTIME build -f $CONFIG_DIR/Dockerfile -t termstation $CONFIG_DIR${NC}\n"
+    fi
 }
 
 # Menu: Git Configuration
@@ -2329,7 +2511,8 @@ main() {
     detect_os
     log_info "Detected OS: $OS_TYPE (package manager: $PKG_MANAGER)"
 
-    # Collect configuration
+    # Collect configuration (prompt install dir and upgrade decision first)
+    menu_install_location
     menu_service_user
     menu_basic_config
     menu_git_config
