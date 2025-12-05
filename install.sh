@@ -487,17 +487,17 @@ upgrade_termstation() {
         die "Failed to ensure install directory"
     fi
 
-    # Use rsync to update and remove stale files
-    log_info "Syncing backend/ frontend/ shared/ to $INSTALL_DIR (rsync --delete)"
+    # Use rsync to update files (without --delete to preserve generated files like start.sh)
+    log_info "Syncing backend/ frontend/ shared/ to $INSTALL_DIR"
     if ! command -v rsync >/dev/null 2>&1; then
-        log_warn "rsync not found; falling back to cp -r (stale files may remain)"
+        log_warn "rsync not found; falling back to cp -r"
         sudo cp -r "$SCRIPT_DIR/backend" "$INSTALL_DIR/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to copy backend"
         sudo cp -r "$SCRIPT_DIR/frontend" "$INSTALL_DIR/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to copy frontend"
         sudo cp -r "$SCRIPT_DIR/shared" "$INSTALL_DIR/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to copy shared"
     else
-        sudo rsync -a --delete "$SCRIPT_DIR/backend/" "$INSTALL_DIR/backend/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to sync backend"
-        sudo rsync -a --delete "$SCRIPT_DIR/frontend/" "$INSTALL_DIR/frontend/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to sync frontend"
-        sudo rsync -a --delete "$SCRIPT_DIR/shared/" "$INSTALL_DIR/shared/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to sync shared"
+        sudo rsync -a "$SCRIPT_DIR/backend/" "$INSTALL_DIR/backend/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to sync backend"
+        sudo rsync -a "$SCRIPT_DIR/frontend/" "$INSTALL_DIR/frontend/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to sync frontend"
+        sudo rsync -a "$SCRIPT_DIR/shared/" "$INSTALL_DIR/shared/" 2>&1 | tee -a "$INSTALL_LOG" || die "Failed to sync shared"
     fi
 
     # Fix permissions
