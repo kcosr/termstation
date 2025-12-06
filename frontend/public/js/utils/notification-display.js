@@ -792,6 +792,20 @@ export class NotificationDisplay {
         const actions = Array.isArray(notification.actions) ? notification.actions : [];
 
         const inputElements = {};
+        let primaryActionKey = null;
+
+        if (Array.isArray(actions) && actions.length > 0) {
+            const primary = actions.find((action) => {
+                if (!action) return false;
+                const style = (action.style || '').toString().toLowerCase();
+                return style === 'primary';
+            });
+            if (primary && primary.key) {
+                primaryActionKey = primary.key;
+            } else if (actions[0] && actions[0].key) {
+                primaryActionKey = actions[0].key;
+            }
+        }
         inputs.forEach((inputDef) => {
             if (!inputDef || !inputDef.id) return;
             const escapedId = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(inputDef.id) : inputDef.id;
@@ -891,7 +905,8 @@ export class NotificationDisplay {
             errorEl,
             pendingActionKey: null,
             resolved: !!notification.response,
-            lastSubmittedInputs: null
+            lastSubmittedInputs: null,
+            primaryActionKey
         };
 
         try {
@@ -912,6 +927,32 @@ export class NotificationDisplay {
         } catch (_) {}
 
         this.updateActionButtonsState(id);
+
+        try {
+            const handleKey = (ev) => {
+                const interactive = this.notifications.get(id)?.interactive;
+                if (!interactive || interactive.resolved) return;
+                const target = ev.target;
+                const inInputRow = !!(
+                    target &&
+                    typeof target.closest === 'function' &&
+                    target.closest('.notification-input-row')
+                );
+                if (!inInputRow) return;
+                const key = ev.key || ev.code;
+                if (key === 'Enter') {
+                    if (!interactive.primaryActionKey) return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    this.handleActionClick(id, interactive.primaryActionKey);
+                } else if (key === 'Escape' || key === 'Esc') {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    this.remove(id);
+                }
+            };
+            element.addEventListener('keydown', handleKey);
+        } catch (_) {}
     }
 
     /**
