@@ -67,7 +67,7 @@ export class NotificationDisplay {
 
     bindGlobalKeys() {
         try {
-            document.addEventListener('keydown', (ev) => {
+            const handler = (ev) => {
                 try {
                     if (typeof isAnyModalOpen === 'function' && isAnyModalOpen()) return;
                 } catch (_) {}
@@ -96,7 +96,8 @@ export class NotificationDisplay {
                     ev.stopPropagation();
                     this.remove(activeId);
                 }
-            });
+            };
+            document.addEventListener('keydown', handler, true);
         } catch (_) {}
     }
 
