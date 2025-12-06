@@ -1026,8 +1026,18 @@ export class TerminalSession {
     
     focus() {
         // Prevent focus if mobile keyboard input is active to avoid triggering mobile keyboard
-        if (window._mobileKeyboardInputActive) {
-            return;
+        try {
+            if (typeof window !== 'undefined') {
+                if (window._mobileKeyboardInputActive) {
+                    return;
+                }
+                // Do not steal focus while the user is interacting with an interactive notification input.
+                if (window._interactiveNotificationInputActive) {
+                    return;
+                }
+            }
+        } catch (_) {
+            // Ignore guard errors and fall through to best-effort focus.
         }
 
         // Do not steal focus from the sidebar "Search sessions..." input.
@@ -1035,8 +1045,18 @@ export class TerminalSession {
         // auto-focus behavior from terminal lifecycle events should be suppressed.
         try {
             const active = document.activeElement;
-            if (active && (active.id === 'session-search' || active.classList?.contains('search-input'))) {
-                return;
+            if (active) {
+                if (active.id === 'session-search' || active.classList?.contains('search-input')) {
+                    return;
+                }
+                if (typeof active.closest === 'function') {
+                    // Avoid stealing focus from interactive notification toasts or the notification center.
+                    const inNotification = active.closest('.notification');
+                    const inNotificationCenter = active.closest('#notification-center-panel');
+                    if (inNotification || inNotificationCenter) {
+                        return;
+                    }
+                }
             }
         } catch (_) {
             // Ignore focus guard errors and fall through to best-effort focus.

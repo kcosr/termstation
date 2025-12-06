@@ -13,7 +13,6 @@ import { apiService } from '../services/api.service.js';
 import { errorHandler } from '../utils/error-handler.js';
 import { EventBus } from '../utils/eventbus.js';
 import { config } from './config.js';
-import { consoleOverlay } from '../utils/console-overlay.js';
 import { keyOverlay } from '../utils/key-overlay.js';
 import { authSession } from '../utils/auth-session.js';
 import { appStore } from './store.js';

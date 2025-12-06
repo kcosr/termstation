@@ -171,13 +171,13 @@ All interactive fields are **optional**. A notification becomes “interactive�
     {
       "id": "api_key",           // required, unique per notification
       "label": "API Key",        // required
-      "type": "string",          // "string" | "password"
+      "type": "string",          // "string" | "secret"
       "required": true,          // default false
       "placeholder": "sk-...",   // optional
       "max_length": 4096         // optional, server-side validation cap
     }
     ```
-  - `type: "password"` indicates:
+  - `type: "secret"` indicates:
     - The UI must render a masked input field.
     - The backend must **not persist the value** in NotificationManager or Notification Center history.
     - The value may be forwarded in the callback HTTP request payload only.
@@ -279,7 +279,7 @@ Existing fields continue; we add optional interactive metadata, with sensitive f
     { "key": "deny", "label": "Deny", "style": "secondary" }
   ],
   "inputs": [
-    { "id": "api_key", "label": "API Key", "type": "password", "required": true }
+    { "id": "api_key", "label": "API Key", "type": "secret", "required": true }
   ],
 
   // Optional response summary for already-resolved notifications
@@ -407,7 +407,7 @@ Behavior:
       - Keys are unique.
     - Validate `inputs` array (if present):
       - Non‑empty array of objects with `id` and `label`.
-      - Enforce `type` ∈ `{ "string", "password" }` (default `"string"`).
+      - Enforce `type` ∈ `{ "string", "secret" }` (default `"string"`).
       - Enforce reasonable `max_length` caps.
     - Validate `requires_inputs` for each action:
       - All referenced ids exist in `inputs`.
@@ -466,7 +466,7 @@ Add a new handler in `backend/websocket/handlers.js`:
   7. Persist response:
      - Store `response` in the notification:
        - `inputs` only for non‑masked fields.
-       - `masked_input_ids` for fields with `type: "password"` that were present.
+       - `masked_input_ids` for fields with `type: "secret"` that were present.
        - Set `is_active = false`.
   8. Send `notification_action_result` to:
      - The requesting client.
@@ -499,7 +499,7 @@ Extend `NotificationDisplay.createElement(id, notification)`:
   - For each `notification.inputs` entry:
     - Render a label + input field.
     - `type: "string"` → `<input type="text">` (or `<textarea>` if we want multi‑line later).
-    - `type: "password"` → `<input type="password">`.
+    - `type: "secret"` → masked input field that does not expose the actual value.
     - Include `required` indicators in the UI (e.g., asterisk).
   - Track DOM nodes keyed by `input.id` for later value collection.
 
@@ -595,8 +595,8 @@ No changes are required to mark‑read / delete UX.
 
 On the frontend:
 
-- `type: "password"` inputs:
-  - Use `<input type="password">`.
+- `type: "secret"` inputs:
+  - Use a masked input field (UI must hide the value).
   - Do not log values to the console.
   - Treat them like other inputs for validation and enabling buttons.
 
