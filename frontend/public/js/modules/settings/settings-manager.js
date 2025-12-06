@@ -4,7 +4,6 @@
 
 import { appStore } from '../../core/store.js';
 import { getSettingsStore } from '../../core/settings-store/index.js';
-import { consoleOverlay } from '../../utils/console-overlay.js';
 import { keyOverlay } from '../../utils/key-overlay.js';
 import { getContext } from '../../core/context.js';
 import { audioManager } from '../../utils/audio.js';
@@ -280,6 +279,7 @@ export class SettingsManager {
             notificationsEnabled: document.getElementById('notifications-enabled'),
             notificationsSound: document.getElementById('notifications-sound'),
             notificationsScheduledInputShow: document.getElementById('notifications-scheduled-input-show'),
+            notificationsPersistInteractive: document.getElementById('notifications-persist-interactive'),
             // Per-level notification settings
             notificationsInfoShow: document.getElementById('notifications-info-show'),
             notificationsInfoSound: document.getElementById('notifications-info-sound'),
@@ -325,7 +325,6 @@ export class SettingsManager {
             // Authentication settings handled via header user menu
             
             // Debug settings
-            debugConsoleEnabled: document.getElementById('debug-console-enabled'),
             debugKeyOverlay: document.getElementById('debug-key-overlay'),
             debugWsLogs: document.getElementById('debug-ws-logs'),
             debugRegistryLogs: document.getElementById('debug-registry-logs'),
@@ -907,13 +906,6 @@ export class SettingsManager {
             try { appStore.setPath('preferences.display.appFontFamily', fontFamily); } catch (_) {}
         });
         
-        // Debug console checkbox - apply changes in real-time (persist on Save)
-        this.elements.debugConsoleEnabled?.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
-            this.applyDebugConsoleSettings(enabled);
-            // Update store immediately for consistency
-            appStore.setPath('preferences.debug.consoleEnabled', enabled);
-        });
         // Key overlay checkbox - apply changes in real-time (persist on Save)
         this.elements.debugKeyOverlay?.addEventListener('change', (e) => {
             const enabled = !!e.target.checked;
@@ -933,6 +925,10 @@ export class SettingsManager {
         // Scheduled/remote input toast visibility
         this.elements.notificationsScheduledInputShow?.addEventListener('change', (e) => {
             appStore.setPath('preferences.notifications.showScheduledInput', !!e.target.checked);
+        });
+        // Persist interactive notification toasts
+        this.elements.notificationsPersistInteractive?.addEventListener('change', (e) => {
+            appStore.setPath('preferences.notifications.persistInteractive', !!e.target.checked);
         });
 
         // Additional categorized logs - apply changes immediately
@@ -1194,7 +1190,6 @@ export class SettingsManager {
                     }
                 } catch (_) {}
                 console.log('[Settings] Loaded settings from', isElectron ? 'disk' : 'localStorage');
-                if (settings.preferences?.debug?.consoleEnabled) setTimeout(() => this.applyDebugConsoleSettings(true), 100);
                 
                 // Authentication credentials are handled via the header user menu/auth modal
             } else if (isElectron) {
@@ -1586,6 +1581,10 @@ export class SettingsManager {
             const showPref = state.preferences?.notifications?.showScheduledInput;
             this.elements.notificationsScheduledInputShow.checked = (showPref !== false);
         }
+        if (this.elements.notificationsPersistInteractive) {
+            const persist = state.preferences?.notifications?.persistInteractive === true;
+            this.elements.notificationsPersistInteractive.checked = persist;
+        }
         // Per-level settings (fallback to true)
         const lv = (state.preferences?.notifications?.levels) || {};
         if (this.elements.notificationsInfoShow) this.elements.notificationsInfoShow.checked = (lv.info?.show ?? true);
@@ -1693,9 +1692,6 @@ export class SettingsManager {
         // Blur removed
         
         // Debug settings
-        if (this.elements.debugConsoleEnabled) {
-            this.elements.debugConsoleEnabled.checked = state.preferences?.debug?.consoleEnabled ?? false;
-        }
         if (this.elements.debugWsLogs) {
             this.elements.debugWsLogs.checked = state.preferences?.debug?.websocketLogs ?? false;
         }
@@ -1892,6 +1888,7 @@ export class SettingsManager {
                         enabled: this.elements.notificationsEnabled?.checked ?? false,
                         sound: this.elements.notificationsSound?.checked ?? false,
                         showScheduledInput: this.elements.notificationsScheduledInputShow?.checked !== false,
+                        persistInteractive: this.elements.notificationsPersistInteractive?.checked === true,
                         levels: {
                             info: {
                                 show: this.elements.notificationsInfoShow?.checked ?? true,
@@ -1949,7 +1946,6 @@ export class SettingsManager {
                         }
                     },
                     debug: {
-                        consoleEnabled: this.elements.debugConsoleEnabled?.checked ?? false,
                         keyOverlay: this.elements.debugKeyOverlay?.checked ?? false,
                         websocketLogs: this.elements.debugWsLogs?.checked ?? false,
                         registryLogs: this.elements.debugRegistryLogs?.checked ?? false,
@@ -2008,9 +2004,6 @@ export class SettingsManager {
                 audioManager.setEnabled(newSettings.preferences.notifications.sound);
             }
             
-            // Apply debug console preferences
-            this.applyDebugConsoleSettings(newSettings.preferences.debug.consoleEnabled);
-
             // Apply theme immediately based on the selected scope
             this.applyTheme(themePlan.effectiveTheme);
             try { appStore.setPath('ui.theme', themePlan.effectiveTheme); } catch (_) {}
@@ -2154,6 +2147,7 @@ export class SettingsManager {
                     enabled: false,
                     sound: false,
                     showScheduledInput: true,
+                    persistInteractive: false,
                     levels: {
                         info: { show: true, sound: true },
                         success: { show: true, sound: true },
@@ -2168,7 +2162,6 @@ export class SettingsManager {
                     }
                 },
                 debug: {
-                    consoleEnabled: false,
                     websocketLogs: false,
                     registryLogs: false,
                     apiLogs: false,
@@ -2260,18 +2253,6 @@ export class SettingsManager {
         }
     }
     
-    /**
-     * Apply debug console settings in real-time
-     * @param {boolean} enabled - Whether debug console should be visible
-     */
-    applyDebugConsoleSettings(enabled) {
-        if (enabled) {
-            consoleOverlay.showOverlay();
-        } else {
-            consoleOverlay.hideOverlay();
-        }
-    }
-
     /**
      * Apply keypress overlay visibility in real-time
      * @param {boolean} enabled
