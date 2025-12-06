@@ -4,6 +4,12 @@ import { sendNtfyNotification } from '../services/notification-service.js';
 
 const router = express.Router();
 
+const INTERACTIVE_MAX_INPUT_VALUE_LENGTH = 4096;
+const INTERACTIVE_MAX_CALLBACK_URL_LENGTH = 2048;
+const ALLOWED_CALLBACK_METHODS = ['POST', 'PUT', 'PATCH'];
+const ALLOWED_ACTION_STYLES = ['primary', 'secondary', 'danger'];
+const ALLOWED_INPUT_TYPES = ['string', 'password'];
+
 // Ensure NotificationManager is available globally via server.js
 function getManager() {
   const mgr = global.notificationManager;
@@ -11,11 +17,244 @@ function getManager() {
   return mgr;
 }
 
+/**
+ * Validate and normalize interactive notification fields from the request body.
+ * When no interactive fields are present, returns { isInteractive: false, interactive: null }.
+ * On validation error, returns { error: { statusCode, body } }.
+ */
+export function validateInteractiveNotificationBody(rawBody = {}) {
+  const body = rawBody && typeof rawBody === 'object' ? rawBody : {};
+
+  const hasActionsField = Array.isArray(body.actions) && body.actions.length > 0;
+  const hasInputsField = Array.isArray(body.inputs) && body.inputs.length > 0;
+  const hasCallbackUrlField = typeof body.callback_url === 'string' && body.callback_url.trim().length > 0;
+  const hasCallbackMethodField = typeof body.callback_method === 'string' && body.callback_method.trim().length > 0;
+  const hasCallbackHeadersField =
+    body.callback_headers && typeof body.callback_headers === 'object' && !Array.isArray(body.callback_headers);
+
+  const anyInteractiveField =
+    hasActionsField || hasInputsField || hasCallbackUrlField || hasCallbackMethodField || hasCallbackHeadersField;
+  if (!anyInteractiveField) {
+    return { isInteractive: false, interactive: null };
+  }
+
+  const error = (code, message) => ({
+    error: {
+      statusCode: 400,
+      body: {
+        error: code,
+        message
+      }
+    }
+  });
+
+  // Require callback_url when any interactive-related field is present
+  if ((hasActionsField || hasInputsField || hasCallbackMethodField || hasCallbackHeadersField) && !hasCallbackUrlField) {
+    return error(
+      'INVALID_CALLBACK_URL',
+      'callback_url is required when actions, inputs, callback_method, or callback_headers are provided'
+    );
+  }
+
+  // Validate callback_url
+  let callback_url = null;
+  if (hasCallbackUrlField) {
+    const rawUrl = body.callback_url.trim();
+    if (rawUrl.length > INTERACTIVE_MAX_CALLBACK_URL_LENGTH) {
+      return error('INVALID_CALLBACK_URL', 'callback_url is too long');
+    }
+    try {
+      const u = new URL(rawUrl);
+      const protocol = String(u.protocol || '').toLowerCase();
+      if (protocol !== 'http:' && protocol !== 'https:') {
+        return error('INVALID_CALLBACK_URL', 'callback_url must use http or https scheme');
+      }
+    } catch (_) {
+      return error('INVALID_CALLBACK_URL', 'callback_url must be a valid URL');
+    }
+    callback_url = rawUrl;
+  }
+
+  // Validate callback_method
+  let callback_method = 'POST';
+  if (hasCallbackMethodField) {
+    const method = body.callback_method.trim().toUpperCase();
+    if (!ALLOWED_CALLBACK_METHODS.includes(method)) {
+      return error(
+        'INVALID_CALLBACK_METHOD',
+        `callback_method must be one of: ${ALLOWED_CALLBACK_METHODS.join(', ')}`
+      );
+    }
+    callback_method = method;
+  }
+
+  // Validate callback_headers
+  let callback_headers;
+  if (body.callback_headers !== undefined) {
+    if (!hasCallbackHeadersField) {
+      return error('INVALID_CALLBACK_HEADERS', 'callback_headers must be an object of header name to value');
+    }
+    const out = {};
+    for (const [name, value] of Object.entries(body.callback_headers || {})) {
+      const key = String(name || '').trim();
+      if (!key) continue;
+      out[key] = typeof value === 'string' ? value : String(value ?? '');
+    }
+    if (Object.keys(out).length > 0) {
+      callback_headers = out;
+    }
+  }
+
+  // Validate actions
+  let actions = null;
+  if (body.actions !== undefined) {
+    if (!Array.isArray(body.actions) || body.actions.length === 0) {
+      return error('INVALID_ACTIONS', 'actions must be a non-empty array when provided');
+    }
+    actions = [];
+    const seenKeys = new Set();
+    for (let idx = 0; idx < body.actions.length; idx += 1) {
+      const rawAction = body.actions[idx];
+      if (!rawAction || typeof rawAction !== 'object') {
+        return error('INVALID_ACTIONS', `actions[${idx}] must be an object`);
+      }
+      const key = typeof rawAction.key === 'string' ? rawAction.key.trim() : '';
+      const label = typeof rawAction.label === 'string' ? rawAction.label.trim() : '';
+      if (!key || !label) {
+        return error('INVALID_ACTIONS', `actions[${idx}] must include non-empty key and label`);
+      }
+      if (seenKeys.has(key)) {
+        return error('INVALID_ACTIONS', `Duplicate action key '${key}'`);
+      }
+      seenKeys.add(key);
+      const action = { key, label };
+      if (rawAction.style !== undefined && rawAction.style !== null && String(rawAction.style).trim()) {
+        const styleNorm = String(rawAction.style).trim().toLowerCase();
+        if (!ALLOWED_ACTION_STYLES.includes(styleNorm)) {
+          return error(
+            'INVALID_ACTIONS',
+            `actions[${idx}].style must be one of: ${ALLOWED_ACTION_STYLES.join(', ')}`
+          );
+        }
+        action.style = styleNorm;
+      }
+      if (rawAction.requires_inputs !== undefined) {
+        if (!Array.isArray(rawAction.requires_inputs)) {
+          return error('INVALID_ACTIONS', `actions[${idx}].requires_inputs must be an array when provided`);
+        }
+        const ids = [];
+        for (const entry of rawAction.requires_inputs) {
+          const id = typeof entry === 'string' ? entry.trim() : '';
+          if (!id || ids.includes(id)) continue;
+          ids.push(id);
+        }
+        if (ids.length > 0) {
+          action.requires_inputs = ids;
+        }
+      }
+      actions.push(action);
+    }
+  }
+
+  // Validate inputs
+  let inputs = null;
+  const inputIdSet = new Set();
+  if (body.inputs !== undefined) {
+    if (!Array.isArray(body.inputs) || body.inputs.length === 0) {
+      return error('INVALID_INPUTS', 'inputs must be a non-empty array when provided');
+    }
+    inputs = [];
+    for (let idx = 0; idx < body.inputs.length; idx += 1) {
+      const rawInput = body.inputs[idx];
+      if (!rawInput || typeof rawInput !== 'object') {
+        return error('INVALID_INPUTS', `inputs[${idx}] must be an object`);
+      }
+      const id = typeof rawInput.id === 'string' ? rawInput.id.trim() : '';
+      if (!id) {
+        return error('INVALID_INPUTS', `inputs[${idx}].id is required`);
+      }
+      if (inputIdSet.has(id)) {
+        return error('INVALID_INPUTS', `Duplicate input id '${id}'`);
+      }
+      inputIdSet.add(id);
+      const label = typeof rawInput.label === 'string' ? rawInput.label.trim() : '';
+      if (!label) {
+        return error('INVALID_INPUTS', `inputs[${idx}].label is required`);
+      }
+      let type = typeof rawInput.type === 'string' ? rawInput.type.trim().toLowerCase() : 'string';
+      if (!ALLOWED_INPUT_TYPES.includes(type)) {
+        return error('INVALID_INPUTS', `inputs[${idx}].type must be one of: ${ALLOWED_INPUT_TYPES.join(', ')}`);
+      }
+      const required = rawInput.required === true;
+      const placeholder = (typeof rawInput.placeholder === 'string' && rawInput.placeholder.trim())
+        ? rawInput.placeholder
+        : undefined;
+      let max_length;
+      if (rawInput.max_length !== undefined && rawInput.max_length !== null) {
+        const nVal = Number(rawInput.max_length);
+        if (!Number.isFinite(nVal) || nVal <= 0) {
+          return error('INVALID_INPUTS', `inputs[${idx}].max_length must be a positive number when provided`);
+        }
+        const clamped = Math.min(Math.floor(nVal), INTERACTIVE_MAX_INPUT_VALUE_LENGTH);
+        max_length = clamped;
+      }
+      const input = { id, label, type, required };
+      if (placeholder) input.placeholder = placeholder;
+      if (max_length !== undefined) input.max_length = max_length;
+      inputs.push(input);
+    }
+  }
+
+  const hasActions = Array.isArray(actions) && actions.length > 0;
+  const hasInputs = Array.isArray(inputs) && inputs.length > 0;
+
+  if (!hasActions && !hasInputs) {
+    return error(
+      'INVALID_INTERACTIVE_NOTIFICATION',
+      'Interactive notifications require at least one action or input when callback_url is provided'
+    );
+  }
+
+  // Validate that action.requires_inputs entries exist in inputs
+  if (hasActions) {
+    const knownInputIds = new Set(inputs ? inputs.map((i) => i.id) : []);
+    for (const action of actions) {
+      if (!action.requires_inputs) continue;
+      for (const reqId of action.requires_inputs) {
+        if (!knownInputIds.has(reqId)) {
+          return error(
+            'INVALID_INTERACTIVE_NOTIFICATION',
+            `Action '${action.key}' references unknown input id '${reqId}'`
+          );
+        }
+      }
+    }
+  }
+
+  return {
+    isInteractive: hasActions || hasInputs,
+    interactive: {
+      callback_url,
+      callback_method,
+      callback_headers,
+      actions,
+      inputs
+    }
+  };
+}
+
+// Remove backend-only metadata before returning notifications to clients
+function sanitizeNotificationForClient(notification) {
+  if (!notification || typeof notification !== 'object') return notification;
+  const { callback_url, callback_method, callback_headers, ...rest } = notification;
+  return rest;
+}
+
 // List notifications for the authenticated user
 router.get('/', (req, res) => {
   try {
     const user = req.user?.username;
-    const items = getManager().list(user);
+    const items = getManager().list(user).map(sanitizeNotificationForClient);
     res.json({ notifications: items });
   } catch (error) {
     logger.error(`Failed to list notifications: ${error.message}`);
@@ -40,6 +279,17 @@ router.post('/', async (req, res) => {
         error: `Invalid notification type: ${type}. Must be one of: ${validTypes.join(', ')}`
       });
     }
+
+    // Validate interactive metadata (actions/inputs/callback)
+    const interactiveResult = validateInteractiveNotificationBody(body);
+    if (interactiveResult.error) {
+      return res
+        .status(interactiveResult.error.statusCode)
+        .json(interactiveResult.error.body);
+    }
+    const isInteractive = interactiveResult.isInteractive === true;
+    const interactiveFields = interactiveResult.interactive || {};
+    const nowIso = new Date().toISOString();
 
     const requester = req.user || {};
     const canBroadcast = requester?.permissions?.broadcast === true;
@@ -85,9 +335,10 @@ router.post('/', async (req, res) => {
           title,
           message,
           notification_type: type,
-          timestamp: new Date().toISOString(),
+          timestamp: nowIso,
           session_id,
-          is_active: false
+          is_active: isInteractive,
+          ...(isInteractive ? interactiveFields : {})
         });
         savedObjects.push(saved);
         try {
@@ -101,13 +352,17 @@ router.post('/', async (req, res) => {
             server_id: saved.id,
             is_active: saved.is_active,
             timestamp: saved.timestamp,
-            sound: !!sound
+            sound: !!sound,
+            actions: Array.isArray(saved.actions) && saved.actions.length > 0 ? saved.actions : undefined,
+            inputs: Array.isArray(saved.inputs) && saved.inputs.length > 0 ? saved.inputs : undefined,
+            response: saved.response || null
           });
         } catch (_) {}
       }
 
       try { await sendNtfyNotification(title, message, session_id, type); } catch (_) {}
-      return res.status(201).json({ recipients: Array.from(recipients), saved: savedObjects });
+      const clientSaved = savedObjects.map(sanitizeNotificationForClient);
+      return res.status(201).json({ recipients: Array.from(recipients), saved: clientSaved });
     }
 
     // Non-session notifications: persist to requesting user
@@ -119,9 +374,10 @@ router.post('/', async (req, res) => {
       title,
       message,
       notification_type: type,
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
       session_id: null,
-      is_active: false
+      is_active: isInteractive,
+      ...(isInteractive ? interactiveFields : {})
     });
     try {
       global.connectionManager.broadcast({
@@ -134,11 +390,14 @@ router.post('/', async (req, res) => {
         server_id: saved.id,
         is_active: saved.is_active,
         timestamp: saved.timestamp,
-        sound: !!sound
+        sound: !!sound,
+        actions: Array.isArray(saved.actions) && saved.actions.length > 0 ? saved.actions : undefined,
+        inputs: Array.isArray(saved.inputs) && saved.inputs.length > 0 ? saved.inputs : undefined,
+        response: saved.response || null
       });
     } catch (_) {}
     try { await sendNtfyNotification(title, message, null, type); } catch (_) {}
-    return res.status(201).json({ saved });
+    return res.status(201).json({ saved: sanitizeNotificationForClient(saved) });
   } catch (error) {
     logger.error(`Failed to create notification: ${error.message}`);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to create notification' });

@@ -622,7 +622,80 @@ Base: `/api`
 Base: `/api/notifications`
 
 - GET `/` — List current user notifications `{ notifications: [...] }`
-- POST `/` — Create a notification for current user (utility)
+  - Returns an array of persisted notification objects for the authenticated user.
+  - Basic fields:
+    - `id`, `title`, `message`, `notification_type`, `timestamp`, `session_id`, `is_active`, `read`.
+  - Interactive fields (optional, see below):
+    - `actions`: array of `{ key, label, style?, requires_inputs? }`.
+    - `inputs`: array of `{ id, label, type, required, placeholder?, max_length? }`.
+    - `response`: optional summary of a completed interactive notification:
+      - `at`: ISO timestamp when the response was recorded.
+      - `user`: username that responded.
+      - `action_key` / `action_label`: chosen action.
+      - `inputs`: map of non-secret input ids → values.
+      - `masked_input_ids`: array of input ids that were submitted as secrets (their values are **never** persisted).
+  - Backend-only callback metadata (`callback_url`, `callback_method`, `callback_headers`) is not included in responses.
+- POST `/` — Create a notification for current user (or broadcast to session participants)
+  - Behavior:
+    - With no `session_id`, creates a notification for the current user only.
+    - With `session_id`, requires the `broadcast` permission and delivers to:
+      - The session owner.
+      - All currently attached users for that session (based on WebSocket connections).
+  - Body (simple notifications — existing behavior):
+    - `title` (string, required).
+    - `message` (string, required).
+    - `type` (string, optional): `info` | `warning` | `error` | `success` (default `info`).
+    - `session_id` (string, optional): when present, see broadcast behavior above.
+    - `sound` (boolean, optional): when true, frontend may play a notification sound.
+  - Body (interactive notifications — optional extensions):
+    - `callback_url` (string, required when any interactive fields are present)
+      - Must be an `http` or `https` URL.
+      - Reasonable length enforced; excessively long URLs are rejected.
+    - `callback_method` (string, optional; default `POST`)
+      - One of: `POST`, `PUT`, `PATCH` (case-insensitive).
+    - `callback_headers` (object, optional)
+      - Map of header name → value (strings).
+      - Used only for the backend-to-backend callback HTTP request; not exposed to clients.
+    - `inputs` (array, optional)
+      - Each entry:
+        - `id` (string, required, unique per notification).
+        - `label` (string, required).
+        - `type` (string, optional): `"string"` (default) or `"password"`.
+        - `required` (boolean, optional): whether this field is required.
+        - `placeholder` (string, optional).
+        - `max_length` (number, optional): server-side cap on accepted value length (clamped to a safe maximum).
+    - `actions` (array, optional)
+      - Each entry:
+        - `key` (string, required, unique per notification).
+        - `label` (string, required).
+        - `style` (string, optional): `"primary" | "secondary" | "danger"` (UI hint only).
+        - `requires_inputs` (string[], optional): list of input `id`s that must be supplied for this action.
+    - A notification is considered *interactive* when `callback_url` is provided and at least one of `actions` or `inputs` is a non-empty array.
+  - Validation:
+    - `title` and `message` are always required.
+    - `type` must be one of the allowed values.
+    - When interactive fields are present:
+      - `callback_url` is required and must use `http` or `https`.
+      - `actions`/`inputs`, when provided, must be non-empty arrays of objects with the required fields.
+      - `actions[].style`, when present, must be one of `primary|secondary|danger`.
+      - `inputs[].type`, when present, must be one of `string|password`.
+      - `inputs[].max_length`, when present, must be a positive number; values are clamped to a safe limit.
+      - Every id in `actions[].requires_inputs` must refer to an existing `inputs[].id`.
+    - Validation failures return `400` with a structured error payload, for example:
+      - `{ "error": "INVALID_INPUTS", "message": "inputs[0].id is required" }`.
+  - Persistence:
+    - Non-interactive notifications are stored as before, with `is_active: false`.
+    - Interactive notifications persist:
+      - `actions`, `inputs` definitions.
+      - Callback metadata (`callback_url`, `callback_method`, `callback_headers`) for server-side use only.
+      - `is_active: true` until the user responds via WebSocket.
+  - Response:
+    - Non-interactive:
+      - When user-scoped: `{ saved }`.
+      - When broadcast: `{ recipients: [...], saved: [...] }`.
+    - Interactive:
+      - Same shapes as above, but `saved` entries also include `actions`, `inputs`, and `response: null`.
+      - Callback metadata is omitted from the JSON response.
 - PATCH `/mark-all-read` — Mark all as read `{ ok: true, updated }`
 - DELETE `/` — Clear all `{ ok: true, deleted }`
 - PATCH `/:id` — Mark one as read `{ read: true }`

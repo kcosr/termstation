@@ -8,6 +8,9 @@ import * as path from 'path';
 import { config } from '../config-loader.js';
 import { logger } from '../utils/logger.js';
 
+// Max value length we will persist for interactive inputs
+const INTERACTIVE_MAX_INPUT_VALUE_LENGTH = 4096;
+
 function genId() {
   try {
     // Prefer crypto if available
@@ -17,6 +20,156 @@ function genId() {
     if (bytes) return bytes;
   } catch (_) {}
   return `n_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Normalize a raw notification record (from disk or runtime payload)
+ * into the canonical in-memory shape used by NotificationManager.
+ */
+function normalizeNotificationRecord(raw) {
+  const nowIso = new Date().toISOString();
+  const n = raw && typeof raw === 'object' ? raw : {};
+
+  const base = {
+    id: String(n.id || genId()),
+    title: String(n.title || 'Notification'),
+    message: String(n.message || ''),
+    notification_type: String(n.notification_type || 'info'),
+    timestamp: n.timestamp || nowIso,
+    session_id: n.session_id || null,
+    is_active: n.is_active !== false,
+    read: !!n.read
+  };
+
+  let callback_url = null;
+  if (typeof n.callback_url === 'string') {
+    const trimmed = n.callback_url.trim();
+    if (trimmed) callback_url = trimmed;
+  }
+
+  let callback_method = null;
+  if (typeof n.callback_method === 'string') {
+    const trimmed = n.callback_method.trim();
+    if (trimmed) callback_method = trimmed.toUpperCase();
+  }
+
+  let callback_headers;
+  if (n.callback_headers && typeof n.callback_headers === 'object' && !Array.isArray(n.callback_headers)) {
+    const out = {};
+    for (const [name, value] of Object.entries(n.callback_headers)) {
+      const key = String(name || '').trim();
+      if (!key) continue;
+      out[key] = String(value ?? '');
+    }
+    if (Object.keys(out).length > 0) {
+      callback_headers = out;
+    }
+  }
+
+  let actions = null;
+  if (Array.isArray(n.actions) && n.actions.length > 0) {
+    const normalized = [];
+    const seenKeys = new Set();
+    for (const rawAction of n.actions) {
+      if (!rawAction || typeof rawAction !== 'object') continue;
+      const key = typeof rawAction.key === 'string' ? rawAction.key.trim() : '';
+      const label = typeof rawAction.label === 'string' ? rawAction.label.trim() : '';
+      if (!key || !label) continue;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      const action = { key, label };
+      if (typeof rawAction.style === 'string' && rawAction.style.trim()) {
+        action.style = rawAction.style.trim();
+      }
+      if (Array.isArray(rawAction.requires_inputs) && rawAction.requires_inputs.length > 0) {
+        const ids = [];
+        for (const id of rawAction.requires_inputs) {
+          const v = typeof id === 'string' ? id.trim() : '';
+          if (v && !ids.includes(v)) ids.push(v);
+        }
+        if (ids.length > 0) action.requires_inputs = ids;
+      }
+      normalized.push(action);
+    }
+    if (normalized.length > 0) actions = normalized;
+  }
+
+  let inputs = null;
+  if (Array.isArray(n.inputs) && n.inputs.length > 0) {
+    const normalized = [];
+    const seenIds = new Set();
+    for (const rawInput of n.inputs) {
+      if (!rawInput || typeof rawInput !== 'object') continue;
+      let id = typeof rawInput.id === 'string' ? rawInput.id.trim() : '';
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+      let label = typeof rawInput.label === 'string' ? rawInput.label.trim() : '';
+      if (!label) label = id;
+      let type = typeof rawInput.type === 'string' ? rawInput.type.trim().toLowerCase() : 'string';
+      if (type !== 'password') type = 'string';
+      const required = rawInput.required === true;
+      const placeholder = (typeof rawInput.placeholder === 'string' && rawInput.placeholder.trim())
+        ? rawInput.placeholder
+        : undefined;
+      let max_length;
+      if (rawInput.max_length !== undefined && rawInput.max_length !== null) {
+        const nVal = Number(rawInput.max_length);
+        if (Number.isFinite(nVal) && nVal > 0) {
+          const clamped = Math.min(Math.floor(nVal), INTERACTIVE_MAX_INPUT_VALUE_LENGTH);
+          max_length = clamped;
+        }
+      }
+      const input = { id, label, type, required };
+      if (placeholder) input.placeholder = placeholder;
+      if (max_length !== undefined) input.max_length = max_length;
+      normalized.push(input);
+    }
+    if (normalized.length > 0) inputs = normalized;
+  }
+
+  let response = null;
+  if (n.response && typeof n.response === 'object') {
+    const rawResponse = n.response;
+    const at = (typeof rawResponse.at === 'string' && rawResponse.at) ? rawResponse.at : nowIso;
+    const user = typeof rawResponse.user === 'string' ? rawResponse.user : '';
+    const action_key = typeof rawResponse.action_key === 'string' ? rawResponse.action_key : '';
+    const action_label = (typeof rawResponse.action_label === 'string' && rawResponse.action_label)
+      ? rawResponse.action_label
+      : null;
+    const inputsMap = {};
+    if (rawResponse.inputs && typeof rawResponse.inputs === 'object') {
+      for (const [k, v] of Object.entries(rawResponse.inputs)) {
+        if (v === undefined || v === null) continue;
+        inputsMap[String(k)] = typeof v === 'string' ? v : String(v);
+      }
+    }
+    const maskedIds = Array.isArray(rawResponse.masked_input_ids)
+      ? rawResponse.masked_input_ids
+          .map((v) => (typeof v === 'string' ? v : String(v)))
+          .filter((v) => v)
+      : [];
+    response = {
+      at,
+      user,
+      action_key,
+      action_label,
+      inputs: inputsMap,
+      masked_input_ids: maskedIds
+    };
+  }
+
+  const out = {
+    ...base,
+    callback_url,
+    callback_method,
+    actions,
+    inputs,
+    response
+  };
+  if (callback_headers) {
+    out.callback_headers = callback_headers;
+  }
+  return out;
 }
 
 export class NotificationManager {
@@ -60,16 +213,7 @@ export class NotificationManager {
         : Array.isArray(payload?.notifications)
           ? payload.notifications
           : [];
-      return arr.map((n) => ({
-        id: String(n?.id || genId()),
-        title: String(n?.title || 'Notification'),
-        message: String(n?.message || ''),
-        notification_type: String(n?.notification_type || 'info'),
-        timestamp: n?.timestamp || new Date().toISOString(),
-        session_id: n?.session_id || null,
-        is_active: n?.is_active !== false,
-        read: !!n?.read,
-      }));
+      return arr.map((n) => normalizeNotificationRecord(n));
     } catch (_) {
       return [];
     }
@@ -117,16 +261,17 @@ export class NotificationManager {
     if (!user) throw new Error('username required');
 
     const now = new Date().toISOString();
-    const n = {
-      id: genId(),
+    const raw = {
+      ...payload,
       title: payload.title || 'Notification',
       message: payload.message || '',
       notification_type: payload.notification_type || 'info',
       timestamp: payload.timestamp || now,
       session_id: payload.session_id || null,
-      is_active: payload.is_active !== false, // default true unless explicitly false
-      read: false,
+      is_active: payload.is_active !== false,
+      read: false
     };
+    const n = normalizeNotificationRecord(raw);
 
     const list = this.store.get(user) || [];
     // Newest-first ordering
@@ -153,6 +298,69 @@ export class NotificationManager {
     const user = String(username || '').trim();
     if (!user) return [];
     return [...(this.store.get(user) || [])];
+  }
+
+  /**
+   * Get a single notification by id for a user.
+   * Returns a shallow copy or null when not found.
+   * @param {string} username
+   * @param {string} id
+   */
+  getById(username, id) {
+    const user = String(username || '').trim();
+    const targetId = String(id || '').trim();
+    if (!user || !targetId) return null;
+    const list = this.store.get(user);
+    if (!list || list.length === 0) return null;
+    const item = list.find((n) => n && n.id === targetId);
+    return item ? { ...item } : null;
+  }
+
+  /**
+   * Persist a response summary for an interactive notification.
+   * Sets response and marks the notification as inactive.
+   * Returns a shallow copy of the updated notification, or null when not found.
+   * Does not overwrite an existing response.
+   * @param {string} username
+   * @param {string} id
+   * @param {Object} response
+   */
+  setResponse(username, id, response) {
+    const user = String(username || '').trim();
+    const targetId = String(id || '').trim();
+    if (!user || !targetId) return null;
+    const list = this.store.get(user);
+    if (!list || list.length === 0) return null;
+    const idx = list.findIndex((n) => n && n.id === targetId);
+    if (idx === -1) return null;
+
+    const existing = list[idx];
+    if (existing.response) {
+      // Single-use semantics: do not overwrite an existing response
+      return { ...existing };
+    }
+
+    const safeResponse = response && typeof response === 'object'
+      ? {
+          at: response.at,
+          user: response.user,
+          action_key: response.action_key,
+          action_label: response.action_label ?? null,
+          inputs: response.inputs || {},
+          masked_input_ids: Array.isArray(response.masked_input_ids)
+            ? response.masked_input_ids
+            : []
+        }
+      : null;
+
+    const updated = {
+      ...existing,
+      response: safeResponse,
+      is_active: false
+    };
+    list[idx] = updated;
+    this._scheduleSave();
+    return { ...updated };
   }
 
   /**
