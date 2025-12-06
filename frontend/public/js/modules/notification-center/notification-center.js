@@ -1430,6 +1430,10 @@ export class NotificationCenter {
                 status: result.status || null,
                 notificationCount: Array.isArray(this.notifications) ? this.notifications.length : -1
             });
+            console.trace('[InteractiveNotification][Center][ResultEnterTrace]', {
+                notificationId: targetId,
+                actionKey: result.action_key
+            });
         } catch (_) {}
 
         this.notifications.forEach((n) => {

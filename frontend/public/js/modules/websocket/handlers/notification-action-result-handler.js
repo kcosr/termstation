@@ -27,6 +27,10 @@ export class NotificationActionResultHandler {
                 hasCenter,
                 hasCenterHandler
             });
+            console.trace('[InteractiveNotification][WS][ResultDispatchTrace]', {
+                notificationId,
+                actionKey
+            });
         } catch (_) {}
 
         try {
