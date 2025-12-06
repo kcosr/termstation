@@ -1107,7 +1107,14 @@ export class NotificationCenter {
                     ? `<div class="notification-response-inputs">${rows.join('')}</div>`
                     : '';
 
-                parts.push(headerHtml + inputsBlock);
+                let errorBlock = '';
+                try {
+                    if (notification && notification._callbackFailed) {
+                        errorBlock = '<div class="notification-action-error" aria-live="polite">Callback failed.</div>';
+                    }
+                } catch (_) {}
+
+                parts.push(headerHtml + inputsBlock + errorBlock);
             } else if (hasActions || hasInputs) {
                 // Interactive notification that has not yet been responded to: render controls.
                 const controls = this.buildInteractiveControls(notification);
@@ -1536,6 +1543,9 @@ export class NotificationCenter {
 
         if (result.ok || isCallbackResult || isAlreadyResponded) {
             state.resolved = true;
+            if (isCallbackFailed) {
+                try { notification._callbackFailed = true; } catch (_) {}
+            }
 
             if (statusEl) {
                 statusEl.textContent = '';
