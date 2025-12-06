@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking**: `POST /api/notifications` now only accepts `type` field for notification level; the `notification_type` request field alias has been removed. ([#6])
+- Consolidated `POST /api/notifications` handler into `backend/routes/notifications.js` (previously split across `system.js`). ([#6])
+
 ## [0.0.2] - 2025-12-05
 
 ### Added
@@ -19,3 +24,4 @@
 - Initial public release (pre-alpha).
 
 [#4]: https://github.com/kcosr/termstation/pull/4
+[#6]: https://github.com/kcosr/termstation/pull/6
