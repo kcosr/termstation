@@ -1,5 +1,6 @@
 import express from 'express';
 import { logger } from '../utils/logger.js';
+import { sendNtfyNotification } from '../services/notification-service.js';
 
 const router = express.Router();
 
@@ -22,31 +23,122 @@ router.get('/', (req, res) => {
   }
 });
 
-// Create a notification for the current user (utility/debug)
-router.post('/', (req, res) => {
+// Create a notification (user-scoped or session-scoped broadcast)
+router.post('/', async (req, res) => {
   try {
-    const user = req.user?.username;
-    const payload = req.body || {};
-    const saved = getManager().add(user, payload);
-    // Broadcast immediately to the current user's connected clients
-    try {
-      if (global.connectionManager) {
-        global.connectionManager.broadcast({
-          type: 'notification',
-          user,
-          title: saved.title,
-          message: saved.message,
-          notification_type: saved.notification_type,
-          session_id: saved.session_id,
-          server_id: saved.id,
-          is_active: saved.is_active,
-          timestamp: saved.timestamp
+    const body = req.body || {};
+    const type = body.type || 'info';
+    const { title, message, sound = true, session_id } = body;
+
+    if (!title || !message) {
+      return res.status(400).json({ error: 'title and message are required' });
+    }
+
+    const validTypes = ['info', 'warning', 'error', 'success'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({
+        error: `Invalid notification type: ${type}. Must be one of: ${validTypes.join(', ')}`
+      });
+    }
+
+    const requester = req.user || {};
+    const canBroadcast = requester?.permissions?.broadcast === true;
+
+    // Session-targeted notifications: owner + attached users (requires broadcast permission)
+    if (session_id) {
+      if (!canBroadcast) {
+        return res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Broadcast permission required for session notifications'
         });
       }
-    } catch (e) {
-      logger.warning(`Failed to broadcast user notification: ${e.message}`);
+
+      // Resolve session (active or terminated)
+      let session = null;
+      try { session = global.sessionManager.getSession(session_id); } catch (_) { session = null; }
+      if (!session && global.sessionManager?.getSessionIncludingTerminated) {
+        try {
+          session = await global.sessionManager.getSessionIncludingTerminated(session_id, { loadFromDisk: true });
+        } catch (_) {
+          session = null;
+        }
+      }
+      if (!session) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: `Session ${session_id} not found` });
+      }
+
+      // Build recipients: owner + currently attached usernames
+      const recipients = new Set();
+      const owner = String(session.created_by || '').trim();
+      if (owner) recipients.add(owner);
+      try {
+        for (const clientId of session.connected_clients || []) {
+          const ws = global.connectionManager?.connections?.get(clientId);
+          const uname = ws && ws.username ? String(ws.username).trim() : '';
+          if (uname) recipients.add(uname);
+        }
+      } catch (_) {}
+
+      const savedObjects = [];
+      for (const username of recipients) {
+        const saved = getManager().add(username, {
+          title,
+          message,
+          notification_type: type,
+          timestamp: new Date().toISOString(),
+          session_id,
+          is_active: false
+        });
+        savedObjects.push(saved);
+        try {
+          global.connectionManager.broadcast({
+            type: 'notification',
+            user: username,
+            title: saved.title,
+            message: saved.message,
+            notification_type: saved.notification_type,
+            session_id: saved.session_id,
+            server_id: saved.id,
+            is_active: saved.is_active,
+            timestamp: saved.timestamp,
+            sound: !!sound
+          });
+        } catch (_) {}
+      }
+
+      try { await sendNtfyNotification(title, message, session_id, type); } catch (_) {}
+      return res.status(201).json({ recipients: Array.from(recipients), saved: savedObjects });
     }
-    res.status(201).json(saved);
+
+    // Non-session notifications: persist to requesting user
+    const username = requester?.username;
+    if (!username) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const saved = getManager().add(username, {
+      title,
+      message,
+      notification_type: type,
+      timestamp: new Date().toISOString(),
+      session_id: null,
+      is_active: false
+    });
+    try {
+      global.connectionManager.broadcast({
+        type: 'notification',
+        user: username,
+        title: saved.title,
+        message: saved.message,
+        notification_type: saved.notification_type,
+        session_id: saved.session_id,
+        server_id: saved.id,
+        is_active: saved.is_active,
+        timestamp: saved.timestamp,
+        sound: !!sound
+      });
+    } catch (_) {}
+    try { await sendNtfyNotification(title, message, null, type); } catch (_) {}
+    return res.status(201).json({ saved });
   } catch (error) {
     logger.error(`Failed to create notification: ${error.message}`);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to create notification' });
