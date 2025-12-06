@@ -933,12 +933,12 @@ export class NotificationDisplay {
                 const interactive = this.notifications.get(id)?.interactive;
                 if (!interactive || interactive.resolved) return;
                 const target = ev.target;
-                const inInputRow = !!(
+                const inToast = !!(
                     target &&
                     typeof target.closest === 'function' &&
-                    target.closest('.notification-input-row')
+                    target.closest('.notification') === element
                 );
-                if (!inInputRow) return;
+                if (!inToast) return;
                 const key = ev.key || ev.code;
                 if (key === 'Enter') {
                     if (!interactive.primaryActionKey) return;
