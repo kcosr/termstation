@@ -432,6 +432,8 @@ export const messageHandlers = {
     }
 
     if (notification.response) {
+      // Single-use semantics: guard here and in NotificationManager.setResponse
+      // so concurrent responses cannot overwrite an existing decision.
       sendResult({ error: 'ALREADY_RESPONDED', status: 'already_responded' });
       return;
     }
@@ -537,13 +539,20 @@ export const messageHandlers = {
     let ok = false;
     let status = 'callback_succeeded';
     let errorCode = null;
+    let httpStatus = null;
+
+    const controller = new AbortController();
+    const timeoutMs = 10000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const resp = await fetch(callbackUrl, {
         method,
         headers,
-        body: JSON.stringify(callbackPayload)
+        body: JSON.stringify(callbackPayload),
+        signal: controller.signal
       });
+      httpStatus = typeof resp?.status === 'number' ? resp.status : null;
       if (resp && resp.ok) {
         ok = true;
       } else {
@@ -557,10 +566,19 @@ export const messageHandlers = {
     } catch (err) {
       ok = false;
       status = 'callback_failed';
-      errorCode = 'NETWORK_ERROR';
-      logger.error(
-        `[WS] notification_action callback error for notification ${notification.id} (user='${username}'): ${err.message}`
-      );
+      if (err && err.name === 'AbortError') {
+        errorCode = 'TIMEOUT';
+        logger.error(
+          `[WS] notification_action callback timeout for notification ${notification.id} (user='${username}'): aborted after ${timeoutMs}ms`
+        );
+      } else {
+        errorCode = 'NETWORK_ERROR';
+        logger.error(
+          `[WS] notification_action callback error for notification ${notification.id} (user='${username}'): ${err?.message || err}`
+        );
+      }
+    } finally {
+      try { clearTimeout(timeoutId); } catch (_) {}
     }
 
     try {
@@ -586,7 +604,8 @@ export const messageHandlers = {
         action_key: actionKey,
         ok,
         error: ok ? null : (errorCode || 'CALLBACK_FAILED'),
-        status
+        status,
+        http_status: httpStatus
       });
     } catch (_) {}
   },

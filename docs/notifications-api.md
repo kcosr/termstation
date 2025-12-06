@@ -243,7 +243,8 @@ The backend acknowledges every `notification_action` with a result message:
   "action_key": "approve",
   "ok": true,
   "error": null,
-  "status": "callback_succeeded"
+  "status": "callback_succeeded",
+  "http_status": 200
 }
 ```
 
@@ -256,10 +257,18 @@ Common `status` values:
 - `"notification_not_found"` — the notification id is unknown for this user.
 - `"missing_required_inputs"` — one or more required inputs were missing or empty.
 - `"invalid_action"` / `"invalid_payload"` — payload validation errors.
+- Additional error codes in the `error` field may include:
+  - `"HTTP_<status>"` — callback completed with a non-2xx HTTP status (e.g., `HTTP_500`).
+  - `"NETWORK_ERROR"` — network failure reaching the callback URL.
+  - `"TIMEOUT"` — callback did not respond within the backend timeout window.
+
+The optional `http_status` field:
+
+- When present, reflects the numeric HTTP status code returned by the callback.
+- It is `null` when the request did not produce a response (e.g., network error or timeout).
 
 Frontends can use these result messages to:
 
 - Disable action buttons after a successful response.
 - Show inline error messages or follow-up toasts when callbacks fail.
 - Update the Notification Center view to reflect the chosen action and non-secret inputs.
-
