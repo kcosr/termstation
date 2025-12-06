@@ -4,6 +4,7 @@
  */
 import { debug } from '../../../utils/debug.js';
 import { notificationDisplay } from '../../../utils/notification-display.js';
+import { notificationCenter } from '../../notification-center/notification-center.js';
 
 export class NotificationActionResultHandler {
     handle(message, context) {
@@ -12,7 +13,15 @@ export class NotificationActionResultHandler {
                 notificationDisplay.handleActionResult(message);
             }
         } catch (e) {
-            console.warn('[NotificationActionResultHandler] Failed to apply action result:', e);
+            console.warn('[NotificationActionResultHandler] Failed to apply action result on toast:', e);
+        }
+
+        try {
+            if (notificationCenter && typeof notificationCenter.handleActionResult === 'function') {
+                notificationCenter.handleActionResult(message);
+            }
+        } catch (e) {
+            console.warn('[NotificationActionResultHandler] Failed to apply action result in center:', e);
         }
 
         debug.log('wsLogs', '[NotificationActionResult]', message);
@@ -20,4 +29,3 @@ export class NotificationActionResultHandler {
 }
 
 export const notificationActionResultHandler = new NotificationActionResultHandler();
-
