@@ -18,7 +18,7 @@ function buildSuccessNotificationRequest({ server, user, pass, sessionId }) {
   const body = {
     title: 'Broadcast Test (owner+attached)',
     message: `Testing broadcast with session ${sessionId}`,
-    notification_type: 'info',
+    type: 'info',
     session_id: sessionId
   };
   return { url, options: { method: 'POST', headers, body: JSON.stringify(body) } };
@@ -41,4 +41,3 @@ test('notifications broadcast success request has expected shape', () => {
   expect(parsedBody.title).toContain('Broadcast Test');
   expect(parsedBody.session_id).toBe(SESSION_ID);
 });
-

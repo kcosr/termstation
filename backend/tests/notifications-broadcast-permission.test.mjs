@@ -18,7 +18,7 @@ function buildNotificationRequest({ server, user, pass, sessionId }) {
   const body = {
     title: 'Broadcast Test (should 403)',
     message: 'Expecting 403 without broadcast permission',
-    notification_type: 'info',
+    type: 'info',
     session_id: sessionId
   };
   return { url, options: { method: 'POST', headers, body: JSON.stringify(body) } };
@@ -39,6 +39,5 @@ test('notifications broadcast permission request has expected shape', () => {
   );
   const parsedBody = JSON.parse(options.body);
   expect(parsedBody.session_id).toBe(SESSION_ID);
-  expect(parsedBody.notification_type).toBe('info');
+  expect(parsedBody.type).toBe('info');
 });
-
