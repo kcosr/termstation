@@ -13,13 +13,13 @@ class ConsoleOverlay {
         this.originalConsoleLog = console.log;
         this.originalConsoleError = console.error;
         this.originalConsoleWarn = console.warn;
-        
+
         // StateStore key for persistence
         this.storageKey = 'debug_overlay_visible';
         
-        // Initialize overlay and always-on console wrappers
+        // Initialize overlay UI; do not override console methods so logs
+        // go directly to the browser devtools without gating.
         this.init();
-        this.overrideConsoleMethods();
     }
 
     init() {
