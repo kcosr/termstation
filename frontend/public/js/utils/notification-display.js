@@ -255,6 +255,11 @@ export class NotificationDisplay {
                 box-shadow: 0 0 0 1px var(--accent-color);
             }
 
+            .notification-input.notification-input-secret {
+                -webkit-text-security: disc;
+                text-security: disc;
+            }
+
             .notification-actions {
                 display: flex;
                 flex-wrap: wrap;
@@ -641,7 +646,8 @@ export class NotificationDisplay {
             if (!inputDef || !inputDef.id) return '';
             const inputId = `${id}-input-${inputDef.id}`;
             const labelText = inputDef.label || inputDef.id;
-            const type = (inputDef.type === 'password') ? 'password' : 'text';
+            const isSecret = (inputDef.type === 'password');
+            const type = 'text';
             const placeholder = inputDef.placeholder ? this.escapeHtml(String(inputDef.placeholder)) : '';
             const required = inputDef.required === true;
             const requiredIndicator = required ? '<span class="required-indicator">*</span>' : '';
@@ -652,9 +658,10 @@ export class NotificationDisplay {
                     </label>
                     <input
                         id="${this.escapeHtml(inputId)}"
-                        class="notification-input"
+                        class="notification-input${isSecret ? ' notification-input-secret' : ''}"
                         type="${type}"
                         data-input-id="${this.escapeHtml(inputDef.id)}"
+                        data-secret="${isSecret ? 'true' : 'false'}"
                         autocomplete="off"
                         ${placeholder ? `placeholder="${placeholder}"` : ''}
                     >

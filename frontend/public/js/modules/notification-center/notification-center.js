@@ -1117,7 +1117,8 @@ export class NotificationCenter {
             if (!inputDef || !inputDef.id) return '';
             const inputId = `nc-input-${this.escapeHtml(inputDef.id)}`;
             const labelText = inputDef.label || inputDef.id;
-            const type = (inputDef.type === 'password') ? 'password' : 'text';
+            const isSecret = (inputDef.type === 'password');
+            const type = 'text';
             const placeholder = inputDef.placeholder ? this.escapeHtml(String(inputDef.placeholder)) : '';
             const required = inputDef.required === true;
             const requiredIndicator = required ? '<span class="required-indicator">*</span>' : '';
@@ -1128,9 +1129,10 @@ export class NotificationCenter {
                     </label>
                     <input
                         id="${inputId}"
-                        class="notification-input"
+                        class="notification-input${isSecret ? ' notification-input-secret' : ''}"
                         type="${type}"
                         data-input-id="${this.escapeHtml(inputDef.id)}"
+                        data-secret="${isSecret ? 'true' : 'false'}"
                         autocomplete="off"
                         ${placeholder ? `placeholder="${placeholder}"` : ''}
                     >
