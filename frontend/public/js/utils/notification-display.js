@@ -5,6 +5,7 @@
 import { notificationCenter } from '../modules/notification-center/notification-center.js';
 import { getContext } from '../core/context.js';
 import { appStore } from '../core/store.js';
+import { isAnyModalOpen } from '../modules/ui/modal.js';
 
 function isInteractiveDebugEnabled() {
     try {
@@ -28,6 +29,7 @@ export class NotificationDisplay {
         };
         
         this.initializeContainer();
+        this.bindGlobalKeys();
     }
 
     /**
@@ -61,6 +63,41 @@ export class NotificationDisplay {
         if (!document.getElementById('notification-styles')) {
             this.injectStyles();
         }
+    }
+
+    bindGlobalKeys() {
+        try {
+            document.addEventListener('keydown', (ev) => {
+                try {
+                    if (typeof isAnyModalOpen === 'function' && isAnyModalOpen()) return;
+                } catch (_) {}
+
+                const key = ev.key || ev.code;
+                if (key !== 'Enter' && key !== 'Escape' && key !== 'Esc') return;
+
+                let activeId = null;
+                let activeEntry = null;
+                for (const [id, entry] of this.notifications.entries()) {
+                    if (!entry || !entry.interactive || entry.interactive.resolved) continue;
+                    activeId = id;
+                    activeEntry = entry;
+                }
+                if (!activeId || !activeEntry || !activeEntry.interactive) return;
+
+                const { primaryActionKey } = activeEntry.interactive;
+
+                if (key === 'Enter') {
+                    if (!primaryActionKey) return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    this.handleActionClick(activeId, primaryActionKey);
+                } else if (key === 'Escape' || key === 'Esc') {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    this.remove(activeId);
+                }
+            });
+        } catch (_) {}
     }
 
     /**
@@ -927,32 +964,6 @@ export class NotificationDisplay {
         } catch (_) {}
 
         this.updateActionButtonsState(id);
-
-        try {
-            const handleKey = (ev) => {
-                const interactive = this.notifications.get(id)?.interactive;
-                if (!interactive || interactive.resolved) return;
-                const target = ev.target;
-                const inToast = !!(
-                    target &&
-                    typeof target.closest === 'function' &&
-                    target.closest('.notification') === element
-                );
-                if (!inToast) return;
-                const key = ev.key || ev.code;
-                if (key === 'Enter') {
-                    if (!interactive.primaryActionKey) return;
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    this.handleActionClick(id, interactive.primaryActionKey);
-                } else if (key === 'Escape' || key === 'Esc') {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    this.remove(id);
-                }
-            };
-            element.addEventListener('keydown', handleKey);
-        } catch (_) {}
     }
 
     /**
