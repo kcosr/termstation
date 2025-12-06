@@ -461,6 +461,61 @@ export class NotificationCenter {
 
             /* source-badge styles moved to global stylesheet */
 
+            .notification-item-interactive {
+                font-size: 11px;
+                color: var(--text-secondary);
+            }
+
+            .notification-response-summary {
+                margin-top: 4px;
+                padding: 4px 6px;
+                border-radius: 4px;
+                background: var(--bg-primary);
+            }
+
+            .notification-response-header {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                align-items: baseline;
+                margin-bottom: 2px;
+            }
+
+            .notification-response-badge {
+                font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                padding: 2px 6px;
+                border-radius: 999px;
+                border: 1px solid var(--border-color);
+                color: var(--text-secondary);
+            }
+
+            .notification-response-action {
+                font-size: 12px;
+                font-weight: 500;
+                color: var(--text-secondary);
+            }
+
+            .notification-response-at {
+                font-size: 11px;
+                color: var(--text-dim);
+            }
+
+            .notification-response-inputs {
+                margin-top: 2px;
+            }
+
+            .notification-response-input {
+                font-size: 12px;
+                color: var(--text-secondary);
+            }
+
+            .notification-response-input-label {
+                font-weight: 500;
+                margin-right: 4px;
+            }
+
             /* Mobile responsiveness */
             @media (max-width: 768px) {
                 .notification-center-panel {
@@ -583,6 +638,14 @@ export class NotificationCenter {
      */
     addNotification(notification) {
         const serverId = notification.server_id || null;
+        const actions = Array.isArray(notification.actions) ? notification.actions : undefined;
+        const inputs = Array.isArray(notification.inputs) ? notification.inputs : undefined;
+        const response = notification.response || null;
+        const interactive = !!(
+            (Array.isArray(actions) && actions.length > 0) ||
+            (Array.isArray(inputs) && inputs.length > 0)
+        );
+
         const notificationData = {
             id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             title: notification.title || 'Notification',
@@ -593,7 +656,11 @@ export class NotificationCenter {
             isActive: notification.is_active !== false, // Default to true if not specified
             read: Boolean(notification.read === true ? true : false),
             serverId,
-            origin: serverId ? 'server' : 'local'
+            origin: serverId ? 'server' : 'local',
+            actions,
+            inputs,
+            response,
+            interactive
         };
 
         // Add to beginning of array (newest first)
@@ -814,8 +881,9 @@ export class NotificationCenter {
                 sessionDisplay = `<span class=\"notification-item-session broadcast\">Broadcast</span>`;
             }
             const sourceLabel = `<span class='source-badge ${notification.origin === 'server' ? 'server' : 'local'}'>${notification.origin === 'server' ? 'Server' : 'Local'}</span>`;
+            const interactiveSummary = this.renderInteractiveSummary(notification);
             return `
-                <div class=\"notification-item ${notification.type} ${!notification.read ? 'unread' : ''}\" data-id=\"${notification.id}\">\n                    <div class=\"notification-item-header\">\n                        <h4 class=\"notification-item-title\">${this.escapeHtml(notification.title)}</h4>\n                        <button class=\"notification-item-dismiss\" title=\"Dismiss\">×</button>\n                    </div>\n                    <p class=\"notification-item-message\">${this.escapeHtml(notification.message)}</p>\n                    <div class=\"notification-item-footer\">\n                        ${sourceLabel}\n                        <div class=\"notification-item-bottom-row\">\n                            ${sessionDisplay}\n                            <span class=\"notification-item-timestamp\">${this.formatTimestamp(notification.timestamp)}</span>\n                        </div>\n                    </div>\n                </div>
+                <div class=\"notification-item ${notification.type} ${!notification.read ? 'unread' : ''}\" data-id=\"${notification.id}\">\n                    <div class=\"notification-item-header\">\n                        <h4 class=\"notification-item-title\">${this.escapeHtml(notification.title)}</h4>\n                        <button class=\"notification-item-dismiss\" title=\"Dismiss\">×</button>\n                    </div>\n                    <p class=\"notification-item-message\">${this.escapeHtml(notification.message)}</p>\n                    <div class=\"notification-item-footer\">\n                        ${sourceLabel}\n                        ${interactiveSummary}\n                        <div class=\"notification-item-bottom-row\">\n                            ${sessionDisplay}\n                            <span class=\"notification-item-timestamp\">${this.formatTimestamp(notification.timestamp)}</span>\n                        </div>\n                    </div>\n                </div>
             `;
         }).join('');
 
@@ -850,8 +918,9 @@ export class NotificationCenter {
                 sessionDisplay = `<span class=\"notification-item-session broadcast\">Broadcast</span>`;
             }
             const sourceLabel = `<span class='source-badge ${notification.origin === 'server' ? 'server' : 'local'}'>${notification.origin === 'server' ? 'Server' : 'Local'}</span>`;
+            const interactiveSummary = this.renderInteractiveSummary(notification);
             return `
-                <div class=\"notification-item ${notification.type} ${!notification.read ? 'unread' : ''}\" data-id=\"${notification.id}\">\n                    <div class=\"notification-item-header\">\n                        <h4 class=\"notification-item-title\">${this.escapeHtml(notification.title)}</h4>\n                        <button class=\"notification-item-dismiss\" title=\"Dismiss\">×</button>\n                    </div>\n                    <p class=\"notification-item-message\">${this.escapeHtml(notification.message)}</p>\n                    <div class=\"notification-item-footer\">\n                        ${sourceLabel}\n                        <div class=\"notification-item-bottom-row\">\n                            ${sessionDisplay}\n                            <span class=\"notification-item-timestamp\">${this.formatTimestamp(notification.timestamp)}</span>\n                        </div>\n                    </div>\n                </div>
+                <div class=\"notification-item ${notification.type} ${!notification.read ? 'unread' : ''}\" data-id=\"${notification.id}\">\n                    <div class=\"notification-item-header\">\n                        <h4 class=\"notification-item-title\">${this.escapeHtml(notification.title)}</h4>\n                        <button class=\"notification-item-dismiss\" title=\"Dismiss\">×</button>\n                    </div>\n                    <p class=\"notification-item-message\">${this.escapeHtml(notification.message)}</p>\n                    <div class=\"notification-item-footer\">\n                        ${sourceLabel}\n                        ${interactiveSummary}\n                        <div class=\"notification-item-bottom-row\">\n                            ${sessionDisplay}\n                            <span class=\"notification-item-timestamp\">${this.formatTimestamp(notification.timestamp)}</span>\n                        </div>\n                    </div>\n                </div>
             `;
         }).join('');
 
@@ -934,6 +1003,92 @@ export class NotificationCenter {
     }
 
     /**
+     * Render interactive response summary (action + inputs) when available.
+     * @param {Object} notification
+     * @returns {string}
+     */
+    renderInteractiveSummary(notification) {
+        try {
+            const hasActions = Array.isArray(notification.actions) && notification.actions.length > 0;
+            const hasInputs = Array.isArray(notification.inputs) && notification.inputs.length > 0;
+            const response = notification.response || null;
+
+            if (!hasActions && !hasInputs && !response) {
+                return '';
+            }
+
+            const parts = [];
+
+            if (response) {
+                const headerPieces = [];
+                headerPieces.push('<span class="notification-response-badge">Responded</span>');
+
+                const actionLabel = response.action_label || response.action_key || '';
+                if (actionLabel) {
+                    headerPieces.push(`<span class="notification-response-action">${this.escapeHtml(actionLabel)}</span>`);
+                }
+
+                if (response.at) {
+                    const atTs = new Date(response.at).getTime();
+                    headerPieces.push(`<span class="notification-response-at">${this.escapeHtml(this.formatTimestamp(atTs))}</span>`);
+                }
+
+                const headerHtml = `<div class="notification-response-header">${headerPieces.join(' ')}</div>`;
+
+                const rows = [];
+                const respInputs = response.inputs || {};
+                Object.keys(respInputs || {}).forEach((inputId) => {
+                    const label = this.findInputLabel(notification, inputId);
+                    const value = respInputs[inputId];
+                    rows.push(
+                        `<div class="notification-response-input"><span class="notification-response-input-label">${this.escapeHtml(label)}:</span><span class="notification-response-input-value">${this.escapeHtml(String(value))}</span></div>`
+                    );
+                });
+
+                if (Array.isArray(response.masked_input_ids)) {
+                    response.masked_input_ids.forEach((inputId) => {
+                        const label = this.findInputLabel(notification, inputId);
+                        rows.push(
+                            `<div class="notification-response-input"><span class="notification-response-input-label">${this.escapeHtml(label)}:</span><span class="notification-response-input-value">••• provided</span></div>`
+                        );
+                    });
+                }
+
+                const inputsBlock = rows.length
+                    ? `<div class="notification-response-inputs">${rows.join('')}</div>`
+                    : '';
+
+                parts.push(headerHtml + inputsBlock);
+            } else if (hasActions || hasInputs) {
+                // Interactive notification that has not yet been responded to
+                parts.push('<div class="notification-item-interactive">Interactive notification</div>');
+            }
+
+            if (!parts.length) return '';
+            return `<div class="notification-response-summary">${parts.join('')}</div>`;
+        } catch (_) {
+            return '';
+        }
+    }
+
+    /**
+     * Find a human-friendly label for an input id.
+     * @param {Object} notification
+     * @param {string} inputId
+     * @returns {string}
+     */
+    findInputLabel(notification, inputId) {
+        try {
+            const inputs = Array.isArray(notification.inputs) ? notification.inputs : [];
+            const match = inputs.find((it) => it && it.id === inputId);
+            if (match && match.label) return String(match.label);
+            return String(inputId);
+        } catch (_) {
+            return String(inputId);
+        }
+    }
+
+    /**
      * Escape HTML to prevent XSS
      * @param {string} text - Text to escape
      * @returns {string} Escaped text
@@ -942,6 +1097,26 @@ export class NotificationCenter {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * Update the stored response for notifications that reference a given server id.
+     * @param {string|number} serverId
+     * @param {Object} response
+     */
+    updateNotificationResponseByServerId(serverId, response) {
+        if (!serverId) return;
+        const target = String(serverId);
+        let updated = false;
+        this.notifications.forEach((n) => {
+            if (String(n.serverId) === target) {
+                n.response = response;
+                updated = true;
+            }
+        });
+        if (updated) {
+            this.renderNotificationsIfOpen();
+        }
     }
 
     /**
@@ -1019,18 +1194,31 @@ import { isAnyModalOpen } from '../ui/modal.js';
 // Items are expected in server format (newest-first)
 NotificationCenter.prototype.seedNotifications = function(items) {
     try {
-        const normalized = (Array.isArray(items) ? items : []).map((n) => ({
-            id: `svr-${n.id}-${Math.random().toString(36).slice(2, 7)}`,
-            title: n.title || 'Notification',
-            message: n.message || '',
-            type: n.notification_type || 'info',
-            timestamp: n.timestamp || Date.now(),
-            sessionId: n.session_id || null,
-            isActive: n.is_active !== false,
-            read: Boolean(n.read === true ? true : false),
-            serverId: n.id,
-            origin: 'server'
-        }));
+        const normalized = (Array.isArray(items) ? items : []).map((n) => {
+            const actions = Array.isArray(n.actions) ? n.actions : undefined;
+            const inputs = Array.isArray(n.inputs) ? n.inputs : undefined;
+            const response = n.response || null;
+            const interactive = !!(
+                (Array.isArray(actions) && actions.length > 0) ||
+                (Array.isArray(inputs) && inputs.length > 0)
+            );
+            return {
+                id: `svr-${n.id}-${Math.random().toString(36).slice(2, 7)}`,
+                title: n.title || 'Notification',
+                message: n.message || '',
+                type: n.notification_type || 'info',
+                timestamp: n.timestamp || Date.now(),
+                sessionId: n.session_id || null,
+                isActive: n.is_active !== false,
+                read: Boolean(n.read === true ? true : false),
+                serverId: n.id,
+                origin: 'server',
+                actions,
+                inputs,
+                response,
+                interactive
+            };
+        });
         // Keep newest-first
         this.notifications = normalized;
         this.unreadCount = this.notifications.reduce((acc, n) => acc + (n.read ? 0 : 1), 0);

@@ -213,6 +213,75 @@ export class NotificationDisplay {
                 margin-right: 8px;
                 flex-shrink: 0;
             }
+
+            /* Interactive notification inputs */
+            .notification-inputs {
+                margin-top: 6px;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .notification-input-row {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+
+            .notification-input-row label {
+                font-size: 12px;
+                color: var(--text-secondary);
+            }
+
+            .notification-input-row label .required-indicator {
+                color: var(--danger-color);
+                margin-left: 2px;
+            }
+
+            .notification-input-row input {
+                font-size: 13px;
+                padding: 4px 6px;
+                border-radius: 4px;
+                border: 1px solid var(--border-color);
+                background: var(--bg-primary);
+                color: var(--text-primary);
+            }
+
+            .notification-input-row input:focus {
+                outline: none;
+                border-color: var(--accent-color);
+                box-shadow: 0 0 0 1px var(--accent-color);
+            }
+
+            .notification-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6px;
+                margin-top: 6px;
+            }
+
+            .notification-action-button {
+                font-size: 12px;
+            }
+
+            .notification-action-button[disabled] {
+                opacity: 0.6;
+                cursor: default;
+            }
+
+            .notification-action-status,
+            .notification-action-error {
+                font-size: 12px;
+                margin-top: 4px;
+            }
+
+            .notification-action-status {
+                color: var(--text-secondary);
+            }
+
+            .notification-action-error {
+                color: var(--danger-color);
+            }
             
             /* Mobile responsive */
             @media (max-width: 768px) {
@@ -253,6 +322,7 @@ export class NotificationDisplay {
     show(notification, options = {}) {
         // Normalize type and merge options
         const normalizedType = (notification.notification_type || notification.type || 'info');
+        const normalizedNotification = { ...notification, notification_type: normalizedType };
         const config = { recordInCenter: true, ...this.defaultOptions, ...options };
         const id = `notification-${this.nextId++}`;
 
@@ -280,7 +350,10 @@ export class NotificationDisplay {
                                     session_id: nSession || null,
                                     is_active: notification.is_active !== false,
                                     server_id: notification.server_id || null,
-                                    read: Boolean(notification.read === true ? true : false)
+                                    read: Boolean(notification.read === true ? true : false),
+                                    actions: Array.isArray(notification.actions) ? notification.actions : undefined,
+                                    inputs: Array.isArray(notification.inputs) ? notification.inputs : undefined,
+                                    response: notification.response || undefined
                                 });
                             }
                         } catch (_) {}
@@ -294,15 +367,19 @@ export class NotificationDisplay {
         try {
             if (config.recordInCenter && notificationCenter && typeof notificationCenter.addNotification === 'function') {
                 notificationCenter.addNotification({
-                    title: notification.title || 'Notification',
-                    message: notification.message || '',
+                    title: normalizedNotification.title || 'Notification',
+                    message: normalizedNotification.message || '',
                     notification_type: normalizedType,
-                    timestamp: notification.timestamp || Date.now(),
-                    session_id: notification.session_id || null,
-                    is_active: notification.is_active !== false,
+                    timestamp: normalizedNotification.timestamp || Date.now(),
+                    session_id: normalizedNotification.session_id || null,
+                    is_active: normalizedNotification.is_active !== false,
                     // Preserve server-provided identifiers/flags for API persistence
-                    server_id: notification.server_id || null,
-                    read: Boolean(notification.read === true ? true : false)
+                    server_id: normalizedNotification.server_id || null,
+                    read: Boolean(normalizedNotification.read === true ? true : false),
+                    // Interactive metadata (optional)
+                    actions: Array.isArray(normalizedNotification.actions) ? normalizedNotification.actions : undefined,
+                    inputs: Array.isArray(normalizedNotification.inputs) ? normalizedNotification.inputs : undefined,
+                    response: normalizedNotification.response || undefined
                 });
             }
         } catch (_) {}
@@ -321,7 +398,7 @@ export class NotificationDisplay {
         } catch (_) { /* ignore preference errors */ }
 
         // Create notification element
-        const element = this.createElement(id, { ...notification, notification_type: normalizedType });
+        const element = this.createElement(id, normalizedNotification);
         
         // Add to container
         this.container.appendChild(element);
@@ -329,10 +406,14 @@ export class NotificationDisplay {
         // Store reference
         this.notifications.set(id, {
             element,
-            notification,
+            notification: normalizedNotification,
             config,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            interactive: null
         });
+
+        // Wire interactive behaviors if applicable
+        this.setupInteractiveNotification(id);
         
         // Force reflow to ensure the element is rendered in its initial position
         element.offsetHeight;
@@ -363,6 +444,9 @@ export class NotificationDisplay {
         element.id = id;
         const type = (notification.notification_type || notification.type || 'info');
         element.className = `notification ${type}`;
+
+        const title = notification.title || 'Notification';
+        const message = notification.message || '';
         
         // Format timestamp
         const timestamp = notification.timestamp 
@@ -380,12 +464,15 @@ export class NotificationDisplay {
         // Source label (Server vs Local)
         const isServer = !!notification.server_id;
         const originLabel = `<span class='source-badge ${isServer ? 'server' : 'local'}'>${isServer ? 'Server' : 'Local'}</span>`;
+
+        const interactiveHtml = this.buildInteractiveHtml(notification, id);
         
         element.innerHTML = `
-            <div class=\"notification-header\">\n                <h4 class=\"notification-title\">${this.escapeHtml(notification.title)}</h4>\n                <button class=\"notification-close\">&times;</button>\n            </div>
-            <p class="notification-message">${this.escapeHtml(notification.message)}</p>
+            <div class=\"notification-header\">\n                <h4 class=\"notification-title\">${this.escapeHtml(title)}</h4>\n                <button class=\"notification-close\">&times;</button>\n            </div>
+            <p class="notification-message">${this.escapeHtml(message)}</p>
             <div class="notification-footer">
                 ${originLabel}
+                ${interactiveHtml}
                 <div class="notification-bottom-row">
                     ${sessionDisplay}
                     <span class="notification-timestamp">${timestamp}</span>
@@ -466,7 +553,7 @@ export class NotificationDisplay {
         // Show toast notification
         const normalizedType = (notification.notification_type || notification.type || 'info');
         this.show(notification, {
-            duration: this.getDurationForType(normalizedType),
+            duration: this.getDurationForNotification(notification, normalizedType),
             recordInCenter: true
         });
     }
@@ -488,6 +575,124 @@ export class NotificationDisplay {
             default:
                 return 5000;
         }
+    }
+
+    /**
+     * Determine duration for a notification, honoring interactive persistence preference.
+     * @param {Object} notification
+     * @param {string} type
+     * @returns {number}
+     */
+    getDurationForNotification(notification, type) {
+        try {
+            if (this.shouldPersistInteractive(notification)) {
+                return 0;
+            }
+        } catch (_) {}
+        return this.getDurationForType(type);
+    }
+
+    /**
+     * Check if a notification is interactive.
+     * @param {Object} notification
+     * @returns {boolean}
+     */
+    isInteractiveNotification(notification) {
+        try {
+            if (!notification) return false;
+            const hasActions = Array.isArray(notification.actions) && notification.actions.length > 0;
+            const hasInputs = Array.isArray(notification.inputs) && notification.inputs.length > 0;
+            return hasActions || hasInputs;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
+     * Determine if interactive notifications should persist on screen.
+     * @param {Object} notification
+     * @returns {boolean}
+     */
+    shouldPersistInteractive(notification) {
+        if (!this.isInteractiveNotification(notification)) return false;
+        try {
+            const prefs = appStore?.getState?.('preferences.notifications') || {};
+            return prefs.persistInteractive === true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
+     * Build HTML for interactive inputs and actions.
+     * @param {Object} notification
+     * @param {string} id
+     * @returns {string}
+     */
+    buildInteractiveHtml(notification, id) {
+        if (!this.isInteractiveNotification(notification)) return '';
+
+        const inputs = Array.isArray(notification.inputs) ? notification.inputs : [];
+        const actions = Array.isArray(notification.actions) ? notification.actions : [];
+
+        const inputRows = inputs.map((inputDef) => {
+            if (!inputDef || !inputDef.id) return '';
+            const inputId = `${id}-input-${inputDef.id}`;
+            const labelText = inputDef.label || inputDef.id;
+            const type = (inputDef.type === 'password') ? 'password' : 'text';
+            const placeholder = inputDef.placeholder ? this.escapeHtml(String(inputDef.placeholder)) : '';
+            const required = inputDef.required === true;
+            const requiredIndicator = required ? '<span class="required-indicator">*</span>' : '';
+            return `
+                <div class="notification-input-row">
+                    <label for="${this.escapeHtml(inputId)}">
+                        ${this.escapeHtml(labelText)}${requiredIndicator}
+                    </label>
+                    <input
+                        id="${this.escapeHtml(inputId)}"
+                        class="notification-input"
+                        type="${type}"
+                        data-input-id="${this.escapeHtml(inputDef.id)}"
+                        ${placeholder ? `placeholder="${placeholder}"` : ''}
+                    >
+                </div>
+            `;
+        }).filter(Boolean);
+
+        const inputsHtml = inputRows.length
+            ? `<div class="notification-inputs">${inputRows.join('')}</div>`
+            : '';
+
+        const actionButtons = actions.map((action) => {
+            if (!action || !action.key) return '';
+            const key = String(action.key);
+            const label = action.label || key;
+            // Map style -> button variant using existing button classes
+            let styleClass = 'btn-secondary';
+            const style = (action.style || '').toLowerCase();
+            if (style === 'primary') styleClass = 'btn-primary';
+            else if (style === 'danger') styleClass = 'btn-danger';
+            return `
+                <button
+                    type="button"
+                    class="notification-action-button btn btn-xs ${styleClass}"
+                    data-action-key="${this.escapeHtml(key)}"
+                    disabled
+                >
+                    ${this.escapeHtml(label)}
+                </button>
+            `;
+        }).filter(Boolean);
+
+        const actionsHtml = actionButtons.length
+            ? `<div class="notification-actions">${actionButtons.join('')}</div>`
+            : '';
+
+        // Status and error lines for action feedback
+        const statusHtml = `<div class="notification-action-status" aria-live="polite"></div>`;
+        const errorHtml = `<div class="notification-action-error" aria-live="polite"></div>`;
+
+        return `${inputsHtml}${actionsHtml}${statusHtml}${errorHtml}`;
     }
 
     /**
@@ -535,6 +740,336 @@ export class NotificationDisplay {
             }
         } catch (error) {
             console.error('Error navigating to session:', error);
+        }
+    }
+
+    /**
+     * Initialize interactive behaviors (inputs + actions) for a given notification element.
+     * @param {string} id - Notification ID
+     */
+    setupInteractiveNotification(id) {
+        const entry = this.notifications.get(id);
+        if (!entry || !this.isInteractiveNotification(entry.notification)) {
+            return;
+        }
+
+        const notification = entry.notification || {};
+        const element = entry.element;
+
+        const inputs = Array.isArray(notification.inputs) ? notification.inputs : [];
+        const actions = Array.isArray(notification.actions) ? notification.actions : [];
+
+        const inputElements = {};
+        inputs.forEach((inputDef) => {
+            if (!inputDef || !inputDef.id) return;
+            const escapedId = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(inputDef.id) : inputDef.id;
+            const el = element.querySelector(`.notification-input[data-input-id="${escapedId}"]`)
+                || element.querySelector(`.notification-input[data-input-id="${inputDef.id}"]`);
+            if (el) {
+                inputElements[inputDef.id] = el;
+                el.addEventListener('input', () => {
+                    this.updateActionButtonsState(id);
+                });
+            }
+        });
+
+        const actionButtons = {};
+        actions.forEach((action) => {
+            if (!action || !action.key) return;
+            const escapedKey = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(action.key) : action.key;
+            const btn = element.querySelector(`.notification-action-button[data-action-key="${escapedKey}"]`)
+                || element.querySelector(`.notification-action-button[data-action-key="${action.key}"]`);
+            if (btn) {
+                actionButtons[action.key] = btn;
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.handleActionClick(id, action.key);
+                });
+            }
+        });
+
+        const statusEl = element.querySelector('.notification-action-status') || null;
+        const errorEl = element.querySelector('.notification-action-error') || null;
+
+        entry.interactive = {
+            inputs,
+            actions,
+            inputElements,
+            actionButtons,
+            statusEl,
+            errorEl,
+            pendingActionKey: null,
+            resolved: !!notification.response,
+            lastSubmittedInputs: null
+        };
+
+        this.updateActionButtonsState(id);
+    }
+
+    /**
+     * Enable/disable action buttons based on required inputs and pending/resolved state.
+     * @param {string} id
+     */
+    updateActionButtonsState(id) {
+        const entry = this.notifications.get(id);
+        if (!entry || !entry.interactive) return;
+
+        const { actions, inputElements, actionButtons, pendingActionKey, resolved } = entry.interactive;
+
+        const values = {};
+        Object.keys(inputElements || {}).forEach((inputId) => {
+            const el = inputElements[inputId];
+            if (el) {
+                values[inputId] = (el.value || '').trim();
+            }
+        });
+
+        actions.forEach((action) => {
+            const btn = actionButtons[action.key];
+            if (!btn) return;
+
+            let disabled = false;
+
+            // Once a notification is resolved, all actions remain disabled
+            if (resolved) {
+                disabled = true;
+            }
+
+            // While a submission is in-flight, all buttons are disabled
+            if (!disabled && pendingActionKey) {
+                disabled = true;
+            }
+
+            // Require inputs defined for this action
+            if (!disabled && Array.isArray(action.requires_inputs) && action.requires_inputs.length) {
+                const missing = action.requires_inputs.some((inputId) => {
+                    const v = (values[inputId] || '').trim();
+                    return !v;
+                });
+                if (missing) disabled = true;
+            }
+
+            btn.disabled = !!disabled;
+        });
+    }
+
+    /**
+     * Handle an action button click: validate, send WS message, and mark pending state.
+     * @param {string} id
+     * @param {string} actionKey
+     */
+    handleActionClick(id, actionKey) {
+        const entry = this.notifications.get(id);
+        if (!entry || !entry.interactive) return;
+
+        const ctx = getContext();
+        const ws = ctx?.websocketService;
+        if (!ws || typeof ws.send !== 'function') {
+            if (entry.interactive.errorEl) {
+                entry.interactive.errorEl.textContent = 'Not connected to server.';
+            }
+            return;
+        }
+
+        const { actions, inputElements, actionButtons, statusEl, errorEl } = entry.interactive;
+        const action = actions.find((a) => a && a.key === actionKey);
+        if (!action) return;
+
+        const values = {};
+        Object.keys(inputElements || {}).forEach((inputId) => {
+            const el = inputElements[inputId];
+            if (el) values[inputId] = el.value || '';
+        });
+
+        // Client-side validation for required inputs
+        const missingIds = [];
+        if (Array.isArray(action.requires_inputs)) {
+            action.requires_inputs.forEach((inputId) => {
+                const v = (values[inputId] || '').trim();
+                if (!v) missingIds.push(inputId);
+            });
+        }
+
+        if (missingIds.length > 0) {
+            if (errorEl) {
+                const labels = missingIds.map((idPart) => this.getInputLabel(entry.notification, idPart));
+                errorEl.textContent = `Please fill: ${labels.join(', ')}`;
+            }
+            return;
+        }
+
+        // Clear previous messages and mark pending
+        if (errorEl) {
+            errorEl.textContent = '';
+        }
+        if (statusEl) {
+            statusEl.textContent = 'Sending...';
+        }
+
+        entry.interactive.pendingActionKey = action.key;
+        entry.interactive.lastSubmittedInputs = values;
+        this.updateActionButtonsState(id);
+
+        const btn = actionButtons[action.key] || null;
+
+        const notification = entry.notification || {};
+        const notificationId = notification.server_id || notification.notification_id || notification.id || null;
+        if (!notificationId) {
+            if (errorEl) {
+                errorEl.textContent = 'Notification cannot be submitted (missing id).';
+            }
+            entry.interactive.pendingActionKey = null;
+            this.updateActionButtonsState(id);
+            if (statusEl) statusEl.textContent = '';
+            return;
+        }
+
+        try {
+            ws.send('notification_action', {
+                notification_id: notificationId,
+                action_key: action.key,
+                inputs: values
+            });
+        } catch (e) {
+            console.error('[NotificationDisplay] Failed to send notification_action:', e);
+            if (errorEl) {
+                errorEl.textContent = 'Failed to send response. Please try again.';
+            }
+            if (statusEl) statusEl.textContent = '';
+            entry.interactive.pendingActionKey = null;
+            this.updateActionButtonsState(id);
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    /**
+     * Handle a notification_action_result message from WebSocket.
+     * @param {Object} result
+     */
+    handleActionResult(result) {
+        if (!result || !result.notification_id) return;
+        const targetId = String(result.notification_id);
+
+        for (const [id, entry] of this.notifications.entries()) {
+            const notification = entry.notification || {};
+            const serverId = notification.server_id || notification.notification_id || notification.id || null;
+            if (!serverId || String(serverId) !== targetId) continue;
+            this.applyActionResultToEntry(id, entry, result);
+        }
+    }
+
+    /**
+     * Apply a notification_action_result to a specific notification entry.
+     * @param {string} id
+     * @param {Object} entry
+     * @param {Object} result
+     */
+    applyActionResultToEntry(id, entry, result) {
+        if (!entry || !entry.interactive) return;
+
+        const { actions, statusEl, errorEl } = entry.interactive;
+        entry.interactive.pendingActionKey = null;
+
+        if (errorEl) errorEl.textContent = '';
+
+        const action = actions.find((a) => a && a.key === result.action_key);
+        const actionLabel = action?.label || result.action_key || '';
+
+        if (result.ok) {
+            entry.interactive.resolved = true;
+
+            if (statusEl) {
+                const statusText = result.status ? String(result.status) : 'completed';
+                statusEl.textContent = actionLabel
+                    ? `Action "${actionLabel}" ${statusText}.`
+                    : `Action ${statusText}.`;
+            }
+
+            // Disable all buttons after a successful response
+            this.updateActionButtonsState(id);
+
+            // Build a local response summary for the notification center (non-secret only)
+            try {
+                const inputsDef = Array.isArray(entry.interactive.inputs) ? entry.interactive.inputs : [];
+                const submitted = entry.interactive.lastSubmittedInputs || {};
+                const nonSecretInputs = {};
+                const maskedIds = [];
+
+                inputsDef.forEach((def) => {
+                    if (!def || !def.id) return;
+                    if (!(def.id in submitted)) return;
+                    const v = submitted[def.id];
+                    const t = (def.type === 'password') ? 'password' : 'string';
+                    if (t === 'password') {
+                        maskedIds.push(def.id);
+                    } else {
+                        nonSecretInputs[def.id] = v;
+                    }
+                });
+
+                const nowIso = new Date().toISOString();
+                let username = '';
+                try { username = appStore.getState('auth.username') || ''; } catch (_) {}
+
+                const response = {
+                    at: nowIso,
+                    user: username || undefined,
+                    action_key: result.action_key,
+                    action_label: actionLabel || null,
+                    inputs: nonSecretInputs,
+                    masked_input_ids: maskedIds
+                };
+
+                entry.notification.response = response;
+                try {
+                    if (notificationCenter && typeof notificationCenter.updateNotificationResponseByServerId === 'function') {
+                        const serverId = entry.notification.server_id || entry.notification.notification_id || entry.notification.id || null;
+                        if (serverId) {
+                            notificationCenter.updateNotificationResponseByServerId(serverId, response);
+                        }
+                    }
+                } catch (_) {}
+            } catch (e) {
+                console.warn('[NotificationDisplay] Failed to synthesize response summary:', e);
+            }
+
+            // Auto-dismiss after a short delay when interactive persistence is disabled
+            try {
+                if (!this.shouldPersistInteractive(entry.notification)) {
+                    setTimeout(() => {
+                        if (this.notifications.has(id)) {
+                            this.remove(id);
+                        }
+                    }, 2000);
+                }
+            } catch (_) {}
+        } else {
+            // Failure path
+            entry.interactive.resolved = false;
+            if (statusEl) statusEl.textContent = '';
+            if (errorEl) {
+                const msg = result.error || result.status || 'Action failed. Please try again.';
+                errorEl.textContent = String(msg);
+            }
+            this.updateActionButtonsState(id);
+        }
+    }
+
+    /**
+     * Resolve a human-friendly label for an input id.
+     * @param {Object} notification
+     * @param {string} inputId
+     * @returns {string}
+     */
+    getInputLabel(notification, inputId) {
+        try {
+            const inputs = Array.isArray(notification.inputs) ? notification.inputs : [];
+            const match = inputs.find((it) => it && it.id === inputId);
+            if (match && match.label) return String(match.label);
+            return String(inputId);
+        } catch (_) {
+            return String(inputId);
         }
     }
 }
