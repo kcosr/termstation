@@ -280,6 +280,7 @@ export class SettingsManager {
             notificationsEnabled: document.getElementById('notifications-enabled'),
             notificationsSound: document.getElementById('notifications-sound'),
             notificationsScheduledInputShow: document.getElementById('notifications-scheduled-input-show'),
+            notificationsPersistInteractive: document.getElementById('notifications-persist-interactive'),
             // Per-level notification settings
             notificationsInfoShow: document.getElementById('notifications-info-show'),
             notificationsInfoSound: document.getElementById('notifications-info-sound'),
@@ -934,6 +935,10 @@ export class SettingsManager {
         this.elements.notificationsScheduledInputShow?.addEventListener('change', (e) => {
             appStore.setPath('preferences.notifications.showScheduledInput', !!e.target.checked);
         });
+        // Persist interactive notification toasts
+        this.elements.notificationsPersistInteractive?.addEventListener('change', (e) => {
+            appStore.setPath('preferences.notifications.persistInteractive', !!e.target.checked);
+        });
 
         // Additional categorized logs - apply changes immediately
         this.elements.debugApiLogs?.addEventListener('change', (e) => {
@@ -1586,6 +1591,10 @@ export class SettingsManager {
             const showPref = state.preferences?.notifications?.showScheduledInput;
             this.elements.notificationsScheduledInputShow.checked = (showPref !== false);
         }
+        if (this.elements.notificationsPersistInteractive) {
+            const persist = state.preferences?.notifications?.persistInteractive === true;
+            this.elements.notificationsPersistInteractive.checked = persist;
+        }
         // Per-level settings (fallback to true)
         const lv = (state.preferences?.notifications?.levels) || {};
         if (this.elements.notificationsInfoShow) this.elements.notificationsInfoShow.checked = (lv.info?.show ?? true);
@@ -1892,6 +1901,7 @@ export class SettingsManager {
                         enabled: this.elements.notificationsEnabled?.checked ?? false,
                         sound: this.elements.notificationsSound?.checked ?? false,
                         showScheduledInput: this.elements.notificationsScheduledInputShow?.checked !== false,
+                        persistInteractive: this.elements.notificationsPersistInteractive?.checked === true,
                         levels: {
                             info: {
                                 show: this.elements.notificationsInfoShow?.checked ?? true,
@@ -2154,6 +2164,7 @@ export class SettingsManager {
                     enabled: false,
                     sound: false,
                     showScheduledInput: true,
+                    persistInteractive: false,
                     levels: {
                         info: { show: true, sound: true },
                         success: { show: true, sound: true },

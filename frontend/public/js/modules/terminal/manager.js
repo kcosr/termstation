@@ -2036,6 +2036,18 @@ export class TerminalManager {
                 }
             }
         });
+
+        // Interactive notification action result acknowledgements
+        registry.register('notification_action_result', (message) => handlers.notificationActionResultHandler.handle(message, context), {
+            validation: {
+                required: ['notification_id', 'action_key', 'ok'],
+                types: {
+                    notification_id: 'string',
+                    action_key: 'string',
+                    ok: 'boolean'
+                }
+            }
+        });
         
         // (duplicate session_activity registration removed; defined earlier around 1789)
         
