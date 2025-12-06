@@ -1423,11 +1423,12 @@ export class NotificationCenter {
         let updated = false;
 
         try {
-            console.log('[InteractiveNotification][Center][Result]', {
+            console.log('[InteractiveNotification][Center][ResultEnter]', {
                 notificationId: targetId,
                 actionKey: result.action_key,
                 ok: !!result.ok,
-                status: result.status || null
+                status: result.status || null,
+                notificationCount: Array.isArray(this.notifications) ? this.notifications.length : -1
             });
         } catch (_) {}
 

@@ -9,15 +9,31 @@ import { notificationCenter } from '../../notification-center/notification-cente
 export class NotificationActionResultHandler {
     handle(message, context) {
         try {
+            const notificationId = message && message.notification_id;
+            const actionKey = message && message.action_key;
+            const ok = !!(message && message.ok);
+            const status = message && message.status ? String(message.status) : null;
+            const hasDisplay = !!notificationDisplay;
+            const hasDisplayHandler = !!(notificationDisplay && typeof notificationDisplay.handleActionResult === 'function');
+            const hasCenter = !!notificationCenter;
+            const hasCenterHandler = !!(notificationCenter && typeof notificationCenter.handleActionResult === 'function');
             console.log('[InteractiveNotification][WS][ResultDispatch]', {
-                notificationId: message && message.notification_id,
-                actionKey: message && message.action_key,
-                ok: !!(message && message.ok),
-                status: message && message.status ? String(message.status) : null
+                notificationId,
+                actionKey,
+                ok,
+                status,
+                hasDisplay,
+                hasDisplayHandler,
+                hasCenter,
+                hasCenterHandler
             });
         } catch (_) {}
 
         try {
+            console.log('[InteractiveNotification][WS][ResultToToast]', {
+                notificationId: message && message.notification_id,
+                actionKey: message && message.action_key
+            });
             if (notificationDisplay && typeof notificationDisplay.handleActionResult === 'function') {
                 notificationDisplay.handleActionResult(message);
             }
@@ -26,6 +42,10 @@ export class NotificationActionResultHandler {
         }
 
         try {
+            console.log('[InteractiveNotification][WS][ResultToCenter]', {
+                notificationId: message && message.notification_id,
+                actionKey: message && message.action_key
+            });
             if (notificationCenter && typeof notificationCenter.handleActionResult === 'function') {
                 notificationCenter.handleActionResult(message);
             }
