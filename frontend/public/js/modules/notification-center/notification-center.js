@@ -690,6 +690,23 @@ export class NotificationCenter {
             }
         };
 
+        try {
+            console.log('[InteractiveNotification][Center][Add]', {
+                centerId: notificationData.id,
+                serverId,
+                interactive,
+                hasResponse: !!response,
+                actionKeys: Array.isArray(actions) ? actions.map((a) => a && a.key).filter(Boolean) : [],
+                inputDefs: Array.isArray(inputs)
+                    ? inputs.map((inp) => inp && {
+                        id: inp.id,
+                        type: inp.type || 'string',
+                        required: !!inp.required
+                    }).filter(Boolean)
+                    : []
+            });
+        } catch (_) {}
+
         // Add to beginning of array (newest first)
         this.notifications.unshift(notificationData);
 
@@ -1297,6 +1314,28 @@ export class NotificationCenter {
             values[key] = el.value || '';
         });
 
+        // Snapshot input metadata without logging secret values
+        try {
+            const inputsDef = Array.isArray(notification.inputs) ? notification.inputs : [];
+            const safeInputs = {};
+            Object.keys(values).forEach((inputId) => {
+                const def = inputsDef.find((d) => d && d.id === inputId);
+                const raw = values[inputId] == null ? '' : String(values[inputId]);
+                const isSecret = def && (def.type === 'password');
+                safeInputs[inputId] = {
+                    length: raw.length,
+                    secret: !!isSecret
+                };
+            });
+            const serverId = notification.serverId || notification.server_id || notification.id || null;
+            console.log('[InteractiveNotification][Center][Submit]', {
+                centerId: id,
+                serverId,
+                actionKey,
+                inputs: safeInputs
+            });
+        } catch (_) {}
+
         // Client-side validation for required inputs
         const missingIds = [];
         if (Array.isArray(action.requires_inputs)) {
@@ -1311,6 +1350,15 @@ export class NotificationCenter {
                 const labels = missingIds.map((idPart) => this.findInputLabel(notification, idPart));
                 errorEl.textContent = `Please fill: ${labels.join(', ')}`;
             }
+            try {
+                const serverId = notification.serverId || notification.server_id || notification.id || null;
+                console.warn('[InteractiveNotification][Center][ValidationFailed]', {
+                    centerId: id,
+                    serverId,
+                    actionKey,
+                    missingIds: [...missingIds]
+                });
+            } catch (_) {}
             return;
         }
 
@@ -1327,10 +1375,22 @@ export class NotificationCenter {
             state.pendingActionKey = null;
             if (statusEl) statusEl.textContent = '';
             this.updateInteractiveButtonsState(id);
+            try {
+                console.warn('[InteractiveNotification][Center][MissingId]', {
+                    centerId: id,
+                    actionKey,
+                    notification
+                });
+            } catch (_) {}
             return;
         }
 
         try {
+            console.log('[InteractiveNotification][Center][Send]', {
+                centerId: id,
+                serverId,
+                actionKey: action.key
+            });
             ws.send('notification_action', {
                 notification_id: serverId,
                 action_key: action.key,
@@ -1338,6 +1398,14 @@ export class NotificationCenter {
             });
         } catch (e) {
             console.error('[NotificationCenter] Failed to send notification_action:', e);
+            try {
+                console.error('[InteractiveNotification][Center][SendError]', {
+                    centerId: id,
+                    serverId,
+                    actionKey: action.key,
+                    error: e && (e.message || String(e))
+                });
+            } catch (_) {}
             if (errorEl) errorEl.textContent = 'Failed to send response. Please try again.';
             if (statusEl) statusEl.textContent = '';
             state.pendingActionKey = null;
@@ -1354,15 +1422,40 @@ export class NotificationCenter {
         const targetId = String(result.notification_id);
         let updated = false;
 
+        try {
+            console.log('[InteractiveNotification][Center][Result]', {
+                notificationId: targetId,
+                actionKey: result.action_key,
+                ok: !!result.ok,
+                status: result.status || null
+            });
+        } catch (_) {}
+
         this.notifications.forEach((n) => {
             const serverId = n.serverId || n.server_id || n.id || null;
             if (!serverId || String(serverId) !== targetId) return;
+             try {
+                console.log('[InteractiveNotification][Center][ResultMatch]', {
+                    centerId: n.id,
+                    serverId,
+                    actionKey: result.action_key,
+                    ok: !!result.ok,
+                    status: result.status || null
+                });
+            } catch (_) {}
             this.applyActionResultToNotification(n, result);
             updated = true;
         });
 
         if (updated) {
             this.renderNotificationsIfOpen();
+        } else {
+            try {
+                console.warn('[InteractiveNotification][Center][ResultMiss]', {
+                    notificationId: targetId,
+                    actionKey: result && result.action_key
+                });
+            } catch (_) {}
         }
     }
 
@@ -1403,6 +1496,20 @@ export class NotificationCenter {
         const statusCode = typeof result.status === 'string' ? result.status : '';
         const isCallbackResult = statusCode === 'callback_succeeded' || statusCode === 'callback_failed';
         const isAlreadyResponded = statusCode === 'already_responded';
+
+        try {
+            const serverId = notification.serverId || notification.server_id || notification.id || null;
+            console.log('[InteractiveNotification][Center][ResultApply]', {
+                centerId: notification.id,
+                serverId,
+                actionKey: result.action_key,
+                ok: !!result.ok,
+                status: result.status || null,
+                statusCode,
+                isCallbackResult,
+                isAlreadyResponded
+            });
+        } catch (_) {}
 
         if (result.ok || isCallbackResult || isAlreadyResponded) {
             state.resolved = true;

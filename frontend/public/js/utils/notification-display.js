@@ -507,6 +507,17 @@ export class NotificationDisplay {
         }
         
         const { element } = notificationData;
+
+        try {
+            const notification = notificationData.notification || {};
+            const serverId = notification.server_id || notification.notification_id || notification.id || null;
+            const interactive = !!notificationData.interactive || this.isInteractiveNotification(notification);
+            console.log('[InteractiveNotification][Toast][Remove]', {
+                toastId: id,
+                serverId,
+                interactive
+            });
+        } catch (_) {}
         
         // Trigger hide animation
         element.classList.remove('show');
@@ -815,6 +826,16 @@ export class NotificationDisplay {
                         try { ev.stopPropagation(); } catch (_) {}
                     });
                 });
+                try {
+                    const serverId = notification.server_id || notification.notification_id || notification.id || null;
+                    console.log('[InteractiveNotification][Toast][InitInput]', {
+                        toastId: id,
+                        serverId,
+                        inputId: inputDef.id,
+                        type: inputDef.type || 'string',
+                        required: !!inputDef.required
+                    });
+                } catch (_) {}
             }
         });
 
@@ -831,6 +852,15 @@ export class NotificationDisplay {
                     e.stopPropagation();
                     this.handleActionClick(id, action.key);
                 });
+                try {
+                    const serverId = notification.server_id || notification.notification_id || notification.id || null;
+                    console.log('[InteractiveNotification][Toast][InitAction]', {
+                        toastId: id,
+                        serverId,
+                        actionKey: action.key,
+                        requiresInputs: Array.isArray(action.requires_inputs) ? [...action.requires_inputs] : []
+                    });
+                } catch (_) {}
             }
         });
 
@@ -848,6 +878,21 @@ export class NotificationDisplay {
             resolved: !!notification.response,
             lastSubmittedInputs: null
         };
+
+        try {
+            const serverId = notification.server_id || notification.notification_id || notification.id || null;
+            console.log('[InteractiveNotification][Toast][Init]', {
+                toastId: id,
+                serverId,
+                hasResponse: !!notification.response,
+                actionKeys: actions.map((a) => a && a.key).filter(Boolean),
+                inputDefs: inputs.map((inp) => inp && {
+                    id: inp.id,
+                    type: inp.type || 'string',
+                    required: !!inp.required
+                }).filter(Boolean)
+            });
+        } catch (_) {}
 
         this.updateActionButtonsState(id);
     }
@@ -932,6 +977,29 @@ export class NotificationDisplay {
             if (el) values[inputId] = el.value || '';
         });
 
+        // Snapshot input metadata without logging secret values
+        try {
+            const inputsDef = Array.isArray(entry.interactive.inputs) ? entry.interactive.inputs : [];
+            const safeInputs = {};
+            Object.keys(values).forEach((inputId) => {
+                const def = inputsDef.find((d) => d && d.id === inputId);
+                const raw = values[inputId] == null ? '' : String(values[inputId]);
+                const isSecret = def && (def.type === 'password');
+                safeInputs[inputId] = {
+                    length: raw.length,
+                    secret: !!isSecret
+                };
+            });
+            const notification = entry.notification || {};
+            const notificationId = notification.server_id || notification.notification_id || notification.id || null;
+            console.log('[InteractiveNotification][Toast][Submit]', {
+                toastId: id,
+                serverId: notificationId,
+                actionKey,
+                inputs: safeInputs
+            });
+        } catch (_) {}
+
         // Client-side validation for required inputs
         const missingIds = [];
         if (Array.isArray(action.requires_inputs)) {
@@ -946,6 +1014,16 @@ export class NotificationDisplay {
                 const labels = missingIds.map((idPart) => this.getInputLabel(entry.notification, idPart));
                 errorEl.textContent = `Please fill: ${labels.join(', ')}`;
             }
+            try {
+                const notification = entry.notification || {};
+                const notificationId = notification.server_id || notification.notification_id || notification.id || null;
+                console.warn('[InteractiveNotification][Toast][ValidationFailed]', {
+                    toastId: id,
+                    serverId: notificationId,
+                    actionKey,
+                    missingIds: [...missingIds]
+                });
+            } catch (_) {}
             return;
         }
 
@@ -972,10 +1050,22 @@ export class NotificationDisplay {
             entry.interactive.pendingActionKey = null;
             this.updateActionButtonsState(id);
             if (statusEl) statusEl.textContent = '';
+            try {
+                console.warn('[InteractiveNotification][Toast][MissingId]', {
+                    toastId: id,
+                    actionKey,
+                    notification
+                });
+            } catch (_) {}
             return;
         }
 
         try {
+            console.log('[InteractiveNotification][Toast][Send]', {
+                toastId: id,
+                serverId: notificationId,
+                actionKey: action.key
+            });
             ws.send('notification_action', {
                 notification_id: notificationId,
                 action_key: action.key,
@@ -983,6 +1073,14 @@ export class NotificationDisplay {
             });
         } catch (e) {
             console.error('[NotificationDisplay] Failed to send notification_action:', e);
+            try {
+                console.error('[InteractiveNotification][Toast][SendError]', {
+                    toastId: id,
+                    serverId: notificationId,
+                    actionKey: action.key,
+                    error: e && (e.message || String(e))
+                });
+            } catch (_) {}
             if (errorEl) {
                 errorEl.textContent = 'Failed to send response. Please try again.';
             }
@@ -1000,12 +1098,32 @@ export class NotificationDisplay {
     handleActionResult(result) {
         if (!result || !result.notification_id) return;
         const targetId = String(result.notification_id);
+        let matched = false;
 
         for (const [id, entry] of this.notifications.entries()) {
             const notification = entry.notification || {};
             const serverId = notification.server_id || notification.notification_id || notification.id || null;
             if (!serverId || String(serverId) !== targetId) continue;
+            matched = true;
+            try {
+                console.log('[InteractiveNotification][Toast][ResultMatch]', {
+                    toastId: id,
+                    serverId,
+                    actionKey: result.action_key,
+                    ok: !!result.ok,
+                    status: result.status || null
+                });
+            } catch (_) {}
             this.applyActionResultToEntry(id, entry, result);
+        }
+
+        if (!matched) {
+            try {
+                console.warn('[InteractiveNotification][Toast][ResultMiss]', {
+                    notificationId: targetId,
+                    actionKey: result && result.action_key
+                });
+            } catch (_) {}
         }
     }
 
@@ -1029,6 +1147,21 @@ export class NotificationDisplay {
         const statusCode = typeof result.status === 'string' ? result.status : '';
         const isCallbackResult = statusCode === 'callback_succeeded' || statusCode === 'callback_failed';
         const isAlreadyResponded = statusCode === 'already_responded';
+
+        try {
+            const notification = entry.notification || {};
+            const serverId = notification.server_id || notification.notification_id || notification.id || null;
+            console.log('[InteractiveNotification][Toast][ResultApply]', {
+                toastId: id,
+                serverId,
+                actionKey: result.action_key,
+                ok: !!result.ok,
+                status: result.status || null,
+                statusCode,
+                isCallbackResult,
+                isAlreadyResponded
+            });
+        } catch (_) {}
 
         if (result.ok || isCallbackResult || isAlreadyResponded) {
             entry.interactive.resolved = true;

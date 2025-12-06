@@ -9,6 +9,15 @@ import { notificationCenter } from '../../notification-center/notification-cente
 export class NotificationActionResultHandler {
     handle(message, context) {
         try {
+            console.log('[InteractiveNotification][WS][ResultDispatch]', {
+                notificationId: message && message.notification_id,
+                actionKey: message && message.action_key,
+                ok: !!(message && message.ok),
+                status: message && message.status ? String(message.status) : null
+            });
+        } catch (_) {}
+
+        try {
             if (notificationDisplay && typeof notificationDisplay.handleActionResult === 'function') {
                 notificationDisplay.handleActionResult(message);
             }
