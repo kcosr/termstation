@@ -245,6 +245,8 @@ export class NotificationDisplay {
                 border: 1px solid var(--border-color);
                 background: var(--bg-primary);
                 color: var(--text-primary);
+                max-width: 100%;
+                width: 100%;
             }
 
             .notification-input-row input:focus {
@@ -768,6 +770,10 @@ export class NotificationDisplay {
             if (el) {
                 inputElements[inputDef.id] = el;
                 el.addEventListener('input', () => {
+                    const current = this.notifications.get(id);
+                    if (current && current.interactive && current.interactive.errorEl) {
+                        current.interactive.errorEl.textContent = '';
+                    }
                     this.updateActionButtonsState(id);
                 });
             }
@@ -862,6 +868,11 @@ export class NotificationDisplay {
     handleActionClick(id, actionKey) {
         const entry = this.notifications.get(id);
         if (!entry || !entry.interactive) return;
+
+        // Prevent double-submission or clicks after resolution
+        if (entry.interactive.pendingActionKey || entry.interactive.resolved) {
+            return;
+        }
 
         const ctx = getContext();
         const ws = ctx?.websocketService;
