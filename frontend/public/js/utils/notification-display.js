@@ -655,6 +655,7 @@ export class NotificationDisplay {
                         class="notification-input"
                         type="${type}"
                         data-input-id="${this.escapeHtml(inputDef.id)}"
+                        autocomplete="off"
                         ${placeholder ? `placeholder="${placeholder}"` : ''}
                     >
                 </div>
@@ -768,6 +769,9 @@ export class NotificationDisplay {
             const el = element.querySelector(`.notification-input[data-input-id="${escapedId}"]`)
                 || element.querySelector(`.notification-input[data-input-id="${inputDef.id}"]`);
             if (el) {
+                try {
+                    el.setAttribute('autocomplete', 'off');
+                } catch (_) {}
                 inputElements[inputDef.id] = el;
                 el.addEventListener('input', () => {
                     const current = this.notifications.get(id);
@@ -775,6 +779,34 @@ export class NotificationDisplay {
                         current.interactive.errorEl.textContent = '';
                     }
                     this.updateActionButtonsState(id);
+                });
+                // Prevent terminal focus from stealing input focus when interacting with notification inputs
+                el.addEventListener('focus', (ev) => {
+                    try { ev.stopPropagation(); } catch (_) {}
+                    try { window._interactiveNotificationInputActive = true; } catch (_) {}
+                });
+                el.addEventListener('blur', () => {
+                    // Only clear the flag when no other notification input remains focused
+                    setTimeout(() => {
+                        try {
+                            const active = document.activeElement;
+                            const stillInNotification = !!(
+                                active &&
+                                typeof active.closest === 'function' &&
+                                (active.closest('.notification') || active.closest('#notification-center-panel'))
+                            );
+                            if (!stillInNotification && typeof window !== 'undefined') {
+                                if (window._interactiveNotificationInputActive) {
+                                    window._interactiveNotificationInputActive = false;
+                                }
+                            }
+                        } catch (_) {}
+                    }, 0);
+                });
+                ['mousedown', 'click', 'touchstart'].forEach((type) => {
+                    el.addEventListener(type, (ev) => {
+                        try { ev.stopPropagation(); } catch (_) {}
+                    });
                 });
             }
         });
@@ -987,7 +1019,11 @@ export class NotificationDisplay {
         const action = actions.find((a) => a && a.key === result.action_key);
         const actionLabel = action?.label || result.action_key || '';
 
-        if (result.ok) {
+        const statusCode = typeof result.status === 'string' ? result.status : '';
+        const isCallbackResult = statusCode === 'callback_succeeded' || statusCode === 'callback_failed';
+        const isAlreadyResponded = statusCode === 'already_responded';
+
+        if (result.ok || isCallbackResult || isAlreadyResponded) {
             entry.interactive.resolved = true;
 
             if (statusEl) {
@@ -997,63 +1033,65 @@ export class NotificationDisplay {
                     : `Action ${statusText}.`;
             }
 
-            // Disable all buttons after a successful response
+            // Disable all buttons after a completed response (success or failure)
             this.updateActionButtonsState(id);
 
             // Build a local response summary for the notification center (non-secret only)
-            try {
-                const inputsDef = Array.isArray(entry.interactive.inputs) ? entry.interactive.inputs : [];
-                const submitted = entry.interactive.lastSubmittedInputs || {};
-                const nonSecretInputs = {};
-                const maskedIds = [];
-
-                inputsDef.forEach((def) => {
-                    if (!def || !def.id) return;
-                    if (!(def.id in submitted)) return;
-                    const v = submitted[def.id];
-                    const t = (def.type === 'password') ? 'password' : 'string';
-                    if (t === 'password') {
-                        maskedIds.push(def.id);
-                    } else {
-                        nonSecretInputs[def.id] = v;
-                    }
-                });
-
-                const nowIso = new Date().toISOString();
-                let username = '';
-                try { username = appStore.getState('auth.username') || ''; } catch (_) {}
-
-                const response = {
-                    at: nowIso,
-                    user: username || undefined,
-                    action_key: result.action_key,
-                    action_label: actionLabel || null,
-                    inputs: nonSecretInputs,
-                    masked_input_ids: maskedIds
-                };
-
-                entry.notification.response = response;
+            // only when the callback was actually attempted (success or failure).
+            if (isCallbackResult || result.ok) {
                 try {
-                    if (notificationCenter && typeof notificationCenter.updateNotificationResponseByServerId === 'function') {
-                        const serverId = entry.notification.server_id || entry.notification.notification_id || entry.notification.id || null;
-                        if (serverId) {
-                            notificationCenter.updateNotificationResponseByServerId(serverId, response);
+                    const inputsDef = Array.isArray(entry.interactive.inputs) ? entry.interactive.inputs : [];
+                    const submitted = entry.interactive.lastSubmittedInputs || {};
+                    const nonSecretInputs = {};
+                    const maskedIds = [];
+
+                    inputsDef.forEach((def) => {
+                        if (!def || !def.id) return;
+                        if (!(def.id in submitted)) return;
+                        const v = submitted[def.id];
+                        const t = (def.type === 'password') ? 'password' : 'string';
+                        if (t === 'password') {
+                            maskedIds.push(def.id);
+                        } else {
+                            nonSecretInputs[def.id] = v;
                         }
-                    }
-                } catch (_) {}
-            } catch (e) {
-                console.warn('[NotificationDisplay] Failed to synthesize response summary:', e);
+                    });
+
+                    const nowIso = new Date().toISOString();
+                    let username = '';
+                    try { username = appStore.getState('auth.username') || ''; } catch (_) {}
+
+                    const response = {
+                        at: nowIso,
+                        user: username || undefined,
+                        action_key: result.action_key,
+                        action_label: actionLabel || null,
+                        inputs: nonSecretInputs,
+                        masked_input_ids: maskedIds
+                    };
+
+                    entry.notification.response = response;
+                    try {
+                        if (notificationCenter && typeof notificationCenter.updateNotificationResponseByServerId === 'function') {
+                            const serverId = entry.notification.server_id || entry.notification.notification_id || entry.notification.id || null;
+                            if (serverId) {
+                                notificationCenter.updateNotificationResponseByServerId(serverId, response);
+                            }
+                        }
+                    } catch (_) {}
+                } catch (e) {
+                    console.warn('[NotificationDisplay] Failed to synthesize response summary:', e);
+                }
             }
 
-            // Auto-dismiss after a short delay when interactive persistence is disabled
+            // After any completed submission (success or failure), auto-dismiss the toast
+            // after a short delay so the history entry lives only in the Notification Center.
             try {
-                if (!this.shouldPersistInteractive(entry.notification)) {
-                    setTimeout(() => {
-                        if (this.notifications.has(id)) {
-                            this.remove(id);
-                        }
-                    }, 2000);
-                }
+                setTimeout(() => {
+                    if (this.notifications.has(id)) {
+                        this.remove(id);
+                    }
+                }, 2000);
             } catch (_) {}
         } else {
             // Failure path

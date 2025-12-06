@@ -1131,6 +1131,7 @@ export class NotificationCenter {
                         class="notification-input"
                         type="${type}"
                         data-input-id="${this.escapeHtml(inputDef.id)}"
+                        autocomplete="off"
                         ${placeholder ? `placeholder="${placeholder}"` : ''}
                     >
                 </div>
@@ -1397,7 +1398,11 @@ export class NotificationCenter {
             : null;
         const actionLabel = action?.label || result.action_key || '';
 
-        if (result.ok) {
+        const statusCode = typeof result.status === 'string' ? result.status : '';
+        const isCallbackResult = statusCode === 'callback_succeeded' || statusCode === 'callback_failed';
+        const isAlreadyResponded = statusCode === 'already_responded';
+
+        if (result.ok || isCallbackResult || isAlreadyResponded) {
             state.resolved = true;
 
             if (statusEl) {
@@ -1408,40 +1413,43 @@ export class NotificationCenter {
             }
 
             // Build local response summary (non-secret only) for this notification
-            try {
-                const inputsDef = Array.isArray(notification.inputs) ? notification.inputs : [];
-                const submitted = state.lastSubmittedInputs || {};
-                const nonSecretInputs = {};
-                const maskedIds = [];
+            // when the backend actually attempted the callback (success or failure).
+            if (isCallbackResult || result.ok) {
+                try {
+                    const inputsDef = Array.isArray(notification.inputs) ? notification.inputs : [];
+                    const submitted = state.lastSubmittedInputs || {};
+                    const nonSecretInputs = {};
+                    const maskedIds = [];
 
-                inputsDef.forEach((def) => {
-                    if (!def || !def.id) return;
-                    if (!(def.id in submitted)) return;
-                    const v = submitted[def.id];
-                    const t = (def.type === 'password') ? 'password' : 'string';
-                    if (t === 'password') {
-                        maskedIds.push(def.id);
-                    } else {
-                        nonSecretInputs[def.id] = v;
-                    }
-                });
+                    inputsDef.forEach((def) => {
+                        if (!def || !def.id) return;
+                        if (!(def.id in submitted)) return;
+                        const v = submitted[def.id];
+                        const t = (def.type === 'password') ? 'password' : 'string';
+                        if (t === 'password') {
+                            maskedIds.push(def.id);
+                        } else {
+                            nonSecretInputs[def.id] = v;
+                        }
+                    });
 
-                const nowIso = new Date().toISOString();
-                let username = '';
-                try { username = appStore.getState('auth.username') || ''; } catch (_) {}
+                    const nowIso = new Date().toISOString();
+                    let username = '';
+                    try { username = appStore.getState('auth.username') || ''; } catch (_) {}
 
-                const response = {
-                    at: nowIso,
-                    user: username || undefined,
-                    action_key: result.action_key,
-                    action_label: actionLabel || null,
-                    inputs: nonSecretInputs,
-                    masked_input_ids: maskedIds
-                };
+                    const response = {
+                        at: nowIso,
+                        user: username || undefined,
+                        action_key: result.action_key,
+                        action_label: actionLabel || null,
+                        inputs: nonSecretInputs,
+                        masked_input_ids: maskedIds
+                    };
 
-                notification.response = response;
-            } catch (e) {
-                console.warn('[NotificationCenter] Failed to synthesize response summary:', e);
+                    notification.response = response;
+                } catch (e) {
+                    console.warn('[NotificationCenter] Failed to synthesize response summary:', e);
+                }
             }
         } else {
             state.resolved = false;
