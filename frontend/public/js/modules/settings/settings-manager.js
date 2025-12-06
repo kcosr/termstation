@@ -4,7 +4,6 @@
 
 import { appStore } from '../../core/store.js';
 import { getSettingsStore } from '../../core/settings-store/index.js';
-import { consoleOverlay } from '../../utils/console-overlay.js';
 import { keyOverlay } from '../../utils/key-overlay.js';
 import { getContext } from '../../core/context.js';
 import { audioManager } from '../../utils/audio.js';
@@ -326,7 +325,6 @@ export class SettingsManager {
             // Authentication settings handled via header user menu
             
             // Debug settings
-            debugConsoleEnabled: document.getElementById('debug-console-enabled'),
             debugKeyOverlay: document.getElementById('debug-key-overlay'),
             debugWsLogs: document.getElementById('debug-ws-logs'),
             debugRegistryLogs: document.getElementById('debug-registry-logs'),
@@ -908,13 +906,6 @@ export class SettingsManager {
             try { appStore.setPath('preferences.display.appFontFamily', fontFamily); } catch (_) {}
         });
         
-        // Debug console checkbox - apply changes in real-time (persist on Save)
-        this.elements.debugConsoleEnabled?.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
-            this.applyDebugConsoleSettings(enabled);
-            // Update store immediately for consistency
-            appStore.setPath('preferences.debug.consoleEnabled', enabled);
-        });
         // Key overlay checkbox - apply changes in real-time (persist on Save)
         this.elements.debugKeyOverlay?.addEventListener('change', (e) => {
             const enabled = !!e.target.checked;
@@ -1199,7 +1190,6 @@ export class SettingsManager {
                     }
                 } catch (_) {}
                 console.log('[Settings] Loaded settings from', isElectron ? 'disk' : 'localStorage');
-                if (settings.preferences?.debug?.consoleEnabled) setTimeout(() => this.applyDebugConsoleSettings(true), 100);
                 
                 // Authentication credentials are handled via the header user menu/auth modal
             } else if (isElectron) {
@@ -1702,9 +1692,6 @@ export class SettingsManager {
         // Blur removed
         
         // Debug settings
-        if (this.elements.debugConsoleEnabled) {
-            this.elements.debugConsoleEnabled.checked = state.preferences?.debug?.consoleEnabled ?? false;
-        }
         if (this.elements.debugWsLogs) {
             this.elements.debugWsLogs.checked = state.preferences?.debug?.websocketLogs ?? false;
         }
@@ -1959,7 +1946,6 @@ export class SettingsManager {
                         }
                     },
                     debug: {
-                        consoleEnabled: this.elements.debugConsoleEnabled?.checked ?? false,
                         keyOverlay: this.elements.debugKeyOverlay?.checked ?? false,
                         websocketLogs: this.elements.debugWsLogs?.checked ?? false,
                         registryLogs: this.elements.debugRegistryLogs?.checked ?? false,
@@ -2018,9 +2004,6 @@ export class SettingsManager {
                 audioManager.setEnabled(newSettings.preferences.notifications.sound);
             }
             
-            // Apply debug console preferences
-            this.applyDebugConsoleSettings(newSettings.preferences.debug.consoleEnabled);
-
             // Apply theme immediately based on the selected scope
             this.applyTheme(themePlan.effectiveTheme);
             try { appStore.setPath('ui.theme', themePlan.effectiveTheme); } catch (_) {}
@@ -2179,7 +2162,6 @@ export class SettingsManager {
                     }
                 },
                 debug: {
-                    consoleEnabled: false,
                     websocketLogs: false,
                     registryLogs: false,
                     apiLogs: false,
@@ -2271,18 +2253,6 @@ export class SettingsManager {
         }
     }
     
-    /**
-     * Apply debug console settings in real-time
-     * @param {boolean} enabled - Whether debug console should be visible
-     */
-    applyDebugConsoleSettings(enabled) {
-        if (enabled) {
-            consoleOverlay.showOverlay();
-        } else {
-            consoleOverlay.hideOverlay();
-        }
-    }
-
     /**
      * Apply keypress overlay visibility in real-time
      * @param {boolean} enabled

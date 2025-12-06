@@ -106,7 +106,7 @@ function normalizeNotificationRecord(raw) {
       let label = typeof rawInput.label === 'string' ? rawInput.label.trim() : '';
       if (!label) label = id;
       let type = typeof rawInput.type === 'string' ? rawInput.type.trim().toLowerCase() : 'string';
-      if (type !== 'password') type = 'string';
+      if (type !== 'secret') type = 'string';
       const required = rawInput.required === true;
       const placeholder = (typeof rawInput.placeholder === 'string' && rawInput.placeholder.trim())
         ? rawInput.placeholder

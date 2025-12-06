@@ -450,8 +450,8 @@ export const messageHandlers = {
       if (!def || typeof def !== 'object' || typeof def.id !== 'string') continue;
       const id = def.id;
       if (!id) continue;
-      const type = (typeof def.type === 'string' && def.type.toLowerCase() === 'password')
-        ? 'password'
+      const type = (typeof def.type === 'string' && def.type.toLowerCase() === 'secret')
+        ? 'secret'
         : 'string';
       const required = def.required === true;
       let maxLen = null;
@@ -490,7 +490,7 @@ export const messageHandlers = {
         missingRequired.push(id);
       }
 
-      if (def.type === 'password') {
+      if (def.type === 'secret') {
         if (value && value.length > 0) maskedInputIds.push(id);
       } else if (value && value.length > 0) {
         publicInputs[id] = value;

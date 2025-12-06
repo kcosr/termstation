@@ -8,7 +8,7 @@ const INTERACTIVE_MAX_INPUT_VALUE_LENGTH = 4096;
 const INTERACTIVE_MAX_CALLBACK_URL_LENGTH = 2048;
 const ALLOWED_CALLBACK_METHODS = ['POST', 'PUT', 'PATCH'];
 const ALLOWED_ACTION_STYLES = ['primary', 'secondary', 'danger'];
-const ALLOWED_INPUT_TYPES = ['string', 'password'];
+const ALLOWED_INPUT_TYPES = ['string', 'secret'];
 
 // Ensure NotificationManager is available globally via server.js
 function getManager() {

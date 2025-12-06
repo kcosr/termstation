@@ -1215,13 +1215,6 @@
                                     </div>
                                     <div class="form-group">
                                         <div class="checkbox-wrapper">
-                                            <input type="checkbox" id="debug-console-enabled">
-                                            <label for="debug-console-enabled">Show debug console</label>
-                                        </div>
-                                        <small class="form-help">Display debug console overlay with application logs</small>
-                                    </div>
-                                    <div class="form-group">
-                                        <div class="checkbox-wrapper">
                                             <input type="checkbox" id="debug-key-overlay">
                                             <label for="debug-key-overlay">Show keypress overlay</label>
                                         </div>
@@ -1451,46 +1444,6 @@
         </div>
     </div>
 
-    <!-- Debug Overlay -->
-    <div id="debug-overlay" style="
-        position: fixed;
-        bottom: max(10px, env(safe-area-inset-bottom, 10px));
-        left: max(10px, env(safe-area-inset-left, 10px));
-        right: max(10px, env(safe-area-inset-right, 10px));
-        background: rgba(0, 0, 0, 0.95);
-        color: #0f0;
-        font-family: monospace;
-        font-size: 12px;
-        padding: 8px 10px;
-        border: 2px solid #0f0;
-        border-radius: 6px;
-        z-index: 2147483647;
-        max-height: min(40vh, 250px);
-        overflow-y: auto;
-        display: none;
-        box-shadow: 0 4px 20px rgba(0, 255, 0, 0.4);
-        pointer-events: auto;
-        touch-action: manipulation;
-        -webkit-transform: translateZ(0);
-        transform: translateZ(0);
-        will-change: transform;
-        -webkit-user-select: text;
-        -moz-user-select: text;
-        -ms-user-select: text;
-        user-select: text;
-        -webkit-overflow-scrolling: touch;
-    ">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-            <strong>Debug Log</strong>
-            <div>
-                <button id="debug-copy-btn" style="background: #0a0; color: white; border: none; padding: 2px 6px;">Copy</button>
-                <button id="debug-clear-btn" style="background: #ff0; color: black; border: none; padding: 2px 6px;">Clear</button>
-                <button id="debug-close-btn" style="background: #f00; color: white; border: none; padding: 2px 6px;">×</button>
-            </div>
-        </div>
-        <div id="debug-log"></div>
-    </div>
-
     <!-- Configuration (can be customized) -->
     <script src="config.js"></script>
     
@@ -1498,9 +1451,6 @@
     <script src="js/vendor/xterm/xterm.js"></script>
     <script src="js/vendor/xterm/addon-fit.js"></script>
     <script src="js/vendor/xterm/addon-web-links.js"></script>
-    
-    <!-- Console Overlay module is imported by Settings Manager and wires its own events -->
-    
     <!-- Application Scripts -->
     <script type="module" src="js/core/app.js"></script>
 </body>

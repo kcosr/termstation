@@ -27,7 +27,7 @@ test('validateInteractiveNotificationBody normalizes interactive fields', () => 
     callback_url: 'https://example.com/callback',
     callback_method: 'put',
     inputs: [
-      { id: 'api_key', label: 'API Key', type: 'password', required: true, max_length: 999999 },
+      { id: 'api_key', label: 'API Key', type: 'secret', required: true, max_length: 999999 },
       { id: 'comment', label: 'Comment' }
     ],
     actions: [
@@ -50,7 +50,7 @@ test('validateInteractiveNotificationBody normalizes interactive fields', () => 
 
   const apiKeyInput = interactive.inputs.find((i) => i.id === 'api_key');
   expect(apiKeyInput).toBeTruthy();
-  expect(apiKeyInput.type).toBe('password');
+  expect(apiKeyInput.type).toBe('secret');
   expect(typeof apiKeyInput.max_length).toBe('number');
   expect(apiKeyInput.max_length).toBeLessThanOrEqual(4096);
 });
@@ -91,7 +91,7 @@ test('notification_action persists response summary and masks secrets', async ()
       { key: 'approve', label: 'Approve', requires_inputs: ['api_key', 'comment'] }
     ],
     inputs: [
-      { id: 'api_key', label: 'API Key', type: 'password', required: true, max_length: 64 },
+      { id: 'api_key', label: 'API Key', type: 'secret', required: true, max_length: 64 },
       { id: 'comment', label: 'Comment', type: 'string', required: false }
     ]
   });
@@ -186,7 +186,7 @@ test('notification_action enforces single-use semantics', async () => {
       { key: 'approve', label: 'Approve', requires_inputs: ['api_key'] }
     ],
     inputs: [
-      { id: 'api_key', label: 'API Key', type: 'password', required: true, max_length: 64 }
+      { id: 'api_key', label: 'API Key', type: 'secret', required: true, max_length: 64 }
     ]
   });
 
@@ -250,4 +250,3 @@ test('notification_action enforces single-use semantics', async () => {
   expect(lastMsg.ok).toBe(false);
   expect(lastMsg.status).toBe('already_responded');
 });
-

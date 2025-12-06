@@ -6,6 +6,15 @@ import { notificationCenter } from '../modules/notification-center/notification-
 import { getContext } from '../core/context.js';
 import { appStore } from '../core/store.js';
 
+function isInteractiveDebugEnabled() {
+    try {
+        const debugPrefs = appStore.getState('preferences.debug') || {};
+        return !!debugPrefs.websocketLogs;
+    } catch (_) {
+        return false;
+    }
+}
+
 export class NotificationDisplay {
     constructor() {
         this.container = null;
@@ -512,11 +521,13 @@ export class NotificationDisplay {
             const notification = notificationData.notification || {};
             const serverId = notification.server_id || notification.notification_id || notification.id || null;
             const interactive = !!notificationData.interactive || this.isInteractiveNotification(notification);
-            console.log('[InteractiveNotification][Toast][Remove]', {
-                toastId: id,
-                serverId,
-                interactive
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Toast][Remove]', {
+                    toastId: id,
+                    serverId,
+                    interactive
+                });
+            }
         } catch (_) {}
         
         // Trigger hide animation
@@ -657,7 +668,7 @@ export class NotificationDisplay {
             if (!inputDef || !inputDef.id) return '';
             const inputId = `${id}-input-${inputDef.id}`;
             const labelText = inputDef.label || inputDef.id;
-            const isSecret = (inputDef.type === 'password');
+            const isSecret = (inputDef.type === 'secret');
             const type = 'text';
             const placeholder = inputDef.placeholder ? this.escapeHtml(String(inputDef.placeholder)) : '';
             const required = inputDef.required === true;
@@ -828,13 +839,15 @@ export class NotificationDisplay {
                 });
                 try {
                     const serverId = notification.server_id || notification.notification_id || notification.id || null;
-                    console.log('[InteractiveNotification][Toast][InitInput]', {
-                        toastId: id,
-                        serverId,
-                        inputId: inputDef.id,
-                        type: inputDef.type || 'string',
-                        required: !!inputDef.required
-                    });
+                    if (isInteractiveDebugEnabled()) {
+                        console.log('[InteractiveNotification][Toast][InitInput]', {
+                            toastId: id,
+                            serverId,
+                            inputId: inputDef.id,
+                            type: inputDef.type || 'string',
+                            required: !!inputDef.required
+                        });
+                    }
                 } catch (_) {}
             }
         });
@@ -854,12 +867,14 @@ export class NotificationDisplay {
                 });
                 try {
                     const serverId = notification.server_id || notification.notification_id || notification.id || null;
-                    console.log('[InteractiveNotification][Toast][InitAction]', {
-                        toastId: id,
-                        serverId,
-                        actionKey: action.key,
-                        requiresInputs: Array.isArray(action.requires_inputs) ? [...action.requires_inputs] : []
-                    });
+                    if (isInteractiveDebugEnabled()) {
+                        console.log('[InteractiveNotification][Toast][InitAction]', {
+                            toastId: id,
+                            serverId,
+                            actionKey: action.key,
+                            requiresInputs: Array.isArray(action.requires_inputs) ? [...action.requires_inputs] : []
+                        });
+                    }
                 } catch (_) {}
             }
         });
@@ -881,17 +896,19 @@ export class NotificationDisplay {
 
         try {
             const serverId = notification.server_id || notification.notification_id || notification.id || null;
-            console.log('[InteractiveNotification][Toast][Init]', {
-                toastId: id,
-                serverId,
-                hasResponse: !!notification.response,
-                actionKeys: actions.map((a) => a && a.key).filter(Boolean),
-                inputDefs: inputs.map((inp) => inp && {
-                    id: inp.id,
-                    type: inp.type || 'string',
-                    required: !!inp.required
-                }).filter(Boolean)
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Toast][Init]', {
+                    toastId: id,
+                    serverId,
+                    hasResponse: !!notification.response,
+                    actionKeys: actions.map((a) => a && a.key).filter(Boolean),
+                    inputDefs: inputs.map((inp) => inp && {
+                        id: inp.id,
+                        type: inp.type || 'string',
+                        required: !!inp.required
+                    }).filter(Boolean)
+                });
+            }
         } catch (_) {}
 
         this.updateActionButtonsState(id);
@@ -984,7 +1001,7 @@ export class NotificationDisplay {
             Object.keys(values).forEach((inputId) => {
                 const def = inputsDef.find((d) => d && d.id === inputId);
                 const raw = values[inputId] == null ? '' : String(values[inputId]);
-                const isSecret = def && (def.type === 'password');
+                const isSecret = def && (def.type === 'secret');
                 safeInputs[inputId] = {
                     length: raw.length,
                     secret: !!isSecret
@@ -992,12 +1009,14 @@ export class NotificationDisplay {
             });
             const notification = entry.notification || {};
             const notificationId = notification.server_id || notification.notification_id || notification.id || null;
-            console.log('[InteractiveNotification][Toast][Submit]', {
-                toastId: id,
-                serverId: notificationId,
-                actionKey,
-                inputs: safeInputs
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Toast][Submit]', {
+                    toastId: id,
+                    serverId: notificationId,
+                    actionKey,
+                    inputs: safeInputs
+                });
+            }
         } catch (_) {}
 
         // Client-side validation for required inputs
@@ -1017,12 +1036,14 @@ export class NotificationDisplay {
             try {
                 const notification = entry.notification || {};
                 const notificationId = notification.server_id || notification.notification_id || notification.id || null;
-                console.warn('[InteractiveNotification][Toast][ValidationFailed]', {
-                    toastId: id,
-                    serverId: notificationId,
-                    actionKey,
-                    missingIds: [...missingIds]
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.warn('[InteractiveNotification][Toast][ValidationFailed]', {
+                        toastId: id,
+                        serverId: notificationId,
+                        actionKey,
+                        missingIds: [...missingIds]
+                    });
+                }
             } catch (_) {}
             return;
         }
@@ -1051,21 +1072,25 @@ export class NotificationDisplay {
             this.updateActionButtonsState(id);
             if (statusEl) statusEl.textContent = '';
             try {
-                console.warn('[InteractiveNotification][Toast][MissingId]', {
-                    toastId: id,
-                    actionKey,
-                    notification
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.warn('[InteractiveNotification][Toast][MissingId]', {
+                        toastId: id,
+                        actionKey,
+                        notification
+                    });
+                }
             } catch (_) {}
             return;
         }
 
         try {
-            console.log('[InteractiveNotification][Toast][Send]', {
-                toastId: id,
-                serverId: notificationId,
-                actionKey: action.key
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Toast][Send]', {
+                    toastId: id,
+                    serverId: notificationId,
+                    actionKey: action.key
+                });
+            }
             ws.send('notification_action', {
                 notification_id: notificationId,
                 action_key: action.key,
@@ -1074,12 +1099,14 @@ export class NotificationDisplay {
         } catch (e) {
             console.error('[NotificationDisplay] Failed to send notification_action:', e);
             try {
-                console.error('[InteractiveNotification][Toast][SendError]', {
-                    toastId: id,
-                    serverId: notificationId,
-                    actionKey: action.key,
-                    error: e && (e.message || String(e))
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.error('[InteractiveNotification][Toast][SendError]', {
+                        toastId: id,
+                        serverId: notificationId,
+                        actionKey: action.key,
+                        error: e && (e.message || String(e))
+                    });
+                }
             } catch (_) {}
             if (errorEl) {
                 errorEl.textContent = 'Failed to send response. Please try again.';
@@ -1106,23 +1133,27 @@ export class NotificationDisplay {
             if (!serverId || String(serverId) !== targetId) continue;
             matched = true;
             try {
-                console.log('[InteractiveNotification][Toast][ResultMatch]', {
-                    toastId: id,
-                    serverId,
-                    actionKey: result.action_key,
-                    ok: !!result.ok,
-                    status: result.status || null
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.log('[InteractiveNotification][Toast][ResultMatch]', {
+                        toastId: id,
+                        serverId,
+                        actionKey: result.action_key,
+                        ok: !!result.ok,
+                        status: result.status || null
+                    });
+                }
             } catch (_) {}
             this.applyActionResultToEntry(id, entry, result);
         }
 
         if (!matched) {
             try {
-                console.warn('[InteractiveNotification][Toast][ResultMiss]', {
-                    notificationId: targetId,
-                    actionKey: result && result.action_key
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.warn('[InteractiveNotification][Toast][ResultMiss]', {
+                        notificationId: targetId,
+                        actionKey: result && result.action_key
+                    });
+                }
             } catch (_) {}
         }
     }
@@ -1147,30 +1178,33 @@ export class NotificationDisplay {
         const statusCode = typeof result.status === 'string' ? result.status : '';
         const isCallbackResult = statusCode === 'callback_succeeded' || statusCode === 'callback_failed';
         const isAlreadyResponded = statusCode === 'already_responded';
+        const isCallbackFailed = statusCode === 'callback_failed';
 
         try {
             const notification = entry.notification || {};
             const serverId = notification.server_id || notification.notification_id || notification.id || null;
-            console.log('[InteractiveNotification][Toast][ResultApply]', {
-                toastId: id,
-                serverId,
-                actionKey: result.action_key,
-                ok: !!result.ok,
-                status: result.status || null,
-                statusCode,
-                isCallbackResult,
-                isAlreadyResponded
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Toast][ResultApply]', {
+                    toastId: id,
+                    serverId,
+                    actionKey: result.action_key,
+                    ok: !!result.ok,
+                    status: result.status || null,
+                    statusCode,
+                    isCallbackResult,
+                    isAlreadyResponded
+                });
+            }
         } catch (_) {}
 
         if (result.ok || isCallbackResult || isAlreadyResponded) {
             entry.interactive.resolved = true;
 
             if (statusEl) {
-                const statusText = result.status ? String(result.status) : 'completed';
-                statusEl.textContent = actionLabel
-                    ? `Action "${actionLabel}" ${statusText}.`
-                    : `Action ${statusText}.`;
+                statusEl.textContent = '';
+            }
+            if (isCallbackFailed && errorEl) {
+                errorEl.textContent = 'Callback failed.';
             }
 
             // Disable all buttons after a completed response (success or failure)
@@ -1188,8 +1222,8 @@ export class NotificationDisplay {
                     if (!def || !def.id) return;
                     if (!(def.id in submitted)) return;
                     const v = submitted[def.id];
-                    const t = (def.type === 'password') ? 'password' : 'string';
-                    if (t === 'password') {
+                    const isSecret = def.type === 'secret';
+                    if (isSecret) {
                         // Do not record or display secret values or even their presence.
                         return;
                     }

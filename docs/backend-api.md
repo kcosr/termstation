@@ -660,7 +660,7 @@ Base: `/api/notifications`
       - Each entry:
         - `id` (string, required, unique per notification).
         - `label` (string, required).
-        - `type` (string, optional): `"string"` (default) or `"password"`.
+        - `type` (string, optional): `"string"` (default) or `"secret"` (never persisted, only forwarded to callbacks).
         - `required` (boolean, optional): whether this field is required.
         - `placeholder` (string, optional).
         - `max_length` (number, optional): server-side cap on accepted value length (clamped to a safe maximum).
@@ -678,7 +678,7 @@ Base: `/api/notifications`
       - `callback_url` is required and must use `http` or `https`.
       - `actions`/`inputs`, when provided, must be non-empty arrays of objects with the required fields.
       - `actions[].style`, when present, must be one of `primary|secondary|danger`.
-      - `inputs[].type`, when present, must be one of `string|password`.
+      - `inputs[].type`, when present, must be one of `string|secret`.
       - `inputs[].max_length`, when present, must be a positive number; values are clamped to a safe limit.
       - Every id in `actions[].requires_inputs` must refer to an existing `inputs[].id`.
     - Validation failures return `400` with a structured error payload, for example:

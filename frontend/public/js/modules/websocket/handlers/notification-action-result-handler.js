@@ -5,6 +5,16 @@
 import { debug } from '../../../utils/debug.js';
 import { notificationDisplay } from '../../../utils/notification-display.js';
 import { notificationCenter } from '../../notification-center/notification-center.js';
+import { appStore } from '../../../core/store.js';
+
+function isInteractiveDebugEnabled() {
+    try {
+        const debugPrefs = appStore.getState('preferences.debug') || {};
+        return !!debugPrefs.websocketLogs;
+    } catch (_) {
+        return false;
+    }
+}
 
 export class NotificationActionResultHandler {
     handle(message, context) {
@@ -17,27 +27,27 @@ export class NotificationActionResultHandler {
             const hasDisplayHandler = !!(notificationDisplay && typeof notificationDisplay.handleActionResult === 'function');
             const hasCenter = !!notificationCenter;
             const hasCenterHandler = !!(notificationCenter && typeof notificationCenter.handleActionResult === 'function');
-            console.log('[InteractiveNotification][WS][ResultDispatch]', {
-                notificationId,
-                actionKey,
-                ok,
-                status,
-                hasDisplay,
-                hasDisplayHandler,
-                hasCenter,
-                hasCenterHandler
-            });
-            console.trace('[InteractiveNotification][WS][ResultDispatchTrace]', {
-                notificationId,
-                actionKey
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][WS][ResultDispatch]', {
+                    notificationId,
+                    actionKey,
+                    ok,
+                    status,
+                    hasDisplay,
+                    hasDisplayHandler,
+                    hasCenter,
+                    hasCenterHandler
+                });
+            }
         } catch (_) {}
 
         try {
-            console.log('[InteractiveNotification][WS][ResultToToast]', {
-                notificationId: message && message.notification_id,
-                actionKey: message && message.action_key
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][WS][ResultToToast]', {
+                    notificationId: message && message.notification_id,
+                    actionKey: message && message.action_key
+                });
+            }
             if (notificationDisplay && typeof notificationDisplay.handleActionResult === 'function') {
                 notificationDisplay.handleActionResult(message);
             }
@@ -46,10 +56,12 @@ export class NotificationActionResultHandler {
         }
 
         try {
-            console.log('[InteractiveNotification][WS][ResultToCenter]', {
-                notificationId: message && message.notification_id,
-                actionKey: message && message.action_key
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][WS][ResultToCenter]', {
+                    notificationId: message && message.notification_id,
+                    actionKey: message && message.action_key
+                });
+            }
             if (notificationCenter && typeof notificationCenter.handleActionResult === 'function') {
                 notificationCenter.handleActionResult(message);
             }

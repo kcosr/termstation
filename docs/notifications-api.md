@@ -32,7 +32,7 @@ List persisted notifications for the authenticated user:
           { "key": "deny", "label": "Deny", "style": "secondary" }
         ],
         "inputs": [
-          { "id": "api_key", "label": "API Key", "type": "password", "required": true }
+          { "id": "api_key", "label": "API Key", "type": "secret", "required": true }
         ],
 
         // Optional response summary for already-resolved notifications
@@ -55,7 +55,7 @@ List persisted notifications for the authenticated user:
 - Notes:
   - The persisted object always includes the basic notification fields plus optional interactive metadata.
   - Callback metadata (`callback_url`, `callback_method`, `callback_headers`) is **not** exposed via this API.
-  - `response.inputs` never contains values for masked/password inputs; those are tracked only by `masked_input_ids`.
+  - `response.inputs` never contains values for masked/secret inputs; those are tracked only by `masked_input_ids`.
 
 ### POST `/`
 
@@ -80,7 +80,7 @@ Create a simple or interactive notification. See `docs/backend-api.md` for full 
     - at least one of `actions` or `inputs` is a non-empty array.
   - Validation:
     - `actions` and `inputs` (when present) must be non-empty arrays of well-formed objects.
-    - `inputs[].type` must be `"string"` or `"password"`.
+    - `inputs[].type` must be `"string"` or `"secret"`.
     - `inputs[].max_length` (when present) must be a positive integer; values are clamped to a safe maximum.
     - Every id in `actions[].requires_inputs` must refer to an existing `inputs[].id`.
 
@@ -154,7 +154,7 @@ Each persisted notification may be delivered over WebSocket:
     { "key": "deny", "label": "Deny", "style": "secondary" }
   ],
   "inputs": [
-    { "id": "api_key", "label": "API Key", "type": "password", "required": true }
+    { "id": "api_key", "label": "API Key", "type": "secret", "required": true }
   ],
 
   // Optional response summary for already-resolved notifications
@@ -229,7 +229,7 @@ Callback HTTP payload:
 After the callback attempt, the backend persists a `response` summary in `NotificationManager`:
 
 - `inputs`: only non-masked values.
-- `masked_input_ids`: ids of any password-type inputs that had values.
+- `masked_input_ids`: ids of any secret-type inputs that had values.
 - `is_active` on the notification is set to `false`.
 
 ### Server → client: `notification_action_result`

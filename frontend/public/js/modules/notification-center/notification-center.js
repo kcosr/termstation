@@ -5,6 +5,16 @@
 import { iconUtils } from '../../utils/icon-utils.js';
 import { getContext } from '../../core/context.js';
 import { delegate } from '../../utils/delegate.js';
+import { appStore } from '../../core/store.js';
+
+function isInteractiveDebugEnabled() {
+    try {
+        const debugPrefs = appStore.getState('preferences.debug') || {};
+        return !!debugPrefs.websocketLogs;
+    } catch (_) {
+        return false;
+    }
+}
 
 export class NotificationCenter {
     constructor() {
@@ -691,20 +701,22 @@ export class NotificationCenter {
         };
 
         try {
-            console.log('[InteractiveNotification][Center][Add]', {
-                centerId: notificationData.id,
-                serverId,
-                interactive,
-                hasResponse: !!response,
-                actionKeys: Array.isArray(actions) ? actions.map((a) => a && a.key).filter(Boolean) : [],
-                inputDefs: Array.isArray(inputs)
-                    ? inputs.map((inp) => inp && {
-                        id: inp.id,
-                        type: inp.type || 'string',
-                        required: !!inp.required
-                    }).filter(Boolean)
-                    : []
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Center][Add]', {
+                    centerId: notificationData.id,
+                    serverId,
+                    interactive,
+                    hasResponse: !!response,
+                    actionKeys: Array.isArray(actions) ? actions.map((a) => a && a.key).filter(Boolean) : [],
+                    inputDefs: Array.isArray(inputs)
+                        ? inputs.map((inp) => inp && {
+                            id: inp.id,
+                            type: inp.type || 'string',
+                            required: !!inp.required
+                        }).filter(Boolean)
+                        : []
+                });
+            }
         } catch (_) {}
 
         // Add to beginning of array (newest first)
@@ -1125,7 +1137,7 @@ export class NotificationCenter {
             if (!inputDef || !inputDef.id) return '';
             const inputId = `nc-input-${this.escapeHtml(inputDef.id)}`;
             const labelText = inputDef.label || inputDef.id;
-            const isSecret = (inputDef.type === 'password');
+            const isSecret = (inputDef.type === 'secret');
             const type = 'text';
             const placeholder = inputDef.placeholder ? this.escapeHtml(String(inputDef.placeholder)) : '';
             const required = inputDef.required === true;
@@ -1312,19 +1324,21 @@ export class NotificationCenter {
             Object.keys(values).forEach((inputId) => {
                 const def = inputsDef.find((d) => d && d.id === inputId);
                 const raw = values[inputId] == null ? '' : String(values[inputId]);
-                const isSecret = def && (def.type === 'password');
+                const isSecret = def && (def.type === 'secret');
                 safeInputs[inputId] = {
                     length: raw.length,
                     secret: !!isSecret
                 };
             });
             const serverId = notification.serverId || notification.server_id || notification.id || null;
-            console.log('[InteractiveNotification][Center][Submit]', {
-                centerId: id,
-                serverId,
-                actionKey,
-                inputs: safeInputs
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Center][Submit]', {
+                    centerId: id,
+                    serverId,
+                    actionKey,
+                    inputs: safeInputs
+                });
+            }
         } catch (_) {}
 
         // Client-side validation for required inputs
@@ -1343,12 +1357,14 @@ export class NotificationCenter {
             }
             try {
                 const serverId = notification.serverId || notification.server_id || notification.id || null;
-                console.warn('[InteractiveNotification][Center][ValidationFailed]', {
-                    centerId: id,
-                    serverId,
-                    actionKey,
-                    missingIds: [...missingIds]
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.warn('[InteractiveNotification][Center][ValidationFailed]', {
+                        centerId: id,
+                        serverId,
+                        actionKey,
+                        missingIds: [...missingIds]
+                    });
+                }
             } catch (_) {}
             return;
         }
@@ -1367,21 +1383,25 @@ export class NotificationCenter {
             if (statusEl) statusEl.textContent = '';
             this.updateInteractiveButtonsState(id);
             try {
-                console.warn('[InteractiveNotification][Center][MissingId]', {
-                    centerId: id,
-                    actionKey,
-                    notification
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.warn('[InteractiveNotification][Center][MissingId]', {
+                        centerId: id,
+                        actionKey,
+                        notification
+                    });
+                }
             } catch (_) {}
             return;
         }
 
         try {
-            console.log('[InteractiveNotification][Center][Send]', {
-                centerId: id,
-                serverId,
-                actionKey: action.key
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Center][Send]', {
+                    centerId: id,
+                    serverId,
+                    actionKey: action.key
+                });
+            }
             ws.send('notification_action', {
                 notification_id: serverId,
                 action_key: action.key,
@@ -1390,12 +1410,14 @@ export class NotificationCenter {
         } catch (e) {
             console.error('[NotificationCenter] Failed to send notification_action:', e);
             try {
-                console.error('[InteractiveNotification][Center][SendError]', {
-                    centerId: id,
-                    serverId,
-                    actionKey: action.key,
-                    error: e && (e.message || String(e))
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.error('[InteractiveNotification][Center][SendError]', {
+                        centerId: id,
+                        serverId,
+                        actionKey: action.key,
+                        error: e && (e.message || String(e))
+                    });
+                }
             } catch (_) {}
             if (errorEl) errorEl.textContent = 'Failed to send response. Please try again.';
             if (statusEl) statusEl.textContent = '';
@@ -1414,30 +1436,30 @@ export class NotificationCenter {
         let updated = false;
 
         try {
-            console.log('[InteractiveNotification][Center][ResultEnter]', {
-                notificationId: targetId,
-                actionKey: result.action_key,
-                ok: !!result.ok,
-                status: result.status || null,
-                notificationCount: Array.isArray(this.notifications) ? this.notifications.length : -1
-            });
-            console.trace('[InteractiveNotification][Center][ResultEnterTrace]', {
-                notificationId: targetId,
-                actionKey: result.action_key
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Center][ResultEnter]', {
+                    notificationId: targetId,
+                    actionKey: result.action_key,
+                    ok: !!result.ok,
+                    status: result.status || null,
+                    notificationCount: Array.isArray(this.notifications) ? this.notifications.length : -1
+                });
+            }
         } catch (_) {}
 
         this.notifications.forEach((n) => {
             const serverId = n.serverId || n.server_id || n.id || null;
             if (!serverId || String(serverId) !== targetId) return;
              try {
-                console.log('[InteractiveNotification][Center][ResultMatch]', {
-                    centerId: n.id,
-                    serverId,
-                    actionKey: result.action_key,
-                    ok: !!result.ok,
-                    status: result.status || null
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.log('[InteractiveNotification][Center][ResultMatch]', {
+                        centerId: n.id,
+                        serverId,
+                        actionKey: result.action_key,
+                        ok: !!result.ok,
+                        status: result.status || null
+                    });
+                }
             } catch (_) {}
             this.applyActionResultToNotification(n, result);
             updated = true;
@@ -1447,10 +1469,12 @@ export class NotificationCenter {
             this.renderNotificationsIfOpen();
         } else {
             try {
-                console.warn('[InteractiveNotification][Center][ResultMiss]', {
-                    notificationId: targetId,
-                    actionKey: result && result.action_key
-                });
+                if (isInteractiveDebugEnabled()) {
+                    console.warn('[InteractiveNotification][Center][ResultMiss]', {
+                        notificationId: targetId,
+                        actionKey: result && result.action_key
+                    });
+                }
             } catch (_) {}
         }
     }
@@ -1492,29 +1516,32 @@ export class NotificationCenter {
         const statusCode = typeof result.status === 'string' ? result.status : '';
         const isCallbackResult = statusCode === 'callback_succeeded' || statusCode === 'callback_failed';
         const isAlreadyResponded = statusCode === 'already_responded';
+        const isCallbackFailed = statusCode === 'callback_failed';
 
         try {
             const serverId = notification.serverId || notification.server_id || notification.id || null;
-            console.log('[InteractiveNotification][Center][ResultApply]', {
-                centerId: notification.id,
-                serverId,
-                actionKey: result.action_key,
-                ok: !!result.ok,
-                status: result.status || null,
-                statusCode,
-                isCallbackResult,
-                isAlreadyResponded
-            });
+            if (isInteractiveDebugEnabled()) {
+                console.log('[InteractiveNotification][Center][ResultApply]', {
+                    centerId: notification.id,
+                    serverId,
+                    actionKey: result.action_key,
+                    ok: !!result.ok,
+                    status: result.status || null,
+                    statusCode,
+                    isCallbackResult,
+                    isAlreadyResponded
+                });
+            }
         } catch (_) {}
 
         if (result.ok || isCallbackResult || isAlreadyResponded) {
             state.resolved = true;
 
             if (statusEl) {
-                const statusText = result.status ? String(result.status) : 'completed';
-                statusEl.textContent = actionLabel
-                    ? `Action "${actionLabel}" ${statusText}.`
-                    : `Action ${statusText}.`;
+                statusEl.textContent = '';
+            }
+            if (isCallbackFailed && errorEl) {
+                errorEl.textContent = 'Callback failed.';
             }
 
             // Build local response summary (non-secret only) for this notification
@@ -1529,8 +1556,8 @@ export class NotificationCenter {
                     if (!def || !def.id) return;
                     if (!(def.id in submitted)) return;
                     const v = submitted[def.id];
-                    const t = (def.type === 'password') ? 'password' : 'string';
-                    if (t === 'password') {
+                    const isSecret = def.type === 'secret';
+                    if (isSecret) {
                         // Do not record or display secret values or even their presence.
                         return;
                     }
