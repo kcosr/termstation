@@ -73,7 +73,7 @@ export class NotificationDisplay {
                 } catch (_) {}
 
                 const key = ev.key || ev.code;
-                if (key !== 'Enter' && key !== 'Escape' && key !== 'Esc') return;
+                if (key !== 'Escape' && key !== 'Esc') return;
 
                 let activeId = null;
                 let activeEntry = null;
@@ -84,18 +84,9 @@ export class NotificationDisplay {
                 }
                 if (!activeId || !activeEntry || !activeEntry.interactive) return;
 
-                const { primaryActionKey } = activeEntry.interactive;
-
-                if (key === 'Enter') {
-                    if (!primaryActionKey) return;
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    this.handleActionClick(activeId, primaryActionKey);
-                } else if (key === 'Escape' || key === 'Esc') {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    this.remove(activeId);
-                }
+                ev.preventDefault();
+                ev.stopPropagation();
+                this.remove(activeId);
             };
             document.addEventListener('keydown', handler, true);
         } catch (_) {}

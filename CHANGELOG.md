@@ -12,6 +12,7 @@
 ### Changed
 
 - Backend: consolidated `POST /api/notifications` into `backend/routes/notifications.js` and removed the unused `notification_type` request field alias in favor of `type`. ([#6])
+- Frontend: restrict interactive toast global keyboard handler to Escape only so Enter continues to go to the focused element (for example, the active terminal session). ([#18])
 
 ## [0.0.2] - 2025-12-05
 
@@ -35,3 +36,4 @@
 [#11]: https://github.com/kcosr/termstation/pull/11
 [#16]: https://github.com/kcosr/termstation/pull/16
 [#17]: https://github.com/kcosr/termstation/pull/17
+[#18]: https://github.com/kcosr/termstation/pull/18
