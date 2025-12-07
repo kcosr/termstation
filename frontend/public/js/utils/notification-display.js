@@ -864,25 +864,6 @@ export class NotificationDisplay {
                 // Prevent terminal focus from stealing input focus when interacting with notification inputs
                 el.addEventListener('focus', (ev) => {
                     try { ev.stopPropagation(); } catch (_) {}
-                    try { window._interactiveNotificationInputActive = true; } catch (_) {}
-                });
-                el.addEventListener('blur', () => {
-                    // Only clear the flag when no other notification input remains focused
-                    setTimeout(() => {
-                        try {
-                            const active = document.activeElement;
-                            const stillInNotification = !!(
-                                active &&
-                                typeof active.closest === 'function' &&
-                                (active.closest('.notification') || active.closest('#notification-center-panel'))
-                            );
-                            if (!stillInNotification && typeof window !== 'undefined') {
-                                if (window._interactiveNotificationInputActive) {
-                                    window._interactiveNotificationInputActive = false;
-                                }
-                            }
-                        } catch (_) {}
-                    }, 0);
                 });
                 ['mousedown', 'click', 'touchstart'].forEach((type) => {
                     el.addEventListener(type, (ev) => {

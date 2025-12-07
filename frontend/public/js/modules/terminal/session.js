@@ -1031,10 +1031,6 @@ export class TerminalSession {
                 if (window._mobileKeyboardInputActive) {
                     return;
                 }
-                // Do not steal focus while the user is interacting with an interactive notification input.
-                if (window._interactiveNotificationInputActive) {
-                    return;
-                }
             }
         } catch (_) {
             // Ignore guard errors and fall through to best-effort focus.
