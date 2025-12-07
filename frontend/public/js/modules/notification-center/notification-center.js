@@ -1276,11 +1276,11 @@ export class NotificationCenter {
 
     /**
      * Handle click on an interactive action button in the notification center.
-     * Sends a notification_action message over WebSocket.
+     * Submits an interactive action via HTTP.
      * @param {string} id - NotificationCenter local id
      * @param {string} actionKey
      */
-    handleInteractiveActionClick(id, actionKey) {
+    async handleInteractiveActionClick(id, actionKey) {
         const notification = this.notifications.find(n => n.id === id);
         if (!notification || !notification.actions) return;
 
@@ -1307,8 +1307,8 @@ export class NotificationCenter {
         const errorEl = item.querySelector('.notification-action-error') || null;
 
         const ctx = getContext();
-        const ws = ctx?.websocketService;
-        if (!ws || typeof ws.send !== 'function') {
+        const apiService = ctx?.apiService;
+        if (!apiService || typeof apiService.submitNotificationAction !== 'function') {
             if (errorEl) errorEl.textContent = 'Not connected to server.';
             return;
         }
@@ -1403,19 +1403,25 @@ export class NotificationCenter {
 
         try {
             if (isInteractiveDebugEnabled()) {
-                console.log('[InteractiveNotification][Center][Send]', {
+                console.log('[InteractiveNotification][Center][SendHTTP]', {
                     centerId: id,
                     serverId,
                     actionKey: action.key
                 });
             }
-            ws.send('notification_action', {
+            const apiResult = await apiService.submitNotificationAction(serverId, action.key, values);
+
+            const syntheticResult = {
                 notification_id: serverId,
                 action_key: action.key,
-                inputs: values
-            });
+                ok: !!(apiResult && apiResult.ok),
+                status: apiResult && typeof apiResult.status === 'string' ? apiResult.status : null,
+                error: apiResult && typeof apiResult.error === 'string' ? apiResult.error : null
+            };
+            this.applyActionResultToNotification(notification, syntheticResult);
+            this.renderNotificationsIfOpen();
         } catch (e) {
-            console.error('[NotificationCenter] Failed to send notification_action:', e);
+            console.error('[NotificationCenter] Failed to submit notification action via HTTP:', e);
             try {
                 if (isInteractiveDebugEnabled()) {
                     console.error('[InteractiveNotification][Center][SendError]', {
@@ -1426,7 +1432,10 @@ export class NotificationCenter {
                     });
                 }
             } catch (_) {}
-            if (errorEl) errorEl.textContent = 'Failed to send response. Please try again.';
+            if (errorEl) {
+                const msg = (e && e.message) ? e.message : 'Failed to send response. Please try again.';
+                errorEl.textContent = msg;
+            }
             if (statusEl) statusEl.textContent = '';
             state.pendingActionKey = null;
             this.updateInteractiveButtonsState(id);

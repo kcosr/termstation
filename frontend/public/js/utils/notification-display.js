@@ -1025,11 +1025,11 @@ export class NotificationDisplay {
     }
 
     /**
-     * Handle an action button click: validate, send WS message, and mark pending state.
+     * Handle an action button click: validate, submit via HTTP, and mark pending state.
      * @param {string} id
      * @param {string} actionKey
      */
-    handleActionClick(id, actionKey) {
+    async handleActionClick(id, actionKey) {
         const entry = this.notifications.get(id);
         if (!entry || !entry.interactive) return;
 
@@ -1039,8 +1039,8 @@ export class NotificationDisplay {
         }
 
         const ctx = getContext();
-        const ws = ctx?.websocketService;
-        if (!ws || typeof ws.send !== 'function') {
+        const apiService = ctx?.apiService;
+        if (!apiService || typeof apiService.submitNotificationAction !== 'function') {
             if (entry.interactive.errorEl) {
                 entry.interactive.errorEl.textContent = 'Not connected to server.';
             }
@@ -1148,19 +1148,25 @@ export class NotificationDisplay {
 
         try {
             if (isInteractiveDebugEnabled()) {
-                console.log('[InteractiveNotification][Toast][Send]', {
+                console.log('[InteractiveNotification][Toast][SendHTTP]', {
                     toastId: id,
                     serverId: notificationId,
                     actionKey: action.key
                 });
             }
-            ws.send('notification_action', {
+            const apiResult = await apiService.submitNotificationAction(notificationId, action.key, values);
+
+            // Optimistically apply the result based on HTTP response.
+            const syntheticResult = {
                 notification_id: notificationId,
                 action_key: action.key,
-                inputs: values
-            });
+                ok: !!(apiResult && apiResult.ok),
+                status: apiResult && typeof apiResult.status === 'string' ? apiResult.status : null,
+                error: apiResult && typeof apiResult.error === 'string' ? apiResult.error : null
+            };
+            this.applyActionResultToEntry(id, entry, syntheticResult);
         } catch (e) {
-            console.error('[NotificationDisplay] Failed to send notification_action:', e);
+            console.error('[NotificationDisplay] Failed to submit notification action via HTTP:', e);
             try {
                 if (isInteractiveDebugEnabled()) {
                     console.error('[InteractiveNotification][Toast][SendError]', {
@@ -1172,7 +1178,8 @@ export class NotificationDisplay {
                 }
             } catch (_) {}
             if (errorEl) {
-                errorEl.textContent = 'Failed to send response. Please try again.';
+                const msg = (e && e.message) ? e.message : 'Failed to send response. Please try again.';
+                errorEl.textContent = msg;
             }
             if (statusEl) statusEl.textContent = '';
             entry.interactive.pendingActionKey = null;

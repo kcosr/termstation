@@ -171,14 +171,15 @@ Each persisted notification may be delivered over WebSocket:
 
 Backend-only fields (`callback_url`, `callback_method`, `callback_headers`) are not present in WS messages.
 
-### Client → server: `notification_action`
+### Client → server: HTTP `POST /api/notifications/:id/action`
 
-When a user selects an action and submits any inputs, the frontend sends:
+New clients submit interactive notification actions over HTTP:
 
-```jsonc
+```http
+POST /api/notifications/n_.../action
+Content-Type: application/json
+
 {
-  "type": "notification_action",
-  "notification_id": "n_...",   // matches server_id from the notification message
   "action_key": "approve",
   "inputs": {
     "api_key": "sk-...",        // may include masked & non-masked values
@@ -189,7 +190,7 @@ When a user selects an action and submits any inputs, the frontend sends:
 
 Semantics:
 
-- The backend infers the user from the WebSocket connection (`ws.username`).
+- The backend infers the user from the HTTP auth context (`req.user.username`).
 - It loads the notification from `NotificationManager` for that user and id.
 - Validates:
   - Notification exists and is interactive.
@@ -231,6 +232,42 @@ After the callback attempt, the backend persists a `response` summary in `Notifi
 - `inputs`: only non-masked values.
 - `masked_input_ids`: ids of any secret-type inputs that had values.
 - `is_active` on the notification is set to `false`.
+
+Response body from HTTP endpoint:
+
+```jsonc
+{
+  "ok": true,
+  "status": "callback_succeeded",
+  "response": {
+    "at": "2025-01-01T12:05:00.000Z",
+    "user": "alice",
+    "action_key": "approve",
+    "action_label": "Approve",
+    "inputs": {
+      "comment": "Looks good"
+    },
+    "masked_input_ids": ["api_key"]
+  }
+}
+```
+
+On error, `ok` is `false`, `status` is one of `notification_not_found`, `invalid_payload`, `invalid_action`, `missing_required_inputs`, `not_interactive`, `already_responded`, `callback_failed`, and `error` carries a machine-readable code such as `HTTP_403`, `NETWORK_ERROR`, or `TIMEOUT`.
+
+### Legacy client → server: `notification_action` (WebSocket)
+
+For backwards compatibility, the backend still accepts a WebSocket message of the form:
+
+```jsonc
+{
+  "type": "notification_action",
+  "notification_id": "n_...",
+  "action_key": "approve",
+  "inputs": { "api_key": "sk-...", "comment": "Looks good" }
+}
+```
+
+New clients should prefer the HTTP endpoint; the WS entry point exists primarily for older frontends.
 
 ### Server → client: `notification_action_result`
 

@@ -696,6 +696,33 @@ Base: `/api/notifications`
     - Interactive:
       - Same shapes as above, but `saved` entries also include `actions`, `inputs`, and `response: null`.
       - Callback metadata is omitted from the JSON response.
+- POST `/:id/action` — Submit an interactive notification action for the current user
+  - Request body:
+    - `action_key` (string, required) — key of the chosen action.
+    - `inputs` (object, optional) — map of input ids → string values. Values are validated and truncated according to the `inputs[].max_length` and `required`/`requires_inputs` rules configured on the notification.
+  - Behavior:
+    - Looks up the notification for the authenticated user and id; returns `404`/`notification_not_found` when missing.
+    - Verifies that the notification is interactive, has not already recorded a `response`, and that `action_key` exists.
+    - Validates required inputs:
+      - Global `inputs[].required === true`.
+      - Action-specific `actions[].requires_inputs`.
+    - Invokes the configured `callback_url` with a JSON payload containing:
+      - Notification metadata (`notification_id`, `user`, `action`, `action_label`, `session_id`, `title`, `message`, `timestamp`).
+      - `inputs` map including both secret and non-secret values (subject to max length truncation).
+    - Persists a `response` summary in `NotificationManager` with:
+      - `inputs`: non-secret input values only.
+      - `masked_input_ids`: ids of any secret inputs that had values.
+      - Marks the notification `is_active: false`.
+    - Broadcasts a `notification_action_result` WebSocket message to the current user (all connected tabs) so UIs stay in sync.
+  - Response body:
+    - `{ ok: boolean, status: string, error?: string, response?: { at, user, action_key, action_label, inputs, masked_input_ids } }`
+  - Status / error mapping:
+    - `200` — `ok: true`, `status: "callback_succeeded"`.
+    - `400` — validation failures (`status` one of: `invalid_payload`, `invalid_action`, `missing_required_inputs`, `not_interactive`).
+    - `404` — `status: "notification_not_found"`.
+    - `409` — `status: "already_responded"` when a response already exists.
+    - `502` — `status: "callback_failed"` when the callback returns a non-2xx HTTP status or network/timeout error (e.g., `error: "HTTP_403"`).
+    - `500` — unexpected internal errors (`status: "internal_error"`).
 - PATCH `/mark-all-read` — Mark all as read `{ ok: true, updated }`
 - DELETE `/` — Clear all `{ ok: true, deleted }`
 - PATCH `/:id` — Mark one as read `{ read: true }`
