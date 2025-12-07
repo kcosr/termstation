@@ -723,6 +723,30 @@ Base: `/api/notifications`
     - `409` — `status: "already_responded"` when a response already exists.
     - `502` — `status: "callback_failed"` when the callback returns a non-2xx HTTP status or network/timeout error (e.g., `error: "HTTP_403"`).
     - `500` — unexpected internal errors (`status: "internal_error"`).
+- POST `/:id/cancel` — Cancel an interactive notification without deleting it
+  - Auth:
+    - Requires authentication.
+  - Behavior:
+    - Looks up the notification for the authenticated user and id; returns `404` / `notification_not_found` when missing.
+    - Requires the notification to be interactive (has interactive metadata and a callback URL); otherwise returns `400` / `not_interactive`.
+    - Rejects when the notification already has a recorded `response` with `409` / `already_responded`; the existing response is returned in the payload.
+    - When valid and still interactive:
+      - Persists a synthetic `response` summary in `NotificationManager` with:
+        - `status: "canceled"`.
+        - `action_key: null`.
+        - `action_label: "Canceled"`.
+        - Empty `inputs` and `masked_input_ids`.
+      - Marks the notification `is_active: false`.
+      - Broadcasts a `notification_updated` WebSocket message to the current user so UIs stay in sync.
+  - Response body:
+    - On success (`200`):
+      - `{ ok: true, status: "canceled", notification: { ...updatedNotification } }` where `notification` is the sanitized notification returned to clients (callback metadata omitted, but includes `response`).
+    - On error:
+      - `401` — `{ ok: false, status: "unauthorized", error: "AUTH_REQUIRED" }` when not authenticated.
+      - `400` — `{ ok: false, status: "not_interactive", error: "NOT_INTERACTIVE" }` when the notification is not interactive.
+      - `404` — `{ ok: false, status: "notification_not_found", error: "NOT_FOUND" }` when the id is unknown for this user.
+      - `409` — `{ ok: false, status: "already_responded", error: "ALREADY_RESPONDED", response }` when a response already exists.
+      - `500` — `{ ok: false, status: "internal_error", error: "INTERNAL_ERROR" }` on unexpected failures.
 - PATCH `/mark-all-read` — Mark all as read `{ ok: true, updated }`
 - DELETE `/` — Clear all `{ ok: true, deleted }`
 - PATCH `/:id` — Mark one as read `{ read: true }`

@@ -280,6 +280,7 @@ export async function processInteractiveNotificationAction({
       user,
       action_key: actionKeyTrimmed,
       action_label: action.label || null,
+      status,
       inputs: publicInputs,
       masked_input_ids: maskedInputIds
     };
@@ -305,4 +306,3 @@ export async function processInteractiveNotificationAction({
 export default {
   processInteractiveNotificationAction
 };
-

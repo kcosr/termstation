@@ -466,6 +466,109 @@ router.delete('/:id', (req, res) => {
   }
 });
 
+// Cancel an interactive notification without deleting it
+// POST /api/notifications/:id/cancel
+router.post('/:id/cancel', (req, res) => {
+  try {
+    const user = req.user?.username;
+    if (!user) {
+      return res.status(401).json({
+        ok: false,
+        status: 'unauthorized',
+        error: 'AUTH_REQUIRED',
+        message: 'Authentication required'
+      });
+    }
+
+    const { id } = req.params;
+    const mgr = getManager();
+    const notification = mgr.getById(user, id);
+    if (!notification) {
+      return res.status(404).json({
+        ok: false,
+        status: 'notification_not_found',
+        error: 'NOT_FOUND',
+        message: 'Notification not found'
+      });
+    }
+
+    const actions = Array.isArray(notification.actions) ? notification.actions : [];
+    const inputs = Array.isArray(notification.inputs) ? notification.inputs : [];
+    const hasInteractive =
+      typeof notification.callback_url === 'string' &&
+      notification.callback_url &&
+      (actions.length > 0 || inputs.length > 0);
+
+    if (!hasInteractive) {
+      return res.status(400).json({
+        ok: false,
+        status: 'not_interactive',
+        error: 'NOT_INTERACTIVE',
+        message: 'Notification is not interactive'
+      });
+    }
+
+    if (notification.response) {
+      return res.status(409).json({
+        ok: false,
+        status: 'already_responded',
+        error: 'ALREADY_RESPONDED',
+        message: 'Notification already has a response',
+        response: notification.response
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    const cancelResponse = {
+      at: nowIso,
+      user,
+      action_key: null,
+      action_label: 'Canceled',
+      status: 'canceled',
+      inputs: {},
+      masked_input_ids: []
+    };
+
+    const updated = mgr.setResponse(user, id, cancelResponse);
+    if (!updated || !updated.response) {
+      return res.status(500).json({
+        ok: false,
+        status: 'internal_error',
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to persist cancellation'
+      });
+    }
+
+    const clientNotification = sanitizeNotificationForClient(updated);
+
+    try {
+      if (global.connectionManager && typeof global.connectionManager.broadcast === 'function') {
+        global.connectionManager.broadcast({
+          type: 'notification_updated',
+          user,
+          notification_id: updated.id,
+          is_active: updated.is_active,
+          response: updated.response
+        });
+      }
+    } catch (_) {}
+
+    return res.status(200).json({
+      ok: true,
+      status: 'canceled',
+      notification: clientNotification
+    });
+  } catch (error) {
+    logger.error(`Failed to cancel notification: ${error.message}`);
+    res.status(500).json({
+      ok: false,
+      status: 'internal_error',
+      error: 'INTERNAL_ERROR',
+      message: 'Failed to cancel notification'
+    });
+  }
+});
+
 // Submit an interactive notification action via HTTP.
 // POST /api/notifications/:id/action
 router.post('/:id/action', async (req, res) => {

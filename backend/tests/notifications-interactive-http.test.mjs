@@ -218,3 +218,175 @@ test('POST /api/notifications/:id/action surfaces callback failure and still per
     global.fetch = originalFetch;
   }
 });
+
+test('POST /api/notifications/:id/cancel marks interactive notification as canceled and emits update', async () => {
+  const mgr = global.notificationManager;
+
+  const saved = mgr.add('alice', {
+    title: 'Interactive',
+    message: 'Needs input',
+    notification_type: 'info',
+    session_id: 'sess-cancel-1',
+    is_active: true,
+    callback_url: 'http://example.test/callback',
+    callback_method: 'POST',
+    actions: [
+      { key: 'approve', label: 'Approve' }
+    ],
+    inputs: [
+      { id: 'comment', label: 'Comment', type: 'string', required: false }
+    ]
+  });
+
+  const originalFetch = global.fetch;
+
+  try {
+    const resp = await originalFetch(
+      `${baseUrl}/api/notifications/${encodeURIComponent(saved.id)}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }
+    );
+
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.ok).toBe(true);
+    expect(body.status).toBe('canceled');
+    expect(body.notification).toBeTruthy();
+    expect(body.notification.is_active).toBe(false);
+    expect(body.notification.response).toBeTruthy();
+    expect(body.notification.response.status).toBe('canceled');
+    expect(body.notification.response.action_label).toBe('Canceled');
+
+    const updated = mgr.getById('alice', saved.id);
+    expect(updated).toBeTruthy();
+    expect(updated.is_active).toBe(false);
+    expect(updated.response).toBeTruthy();
+    expect(updated.response.status).toBe('canceled');
+    expect(updated.response.action_label).toBe('Canceled');
+
+    expect(global.connectionManager.broadcast).toHaveBeenCalled();
+    const call = global.connectionManager.broadcast.mock.calls[
+      global.connectionManager.broadcast.mock.calls.length - 1
+    ] || [];
+    const payload = call[0];
+    expect(payload.type).toBe('notification_updated');
+    expect(payload.notification_id).toBe(saved.id);
+    expect(payload.user).toBe('alice');
+    expect(payload.is_active).toBe(false);
+    expect(payload.response).toBeTruthy();
+    expect(payload.response.status).toBe('canceled');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('POST /api/notifications/:id/cancel returns 404 when notification not found', async () => {
+  const originalFetch = global.fetch;
+
+  try {
+    const resp = await originalFetch(
+      `${baseUrl}/api/notifications/missing-id/cancel`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }
+    );
+
+    expect(resp.status).toBe(404);
+    const body = await resp.json();
+    expect(body.ok).toBe(false);
+    expect(body.status).toBe('notification_not_found');
+    expect(body.error).toBe('NOT_FOUND');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('POST /api/notifications/:id/cancel rejects non-interactive notifications', async () => {
+  const mgr = global.notificationManager;
+
+  const saved = mgr.add('alice', {
+    title: 'Plain',
+    message: 'Non-interactive',
+    notification_type: 'info',
+    session_id: 'sess-cancel-2',
+    is_active: false
+  });
+
+  const originalFetch = global.fetch;
+
+  try {
+    const resp = await originalFetch(
+      `${baseUrl}/api/notifications/${encodeURIComponent(saved.id)}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }
+    );
+
+    expect(resp.status).toBe(400);
+    const body = await resp.json();
+    expect(body.ok).toBe(false);
+    expect(body.status).toBe('not_interactive');
+    expect(body.error).toBe('NOT_INTERACTIVE');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('POST /api/notifications/:id/cancel enforces single-use semantics for already responded notifications', async () => {
+  const mgr = global.notificationManager;
+
+  const saved = mgr.add('alice', {
+    title: 'Interactive',
+    message: 'Already responded',
+    notification_type: 'info',
+    session_id: 'sess-cancel-3',
+    is_active: true,
+    callback_url: 'http://example.test/callback',
+    callback_method: 'POST',
+    actions: [
+      { key: 'approve', label: 'Approve' }
+    ],
+    inputs: []
+  });
+
+  // Seed an existing response
+  mgr.setResponse('alice', saved.id, {
+    at: new Date().toISOString(),
+    user: 'alice',
+    action_key: 'approve',
+    action_label: 'Approve',
+    status: 'callback_succeeded',
+    inputs: {},
+    masked_input_ids: []
+  });
+
+  const originalFetch = global.fetch;
+
+  try {
+    const resp = await originalFetch(
+      `${baseUrl}/api/notifications/${encodeURIComponent(saved.id)}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }
+    );
+
+    expect(resp.status).toBe(409);
+    const body = await resp.json();
+    expect(body.ok).toBe(false);
+    expect(body.status).toBe('already_responded');
+    expect(body.error).toBe('ALREADY_RESPONDED');
+    expect(body.response).toBeTruthy();
+    expect(body.response.status).toBe('callback_succeeded');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

@@ -864,25 +864,6 @@ export class NotificationDisplay {
                 // Prevent terminal focus from stealing input focus when interacting with notification inputs
                 el.addEventListener('focus', (ev) => {
                     try { ev.stopPropagation(); } catch (_) {}
-                    try { window._interactiveNotificationInputActive = true; } catch (_) {}
-                });
-                el.addEventListener('blur', () => {
-                    // Only clear the flag when no other notification input remains focused
-                    setTimeout(() => {
-                        try {
-                            const active = document.activeElement;
-                            const stillInNotification = !!(
-                                active &&
-                                typeof active.closest === 'function' &&
-                                (active.closest('.notification') || active.closest('#notification-center-panel'))
-                            );
-                            if (!stillInNotification && typeof window !== 'undefined') {
-                                if (window._interactiveNotificationInputActive) {
-                                    window._interactiveNotificationInputActive = false;
-                                }
-                            }
-                        } catch (_) {}
-                    }, 0);
                 });
                 ['mousedown', 'click', 'touchstart'].forEach((type) => {
                     el.addEventListener(type, (ev) => {
@@ -1229,6 +1210,78 @@ export class NotificationDisplay {
     }
 
     /**
+     * Handle a notification_updated message from WebSocket.
+     * @param {Object} message
+     */
+    handleNotificationUpdate(message) {
+        if (!message || !message.notification_id) return;
+        const targetId = String(message.notification_id);
+        let matched = false;
+
+        for (const [id, entry] of this.notifications.entries()) {
+            const notification = entry.notification || {};
+            const serverId = notification.server_id || notification.notification_id || notification.id || null;
+            if (!serverId || String(serverId) !== targetId) continue;
+            matched = true;
+
+            try {
+                if (isInteractiveDebugEnabled()) {
+                    console.log('[InteractiveNotification][Toast][UpdateMatch]', {
+                        toastId: id,
+                        serverId,
+                        isActive: message.is_active,
+                        status: message.response && message.response.status
+                    });
+                }
+            } catch (_) {}
+
+            if (message.response) {
+                entry.notification.response = message.response;
+            }
+
+            if (!entry.interactive) continue;
+
+            const { statusEl, errorEl } = entry.interactive;
+            entry.interactive.pendingActionKey = null;
+
+            const status = message.response && typeof message.response.status === 'string'
+                ? message.response.status
+                : null;
+            const isCanceled = status === 'canceled';
+
+            if (message.is_active === false || isCanceled) {
+                entry.interactive.resolved = true;
+                if (statusEl) {
+                    const label = (message.response && message.response.action_label) || (isCanceled ? 'Canceled' : '');
+                    statusEl.textContent = label ? `${label}.` : 'Canceled.';
+                }
+                if (errorEl) {
+                    errorEl.textContent = '';
+                }
+                this.updateActionButtonsState(id);
+
+                try {
+                    setTimeout(() => {
+                        if (this.notifications.has(id)) {
+                            this.remove(id);
+                        }
+                    }, 100);
+                } catch (_) {}
+            }
+        }
+
+        if (!matched) {
+            try {
+                if (isInteractiveDebugEnabled()) {
+                    console.warn('[InteractiveNotification][Toast][UpdateMiss]', {
+                        notificationId: targetId
+                    });
+                }
+            } catch (_) {}
+        }
+    }
+
+    /**
      * Apply a notification_action_result to a specific notification entry.
      * @param {string} id
      * @param {Object} entry
@@ -1334,6 +1387,9 @@ export class NotificationDisplay {
                         this.remove(id);
                     }
                 }, 100);
+                // After the toast is resolved and scheduled for dismissal, return focus
+                // to the active terminal session so the user can continue typing.
+                this.refocusActiveTerminalSession();
             } catch (_) {}
         } else {
             // Failure path
@@ -1361,6 +1417,40 @@ export class NotificationDisplay {
             return String(inputId);
         } catch (_) {
             return String(inputId);
+        }
+    }
+
+    /**
+     * Attempt to refocus the currently active terminal session after an
+     * interactive toast completes, so keyboard input returns to the xterm.
+     */
+    refocusActiveTerminalSession() {
+        try {
+            const ctx = typeof getContext === 'function' ? getContext() : null;
+            const appRef = ctx && ctx.app ? ctx.app : null;
+            const terminalManager = appRef && appRef.modules ? appRef.modules.terminal : null;
+            if (!terminalManager) return;
+            // Avoid triggering mobile keyboard on small screens
+            if (terminalManager.viewController && typeof terminalManager.viewController.isMobile === 'function') {
+                if (terminalManager.viewController.isMobile()) return;
+            }
+
+            const session = terminalManager.currentSession || null;
+            if (!session || typeof session.focus !== 'function') return;
+
+            // Release focus from any previous element (e.g., toast input/button)
+            try {
+                const active = document.activeElement;
+                if (active && typeof active.blur === 'function') {
+                    active.blur();
+                }
+            } catch (_) {}
+
+            setTimeout(() => {
+                try { session.focus(); } catch (_) {}
+            }, 75);
+        } catch (_) {
+            // Best-effort only; ignore errors.
         }
     }
 }

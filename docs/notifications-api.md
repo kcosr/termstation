@@ -309,3 +309,40 @@ Frontends can use these result messages to:
 - Disable action buttons after a successful response.
 - Show inline error messages or follow-up toasts when callbacks fail.
 - Update the Notification Center view to reflect the chosen action and non-secret inputs.
+
+### Server → client: `notification_updated`
+
+When an interactive notification is canceled (or otherwise updated in a way that changes its interactivity or response metadata), the backend broadcasts a lightweight update message:
+
+```jsonc
+{
+  "type": "notification_updated",
+  "notification_id": "n_...",
+  "is_active": false,
+  "response": {
+    "at": "...",
+    "user": "system",
+    "action_key": null,
+    "action_label": "Canceled",
+    "status": "canceled",
+    "inputs": {}
+  }
+}
+```
+
+Notes:
+
+- `notification_id` matches the backend notification id and the `server_id` field in the original `notification` message.
+- `is_active` reflects whether the notification is still actionable; cancellations set this to `false`.
+- `response` mirrors the persisted summary stored by `NotificationManager` and may include:
+  - `at`, `user`, `action_key`, `action_label`, `status`, `inputs`, `masked_input_ids`.
+
+Frontends are expected to:
+
+- Locate any active toast whose `server_id === notification_id` and, when `is_active === false` or `response.status === "canceled"`:
+  - Mark the interactive state as resolved.
+  - Clear any pending action state.
+  - Disable action buttons and optionally auto-dismiss the toast.
+- In the Notification Center:
+  - Update the stored `response` and set the entry as non-interactive.
+  - Render a summary such as `Responded — Canceled — <time>` using the existing response summary UI.
