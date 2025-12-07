@@ -977,12 +977,22 @@ export class NotificationDisplay {
 
         const { actions, inputElements, actionButtons, pendingActionKey, resolved } = entry.interactive;
 
+        const shouldDisableInputs = !!pendingActionKey || !!resolved;
+
         const values = {};
         Object.keys(inputElements || {}).forEach((inputId) => {
             const el = inputElements[inputId];
             if (el) {
                 values[inputId] = (el.value || '').trim();
             }
+        });
+
+        // Mirror button state on inputs: while a submission is in-flight or
+        // after it has been resolved, prevent further editing of the fields.
+        Object.keys(inputElements || {}).forEach((inputId) => {
+            const el = inputElements[inputId];
+            if (!el) return;
+            el.disabled = shouldDisableInputs;
         });
 
         actions.forEach((action) => {
@@ -1316,7 +1326,7 @@ export class NotificationDisplay {
                     if (this.notifications.has(id)) {
                         this.remove(id);
                     }
-                }, 2000);
+                }, 100);
             } catch (_) {}
         } else {
             // Failure path
