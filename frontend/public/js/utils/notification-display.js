@@ -1387,6 +1387,9 @@ export class NotificationDisplay {
                         this.remove(id);
                     }
                 }, 100);
+                // After the toast is resolved and scheduled for dismissal, return focus
+                // to the active terminal session so the user can continue typing.
+                this.refocusActiveTerminalSession();
             } catch (_) {}
         } else {
             // Failure path
@@ -1414,6 +1417,40 @@ export class NotificationDisplay {
             return String(inputId);
         } catch (_) {
             return String(inputId);
+        }
+    }
+
+    /**
+     * Attempt to refocus the currently active terminal session after an
+     * interactive toast completes, so keyboard input returns to the xterm.
+     */
+    refocusActiveTerminalSession() {
+        try {
+            const ctx = typeof getContext === 'function' ? getContext() : null;
+            const appRef = ctx && ctx.app ? ctx.app : null;
+            const terminalManager = appRef && appRef.modules ? appRef.modules.terminal : null;
+            if (!terminalManager) return;
+            // Avoid triggering mobile keyboard on small screens
+            if (terminalManager.viewController && typeof terminalManager.viewController.isMobile === 'function') {
+                if (terminalManager.viewController.isMobile()) return;
+            }
+
+            const session = terminalManager.currentSession || null;
+            if (!session || typeof session.focus !== 'function') return;
+
+            // Release focus from any previous element (e.g., toast input/button)
+            try {
+                const active = document.activeElement;
+                if (active && typeof active.blur === 'function') {
+                    active.blur();
+                }
+            } catch (_) {}
+
+            setTimeout(() => {
+                try { session.focus(); } catch (_) {}
+            }, 75);
+        } catch (_) {
+            // Best-effort only; ignore errors.
         }
     }
 }
