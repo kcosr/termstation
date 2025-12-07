@@ -667,6 +667,15 @@ export class ApiService {
         return this.delete('/api/notifications');
     }
 
+    async submitNotificationAction(notificationId, actionKey, inputs = {}) {
+        const id = encodeURIComponent(String(notificationId));
+        const body = {
+            action_key: actionKey,
+            inputs: inputs && typeof inputs === 'object' ? inputs : {}
+        };
+        return this.post(`/api/notifications/${id}/action`, body);
+    }
+
     /**
      * Scheduled Input Rules API
      */

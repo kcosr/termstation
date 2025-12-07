@@ -1,6 +1,8 @@
 import express from 'express';
 import { logger } from '../utils/logger.js';
 import { sendNtfyNotification } from '../services/notification-service.js';
+import { config } from '../config-loader.js';
+import { processInteractiveNotificationAction } from '../services/interactive-notification-action.js';
 
 const router = express.Router();
 
@@ -461,6 +463,73 @@ router.delete('/:id', (req, res) => {
   } catch (error) {
     logger.error(`Failed to delete notification: ${error.message}`);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to delete notification' });
+  }
+});
+
+// Submit an interactive notification action via HTTP.
+// POST /api/notifications/:id/action
+router.post('/:id/action', async (req, res) => {
+  try {
+    const username = req.user?.username || config.DEFAULT_USERNAME;
+    const { id } = req.params;
+    const body = req.body || {};
+    const actionKey = typeof body.action_key === 'string' ? body.action_key : '';
+    const inputs = (body.inputs && typeof body.inputs === 'object') ? body.inputs : {};
+
+    const result = await processInteractiveNotificationAction({
+      username,
+      notificationId: id,
+      actionKey,
+      rawInputs: inputs,
+      source: 'HTTP'
+    });
+
+    const ok = !!result.ok;
+    const status = result.status || (ok ? 'callback_succeeded' : 'internal_error');
+    const errorCode = ok ? null : (result.error || 'CALLBACK_FAILED');
+
+    // Map semantic status to HTTP status codes
+    let httpCode = 200;
+    if (!ok) {
+      if (status === 'notification_not_found') httpCode = 404;
+      else if (status === 'not_interactive') httpCode = 400;
+      else if (status === 'already_responded') httpCode = 409;
+      else if (status === 'missing_required_inputs' || status === 'invalid_action' || status === 'invalid_payload') {
+        httpCode = 400;
+      } else if (status === 'callback_failed') {
+        httpCode = 502;
+      } else {
+        httpCode = 500;
+      }
+    }
+
+    // Broadcast a WebSocket result so all of the user's tabs stay in sync.
+    try {
+      if (global.connectionManager && typeof global.connectionManager.broadcast === 'function') {
+        global.connectionManager.broadcast({
+          type: 'notification_action_result',
+          user: username,
+          notification_id: id,
+          action_key: actionKey || null,
+          ok,
+          error: errorCode,
+          status,
+          http_status: result.httpStatus ?? null
+        });
+      }
+    } catch (_) {}
+
+    const responseBody = {
+      ok,
+      status
+    };
+    if (errorCode) responseBody.error = errorCode;
+    if (result.response) responseBody.response = result.response;
+
+    return res.status(httpCode).json(responseBody);
+  } catch (error) {
+    logger.error(`Failed to process interactive notification action: ${error.message}`);
+    res.status(500).json({ ok: false, status: 'internal_error', error: 'INTERNAL_ERROR' });
   }
 });
 

@@ -7,6 +7,7 @@ import { logger } from '../utils/logger.js';
 import { config } from '../config-loader.js';
 import { broadcastSessionUpdate } from '../utils/broadcast.js';
 import { perSessionOpsLimiter, globalOpsLimiter } from '../utils/rate-limiters.js';
+import { processInteractiveNotificationAction } from '../services/interactive-notification-action.js';
 
 // Session update broadcasting handled via utility
 
@@ -351,8 +352,8 @@ export const messageHandlers = {
 
   // Handle interactive notification actions from clients
   async notification_action(clientId, message) {
-    const mgr = global.notificationManager;
     const connMgr = global.connectionManager;
+    const mgr = global.notificationManager;
 
     if (!connMgr || !mgr || typeof mgr.getById !== 'function' || typeof mgr.setResponse !== 'function') {
       try {
@@ -378,24 +379,6 @@ export const messageHandlers = {
       ? message.inputs
       : {};
 
-    const sendResult = (payload) => {
-      try {
-        connMgr.sendToClient(clientId, {
-          type: 'notification_action_result',
-          notification_id: notificationId || null,
-          action_key: actionKey || null,
-          ok: false,
-          error: payload.error || 'INVALID_ACTION',
-          status: payload.status || 'invalid_payload'
-        });
-      } catch (_) {}
-    };
-
-    if (!notificationId || !actionKey) {
-      sendResult({ error: 'INVALID_PAYLOAD', status: 'invalid_payload' });
-      return;
-    }
-
     // Resolve username from the WebSocket connection
     let username = config.DEFAULT_USERNAME;
     try {
@@ -405,208 +388,26 @@ export const messageHandlers = {
       }
     } catch (_) {}
 
-    let notification;
-    try {
-      notification = mgr.getById(username, notificationId);
-    } catch (err) {
-      logger.error(`[WS] notification_action: failed to load notification ${notificationId} for user '${username}': ${err.message}`);
-      sendResult({ error: 'INTERNAL_ERROR', status: 'internal_error' });
-      return;
-    }
+    const result = await processInteractiveNotificationAction({
+      username,
+      notificationId,
+      actionKey,
+      rawInputs,
+      source: 'WS'
+    });
 
-    if (!notification) {
-      sendResult({ error: 'NOTIFICATION_NOT_FOUND', status: 'notification_not_found' });
-      return;
-    }
-
-    const actions = Array.isArray(notification.actions) ? notification.actions : [];
-    const inputsDef = Array.isArray(notification.inputs) ? notification.inputs : [];
-    const hasInteractive =
-      typeof notification.callback_url === 'string' &&
-      notification.callback_url &&
-      (actions.length > 0 || inputsDef.length > 0);
-
-    if (!hasInteractive) {
-      sendResult({ error: 'NOT_INTERACTIVE', status: 'not_interactive' });
-      return;
-    }
-
-    if (notification.response) {
-      // Single-use semantics: guard here and in NotificationManager.setResponse
-      // so concurrent responses cannot overwrite an existing decision.
-      sendResult({ error: 'ALREADY_RESPONDED', status: 'already_responded' });
-      return;
-    }
-
-    const action = actions.find((a) => a && a.key === actionKey);
-    if (!action) {
-      sendResult({ error: 'INVALID_ACTION', status: 'invalid_action' });
-      return;
-    }
-
-    // Build input definition map
-    const defById = new Map();
-    for (const def of inputsDef) {
-      if (!def || typeof def !== 'object' || typeof def.id !== 'string') continue;
-      const id = def.id;
-      if (!id) continue;
-      const type = (typeof def.type === 'string' && def.type.toLowerCase() === 'secret')
-        ? 'secret'
-        : 'string';
-      const required = def.required === true;
-      let maxLen = null;
-      if (typeof def.max_length === 'number' && Number.isFinite(def.max_length) && def.max_length > 0) {
-        maxLen = Math.floor(def.max_length);
-      }
-      defById.set(id, { ...def, id, type, required, max_length: maxLen });
-    }
-
-    const requiredIds = new Set();
-    for (const def of defById.values()) {
-      if (def.required) requiredIds.add(def.id);
-    }
-    if (Array.isArray(action.requires_inputs)) {
-      for (const id of action.requires_inputs) {
-        if (typeof id === 'string' && id) requiredIds.add(id);
-      }
-    }
-
-    const allInputs = {};
-    const publicInputs = {};
-    const maskedInputIds = [];
-    const missingRequired = [];
-
-    for (const [id, def] of defById.entries()) {
-      const rawVal = Object.prototype.hasOwnProperty.call(rawInputs, id) ? rawInputs[id] : undefined;
-      let value = rawVal == null ? '' : String(rawVal);
-      const maxLen = def.max_length;
-      if (maxLen && value.length > maxLen) {
-        value = value.slice(0, maxLen);
-      }
-      allInputs[id] = value;
-
-      const isRequired = requiredIds.has(id);
-      if (isRequired && (!value || !String(value).length)) {
-        missingRequired.push(id);
-      }
-
-      if (def.type === 'secret') {
-        if (value && value.length > 0) maskedInputIds.push(id);
-      } else if (value && value.length > 0) {
-        publicInputs[id] = value;
-      }
-    }
-
-    if (missingRequired.length > 0) {
-      sendResult({
-        error: 'MISSING_REQUIRED_INPUTS',
-        status: 'missing_required_inputs'
-      });
-      return;
-    }
-
-    const callbackUrl = notification.callback_url;
-    if (!callbackUrl) {
-      sendResult({ error: 'MISSING_CALLBACK_URL', status: 'internal_error' });
-      return;
-    }
-
-    const methodRaw = (notification.callback_method || 'POST').toUpperCase();
-    const method = ['POST', 'PUT', 'PATCH'].includes(methodRaw) ? methodRaw : 'POST';
-    const headers = {
-      'Content-Type': 'application/json; charset=utf-8'
-    };
-    if (notification.callback_headers && typeof notification.callback_headers === 'object') {
-      for (const [name, value] of Object.entries(notification.callback_headers)) {
-        const key = String(name || '').trim();
-        if (!key) continue;
-        headers[key] = String(value ?? '');
-      }
-    }
-
-    const callbackPayload = {
-      notification_id: notification.id,
-      user: username,
-      action: actionKey,
-      action_label: action.label || null,
-      inputs: allInputs,
-      session_id: notification.session_id || null,
-      title: notification.title,
-      message: notification.message,
-      timestamp: notification.timestamp
+    const payload = {
+      type: 'notification_action_result',
+      notification_id: notificationId || null,
+      action_key: actionKey || null,
+      ok: !!result.ok,
+      error: result.ok ? null : (result.error || 'CALLBACK_FAILED'),
+      status: result.status || (result.ok ? 'callback_succeeded' : 'internal_error'),
+      http_status: result.httpStatus ?? null
     };
 
-    let ok = false;
-    let status = 'callback_succeeded';
-    let errorCode = null;
-    let httpStatus = null;
-
-    const controller = new AbortController();
-    const timeoutMs = 10000;
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
     try {
-      const resp = await fetch(callbackUrl, {
-        method,
-        headers,
-        body: JSON.stringify(callbackPayload),
-        signal: controller.signal
-      });
-      httpStatus = typeof resp?.status === 'number' ? resp.status : null;
-      if (resp && resp.ok) {
-        ok = true;
-      } else {
-        ok = false;
-        status = 'callback_failed';
-        errorCode = `HTTP_${resp ? resp.status : 'UNKNOWN'}`;
-        logger.warning(
-          `[WS] notification_action callback failed for notification ${notification.id} (user='${username}'): status=${resp ? resp.status : 'unknown'}`
-        );
-      }
-    } catch (err) {
-      ok = false;
-      status = 'callback_failed';
-      if (err && err.name === 'AbortError') {
-        errorCode = 'TIMEOUT';
-        logger.error(
-          `[WS] notification_action callback timeout for notification ${notification.id} (user='${username}'): aborted after ${timeoutMs}ms`
-        );
-      } else {
-        errorCode = 'NETWORK_ERROR';
-        logger.error(
-          `[WS] notification_action callback error for notification ${notification.id} (user='${username}'): ${err?.message || err}`
-        );
-      }
-    } finally {
-      try { clearTimeout(timeoutId); } catch (_) {}
-    }
-
-    try {
-      const responseSummary = {
-        at: new Date().toISOString(),
-        user: username,
-        action_key: actionKey,
-        action_label: action.label || null,
-        inputs: publicInputs,
-        masked_input_ids: maskedInputIds
-      };
-      mgr.setResponse(username, notificationId, responseSummary);
-    } catch (err) {
-      logger.error(
-        `[WS] notification_action: failed to persist response for notification ${notification.id} (user='${username}'): ${err.message}`
-      );
-    }
-
-    try {
-      connMgr.sendToClient(clientId, {
-        type: 'notification_action_result',
-        notification_id: notificationId,
-        action_key: actionKey,
-        ok,
-        error: ok ? null : (errorCode || 'CALLBACK_FAILED'),
-        status,
-        http_status: httpStatus
-      });
+      connMgr.sendToClient(clientId, payload);
     } catch (_) {}
   },
 
