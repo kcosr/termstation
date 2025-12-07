@@ -6,6 +6,7 @@
 
 - Backend: interactive notifications support in `POST /api/notifications`, including actions/inputs schema, callback URL handling, and server-side `notification_action` WebSocket processing. ([#10])
 - Frontend: interactive notification UI and settings, including action buttons, masked input handling, Notification Center response summaries, and a \"persist interactive notifications\" preference. ([#11])
+- Switch interactive notification actions from WebSocket to HTTP API ([#16])
 
 ### Changed
 
@@ -31,3 +32,4 @@
 [#6]: https://github.com/kcosr/termstation/pull/6
 [#10]: https://github.com/kcosr/termstation/pull/10
 [#11]: https://github.com/kcosr/termstation/pull/11
+[#16]: https://github.com/kcosr/termstation/pull/16
