@@ -136,6 +136,9 @@ function normalizeNotificationRecord(raw) {
     const action_label = (typeof rawResponse.action_label === 'string' && rawResponse.action_label)
       ? rawResponse.action_label
       : null;
+    const status = (typeof rawResponse.status === 'string' && rawResponse.status)
+      ? rawResponse.status
+      : null;
     const inputsMap = {};
     if (rawResponse.inputs && typeof rawResponse.inputs === 'object') {
       for (const [k, v] of Object.entries(rawResponse.inputs)) {
@@ -153,6 +156,7 @@ function normalizeNotificationRecord(raw) {
       user,
       action_key,
       action_label,
+      status,
       inputs: inputsMap,
       masked_input_ids: maskedIds
     };
@@ -346,6 +350,7 @@ export class NotificationManager {
           user: response.user,
           action_key: response.action_key,
           action_label: response.action_label ?? null,
+          status: typeof response.status === 'string' ? response.status : null,
           inputs: response.inputs || {},
           masked_input_ids: Array.isArray(response.masked_input_ids)
             ? response.masked_input_ids

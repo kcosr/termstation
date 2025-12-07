@@ -2048,6 +2048,16 @@ export class TerminalManager {
                 }
             }
         });
+
+        // Notification metadata/response updates (e.g., canceled)
+        registry.register('notification_updated', (message) => handlers.notificationUpdatedHandler.handle(message, context), {
+            validation: {
+                required: ['notification_id'],
+                types: {
+                    notification_id: 'string'
+                }
+            }
+        });
         
         // (duplicate session_activity registration removed; defined earlier around 1789)
         

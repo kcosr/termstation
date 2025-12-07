@@ -1627,14 +1627,31 @@ export class NotificationCenter {
      * Update the stored response for notifications that reference a given server id.
      * @param {string|number} serverId
      * @param {Object} response
+     * @param {Object} [options]
+     * @param {boolean} [options.isActive]
+     * @param {boolean} [options.resolved]
      */
-    updateNotificationResponseByServerId(serverId, response) {
+    updateNotificationResponseByServerId(serverId, response, options) {
         if (!serverId) return;
         const target = String(serverId);
         let updated = false;
         this.notifications.forEach((n) => {
             if (String(n.serverId) === target) {
                 n.response = response;
+                if (options && Object.prototype.hasOwnProperty.call(options, 'isActive')) {
+                    n.isActive = !!options.isActive;
+                }
+                if (options && options.resolved) {
+                    if (!n._interactiveState) {
+                        n._interactiveState = {
+                            pendingActionKey: null,
+                            resolved: !!response,
+                            lastSubmittedInputs: null
+                        };
+                    } else {
+                        n._interactiveState.resolved = !!response;
+                    }
+                }
                 updated = true;
             }
         });
@@ -1751,5 +1768,54 @@ NotificationCenter.prototype.seedNotifications = function(items) {
         // Do not render here; panel open will render lazily
     } catch (e) {
         try { console.warn('[NotificationCenter] seed failed:', e); } catch (_) {}
+    }
+};
+
+NotificationCenter.prototype.handleNotificationUpdate = function(message) {
+    try {
+        if (!message || !message.notification_id) return;
+        const notificationId = String(message.notification_id);
+        const isActive = message.is_active !== false;
+        const response = message.response || null;
+
+        if (isInteractiveDebugEnabled()) {
+            console.log('[InteractiveNotification][Center][UpdateEnter]', {
+                notificationId,
+                isActive,
+                status: response && response.status
+            });
+        }
+
+        let updated = false;
+        const targetId = notificationId;
+        this.notifications.forEach((n) => {
+            const serverId = n.serverId || n.server_id || n.id || null;
+            if (!serverId || String(serverId) !== targetId) return;
+            if (!n._interactiveState) {
+                n._interactiveState = {
+                    pendingActionKey: null,
+                    resolved: !!n.response,
+                    lastSubmittedInputs: null
+                };
+            }
+            if (response) {
+                n.response = response;
+            }
+            n.isActive = isActive;
+            if (!isActive) {
+                n._interactiveState.resolved = true;
+            }
+            updated = true;
+        });
+
+        if (updated) {
+            this.renderNotificationsIfOpen();
+        } else if (isInteractiveDebugEnabled()) {
+            console.warn('[InteractiveNotification][Center][UpdateMiss]', {
+                notificationId
+            });
+        }
+    } catch (e) {
+        console.warn('[NotificationCenter] Failed to apply notification update:', e);
     }
 };

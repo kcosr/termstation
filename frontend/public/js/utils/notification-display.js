@@ -1229,6 +1229,78 @@ export class NotificationDisplay {
     }
 
     /**
+     * Handle a notification_updated message from WebSocket.
+     * @param {Object} message
+     */
+    handleNotificationUpdate(message) {
+        if (!message || !message.notification_id) return;
+        const targetId = String(message.notification_id);
+        let matched = false;
+
+        for (const [id, entry] of this.notifications.entries()) {
+            const notification = entry.notification || {};
+            const serverId = notification.server_id || notification.notification_id || notification.id || null;
+            if (!serverId || String(serverId) !== targetId) continue;
+            matched = true;
+
+            try {
+                if (isInteractiveDebugEnabled()) {
+                    console.log('[InteractiveNotification][Toast][UpdateMatch]', {
+                        toastId: id,
+                        serverId,
+                        isActive: message.is_active,
+                        status: message.response && message.response.status
+                    });
+                }
+            } catch (_) {}
+
+            if (message.response) {
+                entry.notification.response = message.response;
+            }
+
+            if (!entry.interactive) continue;
+
+            const { statusEl, errorEl } = entry.interactive;
+            entry.interactive.pendingActionKey = null;
+
+            const status = message.response && typeof message.response.status === 'string'
+                ? message.response.status
+                : null;
+            const isCanceled = status === 'canceled';
+
+            if (message.is_active === false || isCanceled) {
+                entry.interactive.resolved = true;
+                if (statusEl) {
+                    const label = (message.response && message.response.action_label) || (isCanceled ? 'Canceled' : '');
+                    statusEl.textContent = label ? `${label}.` : 'Canceled.';
+                }
+                if (errorEl) {
+                    errorEl.textContent = '';
+                }
+                this.updateActionButtonsState(id);
+
+                try {
+                    setTimeout(() => {
+                        if (this.notifications.has(id)) {
+                            this.remove(id);
+                        }
+                    }, 100);
+                } catch (_) {}
+            }
+        }
+
+        if (!matched) {
+            try {
+                if (isInteractiveDebugEnabled()) {
+                    console.warn('[InteractiveNotification][Toast][UpdateMiss]', {
+                        notificationId: targetId
+                    });
+                }
+            } catch (_) {}
+        }
+    }
+
+    /**
      * Apply a notification_action_result to a specific notification entry.
      * @param {string} id
      * @param {Object} entry

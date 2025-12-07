@@ -20,6 +20,7 @@ export { sessionActivityHandler } from './session-activity-handler.js';
 export { scheduledInputRuleUpdatedHandler } from './scheduled-input-rule-updated-handler.js';
 export { deferredInputUpdatedHandler } from './deferred-input-updated-handler.js';
 export { notificationActionResultHandler } from './notification-action-result-handler.js';
+export { notificationUpdatedHandler } from './notification-updated-handler.js';
 
 // Export handler mapping for easy registration
 export const handlers = {
@@ -39,5 +40,6 @@ export const handlers = {
     'session_activity': () => import('./session-activity-handler.js').then(m => m.sessionActivityHandler),
     'scheduled_input_rule_updated': () => import('./scheduled-input-rule-updated-handler.js').then(m => m.scheduledInputRuleUpdatedHandler),
     'deferred_input_updated': () => import('./deferred-input-updated-handler.js').then(m => m.deferredInputUpdatedHandler),
-    'notification_action_result': () => import('./notification-action-result-handler.js').then(m => m.notificationActionResultHandler)
+    'notification_action_result': () => import('./notification-action-result-handler.js').then(m => m.notificationActionResultHandler),
+    'notification_updated': () => import('./notification-updated-handler.js').then(m => m.notificationUpdatedHandler)
 };
