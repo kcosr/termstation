@@ -88,7 +88,7 @@ Create a simple or interactive notification. See `docs/backend-api.md` for full 
   - User-scoped:
     ```jsonc
     {
-      "saved": {
+      "notification": {
         "id": "n_...",
         "title": "...",
         "message": "...",
@@ -107,7 +107,7 @@ Create a simple or interactive notification. See `docs/backend-api.md` for full 
     ```jsonc
     {
       "recipients": ["alice", "bob"],
-      "saved": [
+      "notifications": [
         { "id": "n_...", "title": "...", "actions": [/* ... */], "inputs": [/* ... */], "response": null },
         { "id": "n_...", "title": "...", "actions": [/* ... */], "inputs": [/* ... */], "response": null }
       ]
