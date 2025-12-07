@@ -363,8 +363,11 @@ router.post('/', async (req, res) => {
       }
 
       try { await sendNtfyNotification(title, message, session_id, type); } catch (_) {}
-      const clientSaved = savedObjects.map(sanitizeNotificationForClient);
-      return res.status(201).json({ recipients: Array.from(recipients), saved: clientSaved });
+      const clientNotifications = savedObjects.map(sanitizeNotificationForClient);
+      return res.status(201).json({
+        recipients: Array.from(recipients),
+        notifications: clientNotifications
+      });
     }
 
     // Non-session notifications: persist to requesting user
@@ -399,7 +402,7 @@ router.post('/', async (req, res) => {
       });
     } catch (_) {}
     try { await sendNtfyNotification(title, message, null, type); } catch (_) {}
-    return res.status(201).json({ saved: sanitizeNotificationForClient(saved) });
+    return res.status(201).json({ notification: sanitizeNotificationForClient(saved) });
   } catch (error) {
     logger.error(`Failed to create notification: ${error.message}`);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to create notification' });

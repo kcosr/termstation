@@ -413,7 +413,7 @@ Behavior:
       - All referenced ids exist in `inputs`.
 
 - Persistence:
-  - When constructing `saved` via `NotificationManager.add`:
+  - When constructing the persisted notification via `NotificationManager.add`:
     - Include interactive fields:
       ```js
       const saved = notificationManager.add(username, {
@@ -437,8 +437,8 @@ Behavior:
   - For non‑interactive notifications, behavior is unchanged.
 
 - Response:
-  - For interactive notifications, return `saved` including `id` and interactive metadata (excluding callback headers).
-  - For non‑interactive notifications, continue returning current `saved` / `recipients` shapes.
+  - For interactive notifications, return `notification` / `notifications` including `id` and interactive metadata (excluding callback headers).
+  - For non‑interactive notifications, return the same `notification` / `notifications` envelope without interactive fields.
 
 
 ### 3. WebSocket handler: `notification_action`

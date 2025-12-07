@@ -691,10 +691,10 @@ Base: `/api/notifications`
       - `is_active: true` until the user responds via WebSocket.
   - Response:
     - Non-interactive:
-      - When user-scoped: `{ saved }`.
-      - When broadcast: `{ recipients: [...], saved: [...] }`.
+      - When user-scoped: `{ notification: { ... } }`.
+      - When broadcast: `{ recipients: [...], notifications: [...] }`.
     - Interactive:
-      - Same shapes as above, but `saved` entries also include `actions`, `inputs`, and `response: null`.
+      - Same shapes as above, but `notification`/`notifications` entries also include `actions`, `inputs`, and `response: null`.
       - Callback metadata is omitted from the JSON response.
 - POST `/:id/action` — Submit an interactive notification action for the current user
   - Request body:
