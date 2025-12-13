@@ -6,7 +6,7 @@ Thank you for your interest in contributing to TermStation!
 
 TermStation is in its very early days of being open source. The developer is new to GitHub, open source project management, JavaScript/TypeScript, and many of the conventions that developers take for granted.
 
-**For the first few days (as of 12/3/2025), please do not open issues or PRs as the developer will be working through documenting known issues.** Use [Discussions](https://github.com/kcosr/termstation/discussions) for questions, or reach out to @kcosr on X.
+Issues and PRs are welcome! You can also use [Discussions](https://github.com/kcosr/termstation/discussions) for questions, or reach out to @kcosr on X.
 
 ## How You Can Help
 

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+_No unreleased changes._
+
+## [0.0.3] - 2025-12-13
+
 ### Added
 
 - Backend: interactive notifications support in `POST /api/notifications`, including actions/inputs schema, callback URL handling, and server-side `notification_action` WebSocket processing. ([#10])
