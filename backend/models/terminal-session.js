@@ -639,6 +639,14 @@ export class TerminalSession {
 
   logOutput(data) {
     // Store in memory for active sessions with sequence tracking
+    // Enforce maximum size to prevent RangeError: Invalid string length
+    const maxSize = config.MAX_OUTPUT_HISTORY_SIZE || 5 * 1024 * 1024;
+    if (this.outputHistory.length + data.length > maxSize) {
+      // Truncate from the beginning to make room, keeping ~75% of max
+      const targetSize = Math.floor(maxSize * 0.75);
+      const removeBytes = this.outputHistory.length + data.length - targetSize;
+      this.outputHistory = this.outputHistory.slice(removeBytes);
+    }
     this.outputHistory += data;
     this.outputSequenceNumber++;
 
@@ -662,6 +670,13 @@ export class TerminalSession {
       const T = Number.isFinite(Number(ts)) ? Math.floor(Number(ts)) : Date.now();
       const seq = `\x1b]133;ts:${K};t=${T}\x07`;
       // Append to in-memory buffer and increment sequence for consistent offsets
+      // Enforce maximum size to prevent RangeError: Invalid string length
+      const maxSize = config.MAX_OUTPUT_HISTORY_SIZE || 5 * 1024 * 1024;
+      if (this.outputHistory.length + seq.length > maxSize) {
+        const targetSize = Math.floor(maxSize * 0.75);
+        const removeBytes = this.outputHistory.length + seq.length - targetSize;
+        this.outputHistory = this.outputHistory.slice(removeBytes);
+      }
       this.outputHistory += seq;
       this.outputSequenceNumber++;
       // Write to file if stream exists
