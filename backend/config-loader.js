@@ -267,6 +267,18 @@ class Config {
     this.MAX_BUFFER_SIZE = configData.terminal.max_buffer_size;
     this.OUTPUT_CHUNK_SIZE = configData.terminal.output_chunk_size;
 
+    // Maximum size of in-memory output history buffer (bytes). Default 5MB.
+    // This buffer is used briefly during client connection switching.
+    try {
+      const raw = configData.terminal.max_output_history_size;
+      const n = Number(raw);
+      this.MAX_OUTPUT_HISTORY_SIZE = (raw === undefined || raw === null)
+        ? 5 * 1024 * 1024
+        : (Number.isFinite(n) && n > 0 ? Math.floor(n) : 5 * 1024 * 1024);
+    } catch (_) {
+      this.MAX_OUTPUT_HISTORY_SIZE = 5 * 1024 * 1024;
+    }
+
     // Scheduled input caps (env-overridable)
     // Default maximum rules per session: 20
     // Default maximum bytes per rule data: 8192
