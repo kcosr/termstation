@@ -193,6 +193,9 @@ export class TerminalSession {
         this.container.innerHTML = '';
         this.terminal.open(this.container);
 
+        // Setup OSC 52 clipboard handler (copy to local clipboard over terminal)
+        this.setupOsc52Handler();
+
         // Setup event handlers
         this.setupEventHandlers();
 
@@ -706,6 +709,12 @@ export class TerminalSession {
             // Clean up web links addon
             if (this.webLinksAddon) {
                 this.webLinksAddon = null;
+            }
+            
+            // Clean up OSC 52 handler
+            if (this._osc52Disposable) {
+                try { this._osc52Disposable.dispose(); } catch (_) {}
+                this._osc52Disposable = null;
             }
             
             // Dispose terminal to prevent memory leaks
@@ -1546,6 +1555,93 @@ detectMobile() {
             this.terminal.loadAddon(this.webLinksAddon);
         } else {
             console.warn('WebLinksAddon not available - hyperlinks will not be clickable');
+        }
+    }
+
+    /**
+     * Setup OSC 52 handler to copy data to local clipboard.
+     * OSC 52 is a standard escape sequence used to set the system clipboard:
+     *   ESC ] 52 ; <clipboard> ; <base64-data> BEL
+     * where <clipboard> is 'c' for clipboard (or 's' for selection, etc.)
+     * 
+     * This allows remote applications (e.g., shell scripts over SSH) to copy
+     * text to the local clipboard using sequences like:
+     *   echo -ne "\033]52;c;$(echo -n 'text' | base64)\007"
+     */
+    setupOsc52Handler() {
+        if (!this.terminal || !this.terminal.parser) {
+            return;
+        }
+
+        try {
+            // Register handler for OSC 52 (clipboard manipulation)
+            // The handler receives the data portion after "52;"
+            this._osc52Disposable = this.terminal.parser.registerOscHandler(52, (data) => {
+                // Skip clipboard operations during history replay to avoid
+                // re-copying old data and spamming the clipboard
+                if (this.isLoadingHistory) {
+                    return true; // Consume but don't copy
+                }
+                
+                try {
+                    // Parse OSC 52 data: format is "<clipboard>;<base64-data>"
+                    // <clipboard> can be: c (clipboard), p (primary), q (secondary), s (select), 0-7 (cut buffers)
+                    // We primarily care about 'c' (clipboard)
+                    const parts = data.split(';');
+                    if (parts.length < 2) {
+                        return false; // Let default handler process it
+                    }
+
+                    const clipboardTarget = parts[0];
+                    const base64Data = parts.slice(1).join(';'); // Rejoin in case base64 contains ';'
+
+                    // Only handle clipboard ('c') or empty target (which defaults to clipboard)
+                    if (clipboardTarget !== 'c' && clipboardTarget !== '') {
+                        return false; // Let default handler process it
+                    }
+
+                    // Empty base64 data is a request to read clipboard - not supported (security)
+                    if (!base64Data || base64Data === '?') {
+                        return true; // Consume but don't do anything (read not supported)
+                    }
+
+                    // Decode base64 data
+                    let text;
+                    try {
+                        text = atob(base64Data);
+                        // Handle potential UTF-8 encoding
+                        try {
+                            text = decodeURIComponent(escape(text));
+                        } catch (_) {
+                            // If decodeURIComponent fails, use the raw decoded text
+                        }
+                    } catch (e) {
+                        return true; // Consume the sequence even on decode error
+                    }
+
+                    // Copy to clipboard and show status
+                    if (text) {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(text)
+                                .then(() => {
+                                    TerminalAutoCopy.showStatusMessage('Copied', 2000);
+                                })
+                                .catch(() => {
+                                    // Fallback on clipboard API failure
+                                    TerminalAutoCopy.copyToClipboard(text, `osc52-${this.sessionId}`);
+                                });
+                        } else {
+                            TerminalAutoCopy.copyToClipboard(text, `osc52-${this.sessionId}`);
+                        }
+                    }
+
+                    return true; // Sequence handled, don't pass to default handler
+                } catch (e) {
+                    return true; // Consume on error to avoid terminal display issues
+                }
+            });
+        } catch (e) {
+            // Handler registration failed - OSC 52 will not be supported
         }
     }
 
