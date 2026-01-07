@@ -30,7 +30,7 @@ export class SidebarController {
 
     // Non-mobile: start hidden by default, then open only if saved state says not collapsed
     try {
-      if (!this.isMobileLayout()) {
+      if (!this.isOverlayLayout()) {
         // Default: hidden
         sidebar.classList.add('sidebar-hidden');
         this.getMainLayout()?.classList.add('sidebar-hidden');
@@ -41,15 +41,9 @@ export class SidebarController {
           this.showSidebar();
         } // else remain hidden (collapsed)
       } else {
-        // Mobile: start collapsed by default. Respect explicit savedCollapsed=false to show.
-        const savedCollapsed = this.getSavedCollapsedState();
-        if (savedCollapsed === false) {
-          sidebar.classList.remove('sidebar-hidden');
-          this.getMainLayout()?.classList.remove('sidebar-hidden');
-        } else {
-          sidebar.classList.add('sidebar-hidden');
-          this.getMainLayout()?.classList.add('sidebar-hidden');
-        }
+        // Overlay/hidden layouts manage visibility separately; clear docked collapse state.
+        sidebar.classList.remove('sidebar-hidden');
+        this.getMainLayout()?.classList.remove('sidebar-hidden');
       }
     } catch (_) {}
 
@@ -72,14 +66,28 @@ export class SidebarController {
     return document.getElementById(this.desktopToggleId);
   }
 
-  isMobileLayout() {
-    // Keep in sync with CSS breakpoints
-    return window.matchMedia('(max-width: 768px), (max-device-width: 768px), (orientation: portrait) and (max-width: 1024px)').matches;
+  getSidebarMode() {
+    try {
+      const sidebar = this.getSidebar();
+      if (sidebar && typeof window.getComputedStyle === 'function') {
+        const styles = getComputedStyle(sidebar);
+        const raw = styles.getPropertyValue('--sidebar-mode');
+        const mode = (raw || '').trim().replace(/['"]/g, '').toLowerCase();
+        if (mode) return mode;
+        if (styles.position === 'fixed') return 'overlay';
+      }
+    } catch (_) {}
+    return 'docked';
+  }
+
+  isOverlayLayout() {
+    const mode = this.getSidebarMode();
+    return mode === 'overlay' || mode === 'hidden';
   }
 
   applySavedWidth() {
     try {
-      if (this.isMobileLayout()) return; // ignore on mobile
+      if (this.isOverlayLayout()) return; // ignore in overlay/hidden layouts
       const sidebar = this.getSidebar();
       if (!sidebar) return;
       const store = getStateStore();
@@ -98,7 +106,7 @@ export class SidebarController {
 
   ensureResizer() {
     const sidebar = this.getSidebar();
-    if (!sidebar || this.isMobileLayout()) return;
+    if (!sidebar || this.isOverlayLayout()) return;
 
     let handle = sidebar.querySelector('.sidebar-resizer');
     if (!handle) {
@@ -119,7 +127,7 @@ export class SidebarController {
 
   startResize(ev) {
     const sidebar = this.getSidebar();
-    if (!sidebar || this.isMobileLayout()) return;
+    if (!sidebar || this.isOverlayLayout()) return;
 
     const isTouch = ev.type === 'touchstart';
     const startX = isTouch ? ev.touches[0].clientX : ev.clientX;
@@ -165,12 +173,33 @@ export class SidebarController {
     ev.preventDefault?.();
   }
 
+  syncDockedState() {
+    if (this.isOverlayLayout()) return;
+    const sidebar = this.getSidebar();
+    if (!sidebar) return;
+    const shouldCollapse = this.getSavedCollapsedState() === true;
+    const isCollapsed = sidebar.classList.contains('sidebar-hidden');
+    if (shouldCollapse && !isCollapsed) {
+      this.hideSidebar();
+      return;
+    }
+    if (!shouldCollapse && isCollapsed) {
+      this.showSidebar();
+      return;
+    }
+    const btn = this.getDesktopToggle();
+    if (btn) {
+      btn.setAttribute('aria-expanded', (!shouldCollapse).toString());
+    }
+  }
+
   toggleSidebar() {
     const sidebar = this.getSidebar();
     if (!sidebar) {
       console.warn('[SidebarController] Sidebar element not found');
       return;
     }
+    if (this.isOverlayLayout()) return;
     const isHidden = sidebar.classList.contains('sidebar-hidden');
     if (isHidden) {
       this.showSidebar();
@@ -182,6 +211,7 @@ export class SidebarController {
   showSidebar() {
     const sidebar = this.getSidebar();
     const mainLayout = this.getMainLayout();
+    if (this.isOverlayLayout()) return;
     if (sidebar) sidebar.classList.remove('sidebar-hidden');
     if (mainLayout) mainLayout.classList.remove('sidebar-hidden');
     const btn = this.getDesktopToggle();
@@ -201,6 +231,7 @@ export class SidebarController {
   hideSidebar() {
     const sidebar = this.getSidebar();
     const mainLayout = this.getMainLayout();
+    if (this.isOverlayLayout()) return;
     if (sidebar) sidebar.classList.add('sidebar-hidden');
     if (mainLayout) mainLayout.classList.add('sidebar-hidden');
     const btn = this.getDesktopToggle();

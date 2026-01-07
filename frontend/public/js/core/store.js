@@ -514,7 +514,9 @@ export const appStore = new Store({
             // Controls whether container child shells render under parents in sidebar
             showContainerShellsInSidebar: false,
             // Controls whether the Send Text modal closes after submit (default: false = keep open)
-            closeSendTextOnSubmit: false
+            closeSendTextOnSubmit: false,
+            // Controls whether sidebar layout is forced (auto | overlay)
+            sidebarLayout: 'auto'
         },
         notes: {
             showSessionTab: true,

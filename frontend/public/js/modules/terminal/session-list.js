@@ -174,6 +174,8 @@ export class SessionList {
                     const info = await window.desktop.getSessionWindow(sid);
                     if (info && info.ok && info.windowId) {
                         try { await window.desktop.focusSessionWindow(sid); } catch (_) {}
+                        const app = getContext()?.app;
+                        app?.closeSidebarOverlay?.();
                         // Do not change selection locally; bringing the dedicated window to front fulfills the action
                         return;
                     }
@@ -201,7 +203,7 @@ export class SessionList {
                 try { setTimeout(() => this.setActiveSession(sid), 0); } catch (_) {}
             }
             const app = getContext()?.app;
-            app?.hideMobileSidebar?.();
+            app?.closeSidebarOverlay?.({ focusTerminal: true });
         });
 
         // Click on a container/login child sub-entry should navigate to parent session and that child tab
@@ -255,7 +257,7 @@ export class SessionList {
             }
 
             const app = getContext()?.app;
-            app?.hideMobileSidebar?.();
+            app?.closeSidebarOverlay?.({ focusTerminal: true });
         });
 
         // Context menu on child sub-entry: open the normal session menu for the child session

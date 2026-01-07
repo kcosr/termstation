@@ -1016,6 +1016,7 @@ textarea {
 
 /* Terminal Sidebar */
 .terminal-sidebar {
+    --sidebar-mode: docked;
     /* Use a CSS variable so JS can set width without overriding hidden state */
     width: var(--sidebar-width, 380px); /* adjusted from 420px per feedback */
     background-color: var(--bg-secondary);
@@ -4223,6 +4224,7 @@ body.session-selected #text-input-btn {
     
     /* Hide sidebar by default on small heights */
     .terminal-sidebar {
+        --sidebar-mode: hidden;
         display: none !important;
     }
     
@@ -4253,6 +4255,7 @@ body.responsive-minimal .session-info-toolbar,
 body.responsive-minimal .terminal-tabs,
 body.responsive-minimal .terminal-tabs-bar,
 body.responsive-minimal .terminal-sidebar {
+    --sidebar-mode: hidden;
     display: none !important;
 }
 
@@ -4312,6 +4315,7 @@ body.responsive-window .terminal-header {
 
 /* Dedicated window: sidebar behaves like an overlay that slides in/out */
 body.responsive-window .terminal-sidebar {
+    --sidebar-mode: overlay;
     width: clamp(280px, 80vw, 420px);
     position: fixed;
     left: 0;
@@ -4324,8 +4328,15 @@ body.responsive-window .terminal-sidebar {
     transition: transform 0.3s ease;
     display: block !important; /* ensure visible in window mode */
 }
-body.responsive-window .terminal-sidebar.mobile-visible {
+body.responsive-window .terminal-sidebar.sidebar-hidden {
+    width: clamp(280px, 80vw, 420px);
+    border-right: 1px solid var(--border-color);
+}
+body.responsive-window .terminal-sidebar.sidebar-overlay-visible {
     transform: translateX(0);
+}
+body.responsive-window .mobile-sidebar-close {
+    display: flex !important;
 }
 
 /* Interactive elements within terminal header must not be draggable */
@@ -4446,7 +4457,7 @@ body.responsive-window #window-sidebar-toggle.toolbar-sidebar-toggle {
     /* Above dropdown-blocker-backdrop (1050) */
     z-index: 1201 !important;
 }
-.is-electron body.responsive-window .terminal-sidebar.mobile-visible {
+.is-electron body.responsive-window .terminal-sidebar.sidebar-overlay-visible {
     transform: translateX(0) !important;
 }
 
@@ -4463,7 +4474,50 @@ body.responsive-window #window-sidebar-toggle.toolbar-sidebar-toggle {
     z-index: 900;
     -webkit-app-region: no-drag;
 }
-body.mobile-sidebar-open #sidebar-backdrop { display: block; }
+body.sidebar-overlay-open #sidebar-backdrop { display: block; }
+
+/* Sidebar layout override: force overlay regardless of width */
+body[data-sidebar-layout="overlay"]:not(.responsive-minimal) .terminal-sidebar {
+    --sidebar-mode: overlay;
+    width: 100%;
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    height: var(--actual-viewport-height, 100dvh);
+    z-index: 1201;
+    pointer-events: auto;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+}
+body[data-sidebar-layout="overlay"]:not(.responsive-minimal) .terminal-sidebar.sidebar-hidden {
+    width: 100%;
+    border-right: 1px solid var(--border-color);
+}
+body[data-sidebar-layout="overlay"]:not(.responsive-minimal) .terminal-sidebar.sidebar-overlay-visible {
+    transform: translateX(0);
+}
+body[data-sidebar-layout="overlay"]:not(.responsive-minimal) .terminal-sidebar .sidebar-resizer {
+    display: none;
+}
+body[data-sidebar-layout="overlay"]:not(.responsive-minimal) .mobile-sidebar-close {
+    display: flex !important;
+}
+.is-electron body[data-sidebar-layout="overlay"]:not(.responsive-minimal) .terminal-sidebar {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    transform: translateX(-100%) !important;
+}
+.is-electron body[data-sidebar-layout="overlay"]:not(.responsive-minimal) .terminal-sidebar.sidebar-overlay-visible {
+    transform: translateX(0) !important;
+}
+.is-electron body[data-sidebar-layout="overlay"]:not(.responsive-minimal) .terminal-sidebar .sidebar-resizer {
+    display: none !important;
+}
 
 /* macOS traffic lights inset for dedicated window session info toolbar */
 .is-electron.platform-mac body.responsive-window .session-info-toolbar {
@@ -4497,6 +4551,7 @@ body.responsive-compact .session-tabs-container {
     }
     
     .terminal-sidebar {
+        --sidebar-mode: overlay;
         /* On mobile, width is forced to 100% regardless of saved size */
         width: 100%;
         position: fixed;
@@ -4510,13 +4565,31 @@ body.responsive-compact .session-tabs-container {
         transform: translateX(-100%);
         transition: transform 0.3s ease;
     }
+    .is-electron .terminal-sidebar {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        transform: translateX(-100%) !important;
+    }
+    .is-electron .terminal-sidebar.sidebar-overlay-visible {
+        transform: translateX(0) !important;
+    }
+    .terminal-sidebar.sidebar-hidden {
+        width: 100%;
+        border-right: 1px solid var(--border-color);
+    }
+    .is-electron .terminal-sidebar .sidebar-resizer {
+        display: none !important;
+    }
 
     /* Hide the desktop resize handle on mobile layout */
     .terminal-sidebar .sidebar-resizer {
         display: none;
     }
     
-    .terminal-sidebar.mobile-visible {
+    .terminal-sidebar.sidebar-overlay-visible {
         transform: translateX(0);
     }
     
@@ -4532,8 +4605,8 @@ body.responsive-compact .session-tabs-container {
         transition: opacity 0.3s ease, visibility 0.3s ease;
     }
     
-    body.mobile-sidebar-open .app-header,
-    body.mobile-sidebar-open .app-content {
+    body.sidebar-overlay-open .app-header,
+    body.sidebar-overlay-open .app-content {
         opacity: 0;
         visibility: hidden;
     }
