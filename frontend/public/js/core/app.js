@@ -47,12 +47,18 @@ class Application {
         this._secondaryAuthWaitTimer = null;
         this.isDedicatedWindow = false;
         this._secondaryOverlayEl = null;
+        this._sidebarToggleButtons = [];
 
         this.init();
     }
 
   async init() {
         authOrchestrator.initialize(this);
+        try {
+            if (window.desktop && window.desktop.isElectron) {
+                document.documentElement.classList.add('is-electron');
+            }
+        } catch (_) {}
         // Configure API service with correct base URL
         apiService.baseUrl = config.API_BASE_URL;
 
@@ -818,6 +824,93 @@ class Application {
         } catch (_) { /* ignore */ }
     }
 
+    isElectron() {
+        try {
+            return !!(window.desktop && window.desktop.isElectron) || document.documentElement.classList.contains('is-electron');
+        } catch (_) {
+            return false;
+        }
+    }
+
+    isSidebarOverlayMode() {
+        try {
+            if (document.body && document.body.classList.contains('responsive-window')) return true;
+            const sidebar = document.querySelector('.terminal-sidebar');
+            if (sidebar && typeof window.getComputedStyle === 'function') {
+                const pos = getComputedStyle(sidebar).position;
+                if (pos === 'fixed') return true;
+            }
+            return window.matchMedia('(max-width: 768px), (max-device-width: 768px), (orientation: portrait) and (max-width: 1024px)').matches;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    isSidebarOverlayOpen() {
+        const sidebar = document.querySelector('.terminal-sidebar');
+        const sidebarVisible = !!(sidebar && sidebar.classList.contains('mobile-visible'));
+        const bodyOpen = !!(document.body && document.body.classList.contains('mobile-sidebar-open'));
+        return sidebarVisible || bodyOpen;
+    }
+
+    updateSidebarToggleAria(expanded) {
+        const value = expanded ? 'true' : 'false';
+        let buttons = this._sidebarToggleButtons;
+        if (!Array.isArray(buttons) || buttons.length === 0) {
+            buttons = [
+                document.getElementById('mobile-sidebar-toggle'),
+                document.getElementById('toolbar-sidebar-toggle'),
+                document.getElementById('window-sidebar-toggle'),
+                document.getElementById('desktop-sidebar-toggle'),
+            ].filter(Boolean);
+            this._sidebarToggleButtons = buttons;
+        }
+        buttons.forEach((btn) => {
+            try { btn.setAttribute('aria-expanded', value); } catch (_) {}
+        });
+    }
+
+    syncSidebarOverlayState() {
+        const sidebar = document.querySelector('.terminal-sidebar');
+        if (!sidebar) return;
+        const overlayAllowed = this.isSidebarOverlayMode();
+        const isVisible = sidebar.classList.contains('mobile-visible');
+
+        if (!overlayAllowed) {
+            if (isVisible) {
+                sidebar.classList.remove('mobile-visible');
+            }
+            document.body.classList.remove('mobile-sidebar-open');
+            this.updateSidebarToggleAria(false);
+            return;
+        }
+
+        if (isVisible) {
+            document.body.classList.add('mobile-sidebar-open');
+            this.updateSidebarToggleAria(true);
+        } else {
+            document.body.classList.remove('mobile-sidebar-open');
+            this.updateSidebarToggleAria(false);
+        }
+    }
+
+    closeSidebarOverlay(options = {}) {
+        if (!this.isSidebarOverlayOpen()) return false;
+        this.hideMobileSidebar(options);
+        return true;
+    }
+
+    focusTerminalAfterSidebarClose() {
+        if (!this.isElectron()) return;
+        if (isAnyModalOpen()) return;
+        const session = this.modules?.terminal?.currentSession;
+        if (!session || typeof session.focus !== 'function') return;
+        setTimeout(() => {
+            if (isAnyModalOpen()) return;
+            try { session.focus(); } catch (_) {}
+        }, 120);
+    }
+
     setupMobileSidebar() {
         const toggleButton = document.getElementById('mobile-sidebar-toggle');
         const toolbarToggleButton = document.getElementById('toolbar-sidebar-toggle');
@@ -836,6 +929,13 @@ class Application {
             windowToggleButton.setAttribute('aria-expanded', 'false');
         }
 
+        this._sidebarToggleButtons = [
+            toggleButton,
+            toolbarToggleButton,
+            windowToggleButton,
+            document.getElementById('desktop-sidebar-toggle'),
+        ].filter(Boolean);
+
         if ((!toggleButton && !toolbarToggleButton && !windowToggleButton) || !sidebar) {
             return;
         }
@@ -843,15 +943,14 @@ class Application {
         // Don't auto-show sidebar on mobile - user should manually open it
 
         const handleToggleClick = () => {
+            if (!this.isSidebarOverlayMode()) return;
             const isVisible = sidebar.classList.contains('mobile-visible');
             if (isVisible) {
                 this.hideMobileSidebar();
             } else {
                 this.showMobileSidebar();
             }
-            try { toggleButton && toggleButton.setAttribute('aria-expanded', (!isVisible).toString()); } catch (_) {}
-            try { toolbarToggleButton && toolbarToggleButton.setAttribute('aria-expanded', (!isVisible).toString()); } catch (_) {}
-            try { windowToggleButton && windowToggleButton.setAttribute('aria-expanded', (!isVisible).toString()); } catch (_) {}
+            this.updateSidebarToggleAria(!isVisible);
             // Remove focus ring/highlight after click
             try { toggleButton && toggleButton.blur && toggleButton.blur(); } catch (_) {}
             try { toolbarToggleButton && toolbarToggleButton.blur && toolbarToggleButton.blur(); } catch (_) {}
@@ -869,9 +968,7 @@ class Application {
             backdrop.addEventListener('click', () => {
                 if (sidebar.classList.contains('mobile-visible')) {
                     this.hideMobileSidebar();
-                    try { toggleButton && toggleButton.setAttribute('aria-expanded', 'false'); } catch (_) {}
-                    try { toolbarToggleButton && toolbarToggleButton.setAttribute('aria-expanded', 'false'); } catch (_) {}
-                    try { windowToggleButton && windowToggleButton.setAttribute('aria-expanded', 'false'); } catch (_) {}
+                    this.updateSidebarToggleAria(false);
                 }
             });
         }
@@ -915,8 +1012,20 @@ class Application {
             if (isAnyModalOpen()) return;
             if (e.key === 'Escape' && sidebar.classList.contains('mobile-visible')) {
                 this.hideMobileSidebar();
+                try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
             }
+        }, true);
+
+        const syncOverlayState = () => {
+            this.syncSidebarOverlayState();
+        };
+        window.addEventListener('resize', syncOverlayState);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(syncOverlayState, 100);
         });
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', syncOverlayState);
+        }
 
         // Setup desktop sidebar toggle
         const desktopToggleButton = document.getElementById('desktop-sidebar-toggle');
@@ -926,6 +1035,10 @@ class Application {
             const isHidden = document.querySelector('.terminal-sidebar')?.classList.contains('sidebar-hidden');
             desktopToggleButton.setAttribute('aria-expanded', (!isHidden).toString());
             desktopToggleButton.addEventListener('click', () => {
+                if (this.isSidebarOverlayMode()) {
+                    handleToggleClick();
+                    return;
+                }
                 // Use the terminal manager's toggle function if available
                 if (this.modules.terminal && this.modules.terminal.toggleSidebar) {
                     this.modules.terminal.toggleSidebar();
@@ -937,20 +1050,35 @@ class Application {
                 }, 0);
             });
         }
+
+        this.syncSidebarOverlayState();
     }
 
     showMobileSidebar() {
         const sidebar = document.querySelector('.terminal-sidebar');
-        
+        if (!sidebar) return;
+        if (!this.isSidebarOverlayMode()) {
+            this.syncSidebarOverlayState();
+            return;
+        }
+
         sidebar.classList.add('mobile-visible');
         document.body.classList.add('mobile-sidebar-open');
+        this.updateSidebarToggleAria(true);
     }
 
-    hideMobileSidebar() {
+    hideMobileSidebar(options = {}) {
         const sidebar = document.querySelector('.terminal-sidebar');
-        
-        sidebar.classList.remove('mobile-visible');
+        const wasOpen = this.isSidebarOverlayOpen();
+
+        if (sidebar) {
+            sidebar.classList.remove('mobile-visible');
+        }
         document.body.classList.remove('mobile-sidebar-open');
+        this.updateSidebarToggleAria(false);
+        if (options.focusTerminal && wasOpen) {
+            this.focusTerminalAfterSidebarClose();
+        }
     }
 
     async handleSessionIdParameter() {

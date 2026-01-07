@@ -4324,8 +4324,15 @@ body.responsive-window .terminal-sidebar {
     transition: transform 0.3s ease;
     display: block !important; /* ensure visible in window mode */
 }
+body.responsive-window .terminal-sidebar.sidebar-hidden {
+    width: clamp(280px, 80vw, 420px);
+    border-right: 1px solid var(--border-color);
+}
 body.responsive-window .terminal-sidebar.mobile-visible {
     transform: translateX(0);
+}
+body.responsive-window .mobile-sidebar-close {
+    display: flex !important;
 }
 
 /* Interactive elements within terminal header must not be draggable */
@@ -4509,6 +4516,24 @@ body.responsive-compact .session-tabs-container {
         pointer-events: auto; /* Explicitly allow interaction */
         transform: translateX(-100%);
         transition: transform 0.3s ease;
+    }
+    .is-electron .terminal-sidebar {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        transform: translateX(-100%) !important;
+    }
+    .is-electron .terminal-sidebar.mobile-visible {
+        transform: translateX(0) !important;
+    }
+    .terminal-sidebar.sidebar-hidden {
+        width: 100%;
+        border-right: 1px solid var(--border-color);
+    }
+    .is-electron .terminal-sidebar .sidebar-resizer {
+        display: none !important;
     }
 
     /* Hide the desktop resize handle on mobile layout */

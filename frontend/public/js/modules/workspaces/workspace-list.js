@@ -117,10 +117,8 @@ export class WorkspaceList {
       this.setMode('detail');
       if (this.onSelect) this.onSelect(name);
       try {
-        if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
-          const app = getContext()?.app;
-          app?.hideMobileSidebar?.();
-        }
+        const app = getContext()?.app;
+        app?.closeSidebarOverlay?.();
       } catch (_) {}
     });
     // Context menu on workspace
@@ -154,9 +152,7 @@ export class WorkspaceList {
           const appRef = getContext()?.app;
           if (appRef?.modules?.history?.openInTerminalView) {
             appRef.modules.history.openInTerminalView(sid);
-            if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
-              appRef?.hideMobileSidebar?.();
-            }
+            appRef?.closeSidebarOverlay?.({ focusTerminal: true });
             return; // do not open standard terminal
           }
         }
@@ -170,10 +166,8 @@ export class WorkspaceList {
         tm?.selectSession?.(sid, { manualClick: true });
         // Ensure highlight re-applies after potential re-render
         try { setTimeout(() => { tm?.sessionList?.setActiveSession?.(sid); }, 0); } catch (_) {}
-        if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
-          const app = getContext()?.app;
-          app?.hideMobileSidebar?.();
-        }
+        const app = getContext()?.app;
+        app?.closeSidebarOverlay?.({ focusTerminal: true });
       } catch (_) {}
     });
     // Click on workspace notes indicator
@@ -963,12 +957,10 @@ export class WorkspaceList {
                     try { tm?.sessionList?.setActiveChildHighlight?.(sess.session_id, child.session_id); } catch (_) {}
                     // Workspace view highlight update
                     this.setActiveChildHighlight(sess.session_id, child.session_id);
-                    // Close the mobile sidebar overlay after navigation on small viewports
+                    // Close the sidebar overlay after navigation
                     try {
-                      if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
-                        const app = getContext()?.app;
-                        app?.hideMobileSidebar?.();
-                      }
+                      const app = getContext()?.app;
+                      app?.closeSidebarOverlay?.({ focusTerminal: true });
                     } catch (_) {}
                   } catch (err) {
                     console.error('[WorkspaceList] Error in child click handler:', err);

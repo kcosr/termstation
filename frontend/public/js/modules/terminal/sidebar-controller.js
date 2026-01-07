@@ -74,6 +74,14 @@ export class SidebarController {
 
   isMobileLayout() {
     // Keep in sync with CSS breakpoints
+    try {
+      if (document.body && document.body.classList.contains('responsive-window')) return true;
+      const sidebar = this.getSidebar();
+      if (sidebar && typeof window.getComputedStyle === 'function') {
+        const pos = getComputedStyle(sidebar).position;
+        if (pos === 'fixed') return true;
+      }
+    } catch (_) {}
     return window.matchMedia('(max-width: 768px), (max-device-width: 768px), (orientation: portrait) and (max-width: 1024px)').matches;
   }
 
