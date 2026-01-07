@@ -9288,17 +9288,38 @@ export class TerminalManager {
     /**
      * Toggle the sidebar visibility
      */
-    toggleSidebar() { this.sidebar.toggleSidebar(); }
+    toggleSidebar() {
+        const app = getContext()?.app;
+        if (app?.sidebarState?.toggle) {
+            app.sidebarState.toggle();
+            return;
+        }
+        this.sidebar.toggleSidebar();
+    }
 
     /**
      * Show the sidebar
      */
-    showSidebar() { this.sidebar.showSidebar(); }
+    showSidebar() {
+        const app = getContext()?.app;
+        if (app?.sidebarState?.isOverlayMode?.()) {
+            app.sidebarState.openOverlay();
+            return;
+        }
+        this.sidebar.showSidebar();
+    }
 
     /**
      * Hide the sidebar
      */
-    hideSidebar() { this.sidebar.hideSidebar(); }
+    hideSidebar() {
+        const app = getContext()?.app;
+        if (app?.sidebarState?.isOverlayMode?.()) {
+            app.sidebarState.closeOverlay();
+            return;
+        }
+        this.sidebar.hideSidebar();
+    }
     
     /**
      * Update CSS variables so other UI (notes editor) mirrors terminal font settings.

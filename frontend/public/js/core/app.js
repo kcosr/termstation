@@ -6,6 +6,7 @@
 import '../utils/logger.js';
 import { TerminalManager } from '../modules/terminal/manager.js';
 import { TabManager } from '../modules/terminal/tab-manager.js';
+import { SidebarStateController } from '../modules/terminal/sidebar-state-controller.js';
 import { HistoryPage } from '../modules/history/history-page.js';
 import { ContainersPage } from '../modules/containers/containers-page.js';
 import { websocketService } from '../services/websocket.service.js';
@@ -47,7 +48,19 @@ class Application {
         this._secondaryAuthWaitTimer = null;
         this.isDedicatedWindow = false;
         this._secondaryOverlayEl = null;
-        this._sidebarToggleButtons = [];
+        this.sidebarState = new SidebarStateController({
+            onToggleDocked: () => {
+                try { this.modules?.terminal?.sidebar?.toggleSidebar?.(); } catch (_) {}
+            },
+            onAfterClose: () => {
+                this.focusTerminalAfterSidebarClose();
+            },
+            onDockedSync: () => {
+                try { this.modules?.terminal?.sidebar?.syncDockedState?.(); } catch (_) {}
+            },
+            isDedicatedWindow: () => this.isDedicatedWindow,
+            shouldIgnoreGlobalToggle: () => !!this.modules?.terminal
+        });
 
         this.init();
     }
@@ -832,74 +845,6 @@ class Application {
         }
     }
 
-    isSidebarOverlayMode() {
-        try {
-            if (document.body && document.body.classList.contains('responsive-window')) return true;
-            const sidebar = document.querySelector('.terminal-sidebar');
-            if (sidebar && typeof window.getComputedStyle === 'function') {
-                const pos = getComputedStyle(sidebar).position;
-                if (pos === 'fixed') return true;
-            }
-            return window.matchMedia('(max-width: 768px), (max-device-width: 768px), (orientation: portrait) and (max-width: 1024px)').matches;
-        } catch (_) {
-            return false;
-        }
-    }
-
-    isSidebarOverlayOpen() {
-        const sidebar = document.querySelector('.terminal-sidebar');
-        const sidebarVisible = !!(sidebar && sidebar.classList.contains('mobile-visible'));
-        const bodyOpen = !!(document.body && document.body.classList.contains('mobile-sidebar-open'));
-        return sidebarVisible || bodyOpen;
-    }
-
-    updateSidebarToggleAria(expanded) {
-        const value = expanded ? 'true' : 'false';
-        let buttons = this._sidebarToggleButtons;
-        if (!Array.isArray(buttons) || buttons.length === 0) {
-            buttons = [
-                document.getElementById('mobile-sidebar-toggle'),
-                document.getElementById('toolbar-sidebar-toggle'),
-                document.getElementById('window-sidebar-toggle'),
-                document.getElementById('desktop-sidebar-toggle'),
-            ].filter(Boolean);
-            this._sidebarToggleButtons = buttons;
-        }
-        buttons.forEach((btn) => {
-            try { btn.setAttribute('aria-expanded', value); } catch (_) {}
-        });
-    }
-
-    syncSidebarOverlayState() {
-        const sidebar = document.querySelector('.terminal-sidebar');
-        if (!sidebar) return;
-        const overlayAllowed = this.isSidebarOverlayMode();
-        const isVisible = sidebar.classList.contains('mobile-visible');
-
-        if (!overlayAllowed) {
-            if (isVisible) {
-                sidebar.classList.remove('mobile-visible');
-            }
-            document.body.classList.remove('mobile-sidebar-open');
-            this.updateSidebarToggleAria(false);
-            return;
-        }
-
-        if (isVisible) {
-            document.body.classList.add('mobile-sidebar-open');
-            this.updateSidebarToggleAria(true);
-        } else {
-            document.body.classList.remove('mobile-sidebar-open');
-            this.updateSidebarToggleAria(false);
-        }
-    }
-
-    closeSidebarOverlay(options = {}) {
-        if (!this.isSidebarOverlayOpen()) return false;
-        this.hideMobileSidebar(options);
-        return true;
-    }
-
     focusTerminalAfterSidebarClose() {
         if (!this.isElectron()) return;
         if (isAnyModalOpen()) return;
@@ -912,173 +857,27 @@ class Application {
     }
 
     setupMobileSidebar() {
-        const toggleButton = document.getElementById('mobile-sidebar-toggle');
-        const toolbarToggleButton = document.getElementById('toolbar-sidebar-toggle');
-        const windowToggleButton = document.getElementById('window-sidebar-toggle');
-        const sidebar = document.querySelector('.terminal-sidebar');
-        if (toggleButton) {
-            toggleButton.setAttribute('aria-controls', 'terminal-sidebar');
-            toggleButton.setAttribute('aria-expanded', 'false');
-        }
-        if (toolbarToggleButton) {
-            toolbarToggleButton.setAttribute('aria-controls', 'terminal-sidebar');
-            toolbarToggleButton.setAttribute('aria-expanded', 'false');
-        }
-        if (windowToggleButton) {
-            windowToggleButton.setAttribute('aria-controls', 'terminal-sidebar');
-            windowToggleButton.setAttribute('aria-expanded', 'false');
-        }
+        this.sidebarState?.init();
+    }
 
-        this._sidebarToggleButtons = [
-            toggleButton,
-            toolbarToggleButton,
-            windowToggleButton,
-            document.getElementById('desktop-sidebar-toggle'),
-        ].filter(Boolean);
+    isSidebarOverlayMode() {
+        return this.sidebarState?.isOverlayMode?.() === true;
+    }
 
-        if ((!toggleButton && !toolbarToggleButton && !windowToggleButton) || !sidebar) {
-            return;
-        }
+    isSidebarOverlayOpen() {
+        return this.sidebarState?.isOverlayOpen?.() === true;
+    }
 
-        // Don't auto-show sidebar on mobile - user should manually open it
-
-        const handleToggleClick = () => {
-            if (!this.isSidebarOverlayMode()) return;
-            const isVisible = sidebar.classList.contains('mobile-visible');
-            if (isVisible) {
-                this.hideMobileSidebar();
-            } else {
-                this.showMobileSidebar();
-            }
-            this.updateSidebarToggleAria(!isVisible);
-            // Remove focus ring/highlight after click
-            try { toggleButton && toggleButton.blur && toggleButton.blur(); } catch (_) {}
-            try { toolbarToggleButton && toolbarToggleButton.blur && toolbarToggleButton.blur(); } catch (_) {}
-            try { windowToggleButton && windowToggleButton.blur && windowToggleButton.blur(); } catch (_) {}
-        };
-
-        // Toggle sidebar on button click(s)
-        if (toggleButton) toggleButton.addEventListener('click', handleToggleClick);
-        if (toolbarToggleButton) toolbarToggleButton.addEventListener('click', handleToggleClick);
-        if (windowToggleButton) windowToggleButton.addEventListener('click', handleToggleClick);
-
-        // Backdrop click closes overlay
-        const backdrop = document.getElementById('sidebar-backdrop');
-        if (backdrop) {
-            backdrop.addEventListener('click', () => {
-                if (sidebar.classList.contains('mobile-visible')) {
-                    this.hideMobileSidebar();
-                    this.updateSidebarToggleAria(false);
-                }
-            });
-        }
-
-        // Fallback keyboard handler for dedicated window if global shortcut is unavailable
-        try {
-            const params = new URLSearchParams(window.location.search || '');
-            const isDedicated = (params.get('window') === '1') || ((params.get('ui') || '').toLowerCase() === 'window');
-            if (isDedicated) {
-                document.addEventListener('keydown', (e) => {
-                    // Toggle on Shift+Meta+? or Shift+Alt+? or Shift+Ctrl+?
-                    // Use Slash code with Shift to represent '?'
-                    const isQMark = (e.code === 'Slash');
-                    if (!isQMark) return;
-                    if (!e.shiftKey) return;
-                    if (!(e.metaKey || e.altKey || e.ctrlKey)) return;
-                    // Avoid conflicting with TerminalManager's own shortcuts or quick-open overlay
-                    try {
-                        const overlay = document.getElementById('template-quick-open-modal');
-                        const overlayOpen = !!(overlay && overlay.classList && overlay.classList.contains('show'));
-                        if (this.modules && this.modules.terminal) return; // let KeyboardShortcuts handle it
-                        if (overlayOpen) return; // don't intercept while quick-open is visible
-                    } catch (_) { /* ignore */ }
-                    try { e.preventDefault(); } catch (_) {}
-                    try { e.stopPropagation(); } catch (_) {}
-                    handleToggleClick();
-                }, true);
-            }
-        } catch (_) { /* ignore */ }
-
-        // Close sidebar when X button is clicked
-        const closeButton = document.getElementById('mobile-sidebar-close');
-        if (closeButton) {
-            closeButton.addEventListener('click', () => {
-                this.hideMobileSidebar();
-            });
-        }
-
-        // Hide sidebar on escape key (but not while a modal is open)
-        document.addEventListener('keydown', (e) => {
-            if (isAnyModalOpen()) return;
-            if (e.key === 'Escape' && sidebar.classList.contains('mobile-visible')) {
-                this.hideMobileSidebar();
-                try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-            }
-        }, true);
-
-        const syncOverlayState = () => {
-            this.syncSidebarOverlayState();
-        };
-        window.addEventListener('resize', syncOverlayState);
-        window.addEventListener('orientationchange', () => {
-            setTimeout(syncOverlayState, 100);
-        });
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', syncOverlayState);
-        }
-
-        // Setup desktop sidebar toggle
-        const desktopToggleButton = document.getElementById('desktop-sidebar-toggle');
-        if (desktopToggleButton) {
-            desktopToggleButton.setAttribute('aria-controls', 'terminal-sidebar');
-            // initial state based on visibility
-            const isHidden = document.querySelector('.terminal-sidebar')?.classList.contains('sidebar-hidden');
-            desktopToggleButton.setAttribute('aria-expanded', (!isHidden).toString());
-            desktopToggleButton.addEventListener('click', () => {
-                if (this.isSidebarOverlayMode()) {
-                    handleToggleClick();
-                    return;
-                }
-                // Use the terminal manager's toggle function if available
-                if (this.modules.terminal && this.modules.terminal.toggleSidebar) {
-                    this.modules.terminal.toggleSidebar();
-                }
-                // Update aria-expanded after a tick to reflect class changes
-                setTimeout(() => {
-                    const hidden = document.querySelector('.terminal-sidebar')?.classList.contains('sidebar-hidden');
-                    desktopToggleButton.setAttribute('aria-expanded', (!hidden).toString());
-                }, 0);
-            });
-        }
-
-        this.syncSidebarOverlayState();
+    closeSidebarOverlay(options = {}) {
+        return this.sidebarState?.closeOverlay?.(options) === true;
     }
 
     showMobileSidebar() {
-        const sidebar = document.querySelector('.terminal-sidebar');
-        if (!sidebar) return;
-        if (!this.isSidebarOverlayMode()) {
-            this.syncSidebarOverlayState();
-            return;
-        }
-
-        sidebar.classList.add('mobile-visible');
-        document.body.classList.add('mobile-sidebar-open');
-        this.updateSidebarToggleAria(true);
+        this.sidebarState?.openOverlay?.();
     }
 
     hideMobileSidebar(options = {}) {
-        const sidebar = document.querySelector('.terminal-sidebar');
-        const wasOpen = this.isSidebarOverlayOpen();
-
-        if (sidebar) {
-            sidebar.classList.remove('mobile-visible');
-        }
-        document.body.classList.remove('mobile-sidebar-open');
-        this.updateSidebarToggleAria(false);
-        if (options.focusTerminal && wasOpen) {
-            this.focusTerminalAfterSidebarClose();
-        }
+        this.sidebarState?.closeOverlay?.(options);
     }
 
     async handleSessionIdParameter() {
