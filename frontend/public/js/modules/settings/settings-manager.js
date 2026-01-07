@@ -30,6 +30,7 @@ export class SettingsManager {
         this._removeSystemThemeListener = null;
         this._lastAppliedTheme = document.documentElement.getAttribute('data-theme') || null;
         this._unsubscribeLinksPrefs = null;
+        this._unsubscribeSidebarLayoutPref = null;
         this.defaultSessionTabMaxWidth = 200;
         this.minSessionTabMaxWidth = 100;
         this.maxSessionTabMaxWidth = 800;
@@ -67,6 +68,16 @@ export class SettingsManager {
                 this.applySessionTabMaxWidth(width);
                 this.updateSessionTabMaxWidthValue(width);
             });
+        } catch (_) {}
+
+        try {
+            this._unsubscribeSidebarLayoutPref = appStore.subscribe('preferences.display.sidebarLayout', (layout) => {
+                this.applySidebarLayout(layout || 'auto');
+            });
+        } catch (_) {}
+
+        try {
+            this.applySidebarLayout(appStore.getState('preferences.display.sidebarLayout') || 'auto');
         } catch (_) {}
 
         // (removed debug theme observer)
@@ -315,6 +326,7 @@ export class SettingsManager {
             displayShowActivityIndicator: document.getElementById('display-show-activity-indicator'),
             displayCloseSendTextOnSubmit: document.getElementById('display-close-send-text-on-submit'),
             displayShowContainerShellsInSidebar: document.getElementById('display-show-container-shells-in-sidebar'),
+            displaySidebarLayout: document.getElementById('display-sidebar-layout'),
 
             // Theme settings
             appTheme: document.getElementById('app-theme'),
@@ -1060,6 +1072,12 @@ export class SettingsManager {
                 ctx?.app?.modules?.terminal?.refreshSidebarChildrenForPreference?.();
             } catch (_) {}
         });
+        // Display: force sidebar overlay layout
+        this.elements.displaySidebarLayout?.addEventListener('change', (e) => {
+            const layout = (e.target.value === 'overlay') ? 'overlay' : 'auto';
+            try { appStore.setPath('preferences.display.sidebarLayout', layout); } catch (_) {}
+            this.applySidebarLayout(layout);
+        });
 
         // Links settings - apply immediately for responsiveness
         this.elements.linksSearchRevealGroup?.addEventListener('change', (e) => {
@@ -1633,6 +1651,11 @@ export class SettingsManager {
         if (this.elements.displayShowContainerShellsInSidebar) {
             this.elements.displayShowContainerShellsInSidebar.checked = state.preferences?.display?.showContainerShellsInSidebar === true;
         }
+        if (this.elements.displaySidebarLayout) {
+            const layout = state.preferences?.display?.sidebarLayout || 'auto';
+            this.elements.displaySidebarLayout.value = layout;
+            this.applySidebarLayout(layout);
+        }
         if (this.elements.appFontFamily) {
             const ff = state.preferences?.display?.appFontFamily || uiFonts.getDefault();
             this.elements.appFontFamily.value = ff;
@@ -1933,7 +1956,10 @@ export class SettingsManager {
                         showActivityIndicator: this.elements.displayShowActivityIndicator?.checked !== false,
                         closeSendTextOnSubmit: this.elements.displayCloseSendTextOnSubmit?.checked === true,
                         showContainerShellsInSidebar: this.elements.displayShowContainerShellsInSidebar?.checked === true,
-                        appFontFamily: this.elements.appFontFamily?.value || uiFonts.getDefault()
+                        appFontFamily: this.elements.appFontFamily?.value || uiFonts.getDefault(),
+                        sidebarLayout: (this.elements.displaySidebarLayout?.value
+                            || currentState.preferences?.display?.sidebarLayout
+                            || 'auto')
                     },
                     notes: {
                         showSessionTab: this.elements.notesShowSessionTab?.checked ?? true,
@@ -2131,7 +2157,8 @@ export class SettingsManager {
                 },
                 display: {
                     showActivityIndicator: true,
-                    showContainerShellsInSidebar: false
+                    showContainerShellsInSidebar: false,
+                    sidebarLayout: 'auto'
                 },
                 links: {
                     searchRevealGroupLinks: true,
@@ -2248,6 +2275,26 @@ export class SettingsManager {
             if (root && typeof fontFamily === 'string' && fontFamily.trim()) {
                 root.style.setProperty('--app-font-family', fontFamily);
             }
+        } catch (_) {
+            // Non-fatal
+        }
+    }
+
+    /**
+     * Apply the sidebar layout override to the document.
+     * @param {string} layout
+     */
+    applySidebarLayout(layout) {
+        try {
+            const body = document.body;
+            if (!body) return;
+            if (layout === 'overlay') {
+                body.setAttribute('data-sidebar-layout', 'overlay');
+            } else {
+                body.removeAttribute('data-sidebar-layout');
+            }
+            const app = getContext()?.app;
+            app?.sidebarState?.syncMode?.();
         } catch (_) {
             // Non-fatal
         }
