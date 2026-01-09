@@ -1,0 +1,13 @@
+{
+	"name": "termstation",
+	"private": true,
+	"scripts": {
+		"release:patch": "node scripts/release.mjs patch",
+		"release:minor": "node scripts/release.mjs minor",
+		"release:major": "node scripts/release.mjs major",
+		"version": "node scripts/bump-version.js",
+		"version:patch": "node scripts/bump-version.js patch",
+		"version:minor": "node scripts/bump-version.js minor",
+		"version:major": "node scripts/bump-version.js major"
+	}
+}
