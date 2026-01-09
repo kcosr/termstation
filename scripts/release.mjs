@@ -141,7 +141,7 @@ console.log();
 
 // 5. Push
 console.log("Pushing to remote...");
-run("git push");
+run("git push origin main");
 run(`git push origin v${version}`);
 console.log();
 
@@ -163,7 +163,7 @@ console.log();
 console.log("Committing changelog update...");
 run("git add CHANGELOG.md");
 run('git commit -m "Prepare for next release"');
-run("git push");
+run("git push origin main");
 console.log();
 
 console.log(`=== Released v${version} ===`);
