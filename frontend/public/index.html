@@ -888,6 +888,24 @@
                     #settings-modal .notifications-levels-table input[type="checkbox"] {
                         transform: translateY(1px);
                     }
+                    #settings-modal .session-badge-rules-list {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+                    #settings-modal .session-badge-rule-row {
+                        display: grid;
+                        grid-template-columns: auto 1.6fr 1fr auto auto;
+                        gap: 8px;
+                        align-items: center;
+                    }
+                    #settings-modal .session-badge-rule-row input[type="text"] {
+                        min-width: 0;
+                    }
+                    #settings-modal .session-badge-preview {
+                        display: inline-block;
+                        margin-top: 4px;
+                    }
                     
                 </style>
                 <div class="settings-layout">
@@ -901,6 +919,7 @@
                             <button type="button" class="settings-nav-button" data-section="links">Links</button>
                             <button type="button" class="settings-nav-button" data-section="notes">Notes</button>
                             <button type="button" class="settings-nav-button active" data-section="notifications">Notifications</button>
+                            <button type="button" class="settings-nav-button" data-section="session-badges">Session Badges</button>
                             <button type="button" class="settings-nav-button" data-section="terminal">Terminal</button>
                         </div>
                     </nav>
@@ -1024,6 +1043,36 @@
                                             <label for="terminal-collapse-naked-rgb">Collapse malformed rgb payload runs</label>
                                         </div>
                                         <small class="form-help">Hide repeated rgb:… artifacts when OSC introducers are missing.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-panel" data-section="session-badges">
+                                <div class="settings-section">
+                                    <h3>Session Badges</h3>
+                                    <div class="form-group">
+                                        <div class="checkbox-wrapper">
+                                            <input type="checkbox" id="session-badges-enabled">
+                                            <label for="session-badges-enabled">Enable dynamic badge rules</label>
+                                        </div>
+                                        <small class="form-help">Apply regex rules to remote session dynamic titles.</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="session-badge-test-title">Test Dynamic Title</label>
+                                        <input type="text" id="session-badge-test-title" placeholder="e.g. codex /home/kevin/worktrees">
+                                        <small class="form-help">Rule matching is first-hit wins from top to bottom.</small>
+                                        <span id="session-badge-test-preview" class="template-badge session-badge-preview">No match</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Rules</label>
+                                        <div id="session-badge-rules-list" class="session-badge-rules-list"></div>
+                                        <div style="display:flex; gap:8px; margin-top:8px;">
+                                            <button type="button" class="btn btn-secondary" id="session-badge-add-rule">Add Rule</button>
+                                            <button type="button" class="btn btn-secondary" id="session-badge-export-rules">Export Rules</button>
+                                            <button type="button" class="btn" id="session-badge-import-rules">Import Rules</button>
+                                            <input type="file" id="session-badge-import-input" accept="application/json" style="display:none;" />
+                                        </div>
+                                        <small class="form-help">Each rule has regex, badge text, and color. Leave text blank to use capture group 1.</small>
                                     </div>
                                 </div>
                             </div>

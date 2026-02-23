@@ -15,6 +15,12 @@ import { getEffectiveTheme, onSystemThemeChange } from '../../utils/theme-utils.
 import { uiFonts } from '../../utils/ui-fonts.js';
 import { apiService } from '../../services/api.service.js';
 import { ConfirmationModal } from '../ui/modal.js';
+import { parseColor, getContrastColor } from '../../utils/color-utils.js';
+import {
+    createDefaultSessionBadgeRule,
+    normalizeSessionBadgePreferences,
+    resolveSessionBadgeRule
+} from '../../utils/session-badge-rules.js';
 import {
     applyProfileThemeOverride,
     computeThemePersistence,
@@ -116,6 +122,15 @@ export class SettingsManager {
         } catch (_) {
             return false;
         }
+    }
+
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     // Apply small forward-only migrations to user settings
@@ -312,6 +327,14 @@ export class SettingsManager {
             terminalCollapseNakedRgb: document.getElementById('terminal-collapse-naked-rgb'),
             terminalAutoAttachOnSelect: document.getElementById('terminal-auto-attach-on-select'),
             dynamicTitleMode: document.getElementById('dynamic-title-mode'),
+            sessionBadgesEnabled: document.getElementById('session-badges-enabled'),
+            sessionBadgeRulesList: document.getElementById('session-badge-rules-list'),
+            sessionBadgeAddRule: document.getElementById('session-badge-add-rule'),
+            sessionBadgeExportRules: document.getElementById('session-badge-export-rules'),
+            sessionBadgeImportRules: document.getElementById('session-badge-import-rules'),
+            sessionBadgeImportInput: document.getElementById('session-badge-import-input'),
+            sessionBadgeTestTitle: document.getElementById('session-badge-test-title'),
+            sessionBadgeTestPreview: document.getElementById('session-badge-test-preview'),
 
             // Links settings
             linksSearchRevealGroup: document.getElementById('links-search-reveal-group'),
@@ -540,6 +563,132 @@ export class SettingsManager {
             this._fontsLoading = false;
             console.warn('[Settings] Failed to enumerate installed fonts:', e);
         }
+    }
+
+    sanitizeSessionBadgePrefs(rawPrefs) {
+        try {
+            return normalizeSessionBadgePreferences(rawPrefs);
+        } catch (_) {
+            return { enabled: false, rules: [] };
+        }
+    }
+
+    getSessionBadgeRulesFromUI() {
+        const list = this.elements.sessionBadgeRulesList;
+        if (!list) return [];
+        const rows = Array.from(list.querySelectorAll('.session-badge-rule-row'));
+        return rows.map((row, idx) => {
+            const enabled = row.querySelector('.session-badge-rule-enabled')?.checked !== false;
+            const pattern = (row.querySelector('.session-badge-rule-pattern')?.value || '').trim();
+            const badgeText = (row.querySelector('.session-badge-rule-label')?.value || '').trim();
+            const color = (row.querySelector('.session-badge-rule-color')?.value || '').trim();
+            const id = row.dataset.ruleId || `rule-${idx + 1}`;
+            return { id, enabled, pattern, badgeText, color };
+        }).filter((rule) => !!rule.pattern);
+    }
+
+    getSessionBadgePrefsFromUI() {
+        return this.sanitizeSessionBadgePrefs({
+            enabled: this.elements.sessionBadgesEnabled?.checked === true,
+            rules: this.getSessionBadgeRulesFromUI()
+        });
+    }
+
+    applySessionBadgePrefs(prefs, options = {}) {
+        const normalized = this.sanitizeSessionBadgePrefs(prefs || {});
+        if (this.elements.sessionBadgesEnabled) {
+            this.elements.sessionBadgesEnabled.checked = normalized.enabled === true;
+        }
+        this.renderSessionBadgeRules(normalized.rules);
+        try { appStore.setPath('preferences.sessionBadges', normalized); } catch (_) {}
+        if (options.refreshUi !== false) {
+            try {
+                const ctx = getContext();
+                const tm = ctx?.app?.modules?.terminal;
+                tm?.scheduleSessionSidebarRefresh?.();
+                tm?.refreshHeaderForSession?.(tm?.currentSessionId || null);
+                ctx?.app?.modules?.workspaceList?.render?.();
+            } catch (_) {}
+        }
+        return normalized;
+    }
+
+    updateSessionBadgeTestPreview() {
+        const previewEl = this.elements.sessionBadgeTestPreview;
+        if (!previewEl) return;
+        const enabled = this.elements.sessionBadgesEnabled?.checked === true;
+        const dynamicTitle = (this.elements.sessionBadgeTestTitle?.value || '').trim();
+        const rules = this.getSessionBadgeRulesFromUI();
+
+        const prefs = this.sanitizeSessionBadgePrefs({ enabled, rules });
+        const match = resolveSessionBadgeRule({ local_only: false, dynamic_title: dynamicTitle }, { preferences: prefs });
+
+        if (!enabled) {
+            previewEl.textContent = 'Rules disabled';
+            previewEl.style.backgroundColor = '';
+            previewEl.style.color = '';
+            previewEl.style.borderColor = '';
+            return;
+        }
+
+        if (!match) {
+            previewEl.textContent = 'No match';
+            previewEl.style.backgroundColor = '';
+            previewEl.style.color = '';
+            previewEl.style.borderColor = '';
+            return;
+        }
+
+        previewEl.textContent = match.label;
+        const parsedColor = parseColor(match.color || '#f5f5f5');
+        if (parsedColor) {
+            previewEl.style.backgroundColor = parsedColor;
+            previewEl.style.color = getContrastColor(parsedColor);
+            previewEl.style.borderColor = parsedColor;
+        } else {
+            previewEl.style.backgroundColor = '';
+            previewEl.style.color = '';
+            previewEl.style.borderColor = '';
+        }
+    }
+
+    createSessionBadgeRuleRow(rule = null) {
+        const normalized = this.sanitizeSessionBadgePrefs({ enabled: true, rules: [rule || createDefaultSessionBadgeRule()] }).rules[0]
+            || createDefaultSessionBadgeRule();
+        const colorValue = parseColor(normalized.color || '') || '#f5f5f5';
+        const row = document.createElement('div');
+        row.className = 'session-badge-rule-row';
+        row.dataset.ruleId = normalized.id;
+        row.innerHTML = `
+            <input type="checkbox" class="session-badge-rule-enabled" title="Enable rule" ${normalized.enabled ? 'checked' : ''}>
+            <input type="text" class="session-badge-rule-pattern" placeholder="Regex pattern" value="${this.escapeHtml(normalized.pattern)}" aria-label="Regex pattern">
+            <input type="text" class="session-badge-rule-label" placeholder="Badge text (or capture group 1)" value="${this.escapeHtml(normalized.badgeText)}" aria-label="Badge text">
+            <input type="color" class="session-badge-rule-color" value="${this.escapeHtml(colorValue)}" title="Badge color" aria-label="Badge color">
+            <button type="button" class="btn btn-danger session-badge-rule-remove">Remove</button>
+        `;
+
+        const onChange = () => this.updateSessionBadgeTestPreview();
+        row.querySelector('.session-badge-rule-enabled')?.addEventListener('change', onChange);
+        row.querySelector('.session-badge-rule-pattern')?.addEventListener('input', onChange);
+        row.querySelector('.session-badge-rule-label')?.addEventListener('input', onChange);
+        row.querySelector('.session-badge-rule-color')?.addEventListener('input', onChange);
+        row.querySelector('.session-badge-rule-remove')?.addEventListener('click', () => {
+            try { row.remove(); } catch (_) {}
+            this.updateSessionBadgeTestPreview();
+        });
+
+        return row;
+    }
+
+    renderSessionBadgeRules(rules = []) {
+        const list = this.elements.sessionBadgeRulesList;
+        if (!list) return;
+        list.innerHTML = '';
+        const normalizedRules = this.sanitizeSessionBadgePrefs({ enabled: true, rules }).rules;
+        normalizedRules.forEach((rule) => {
+            list.appendChild(this.createSessionBadgeRuleRow(rule));
+        });
+        this.updateSessionBadgeTestPreview();
     }
 
     /**
@@ -1045,6 +1194,30 @@ export class SettingsManager {
             const mode = e.target.value || 'ifUnset';
             try { appStore.setPath('preferences.terminal.dynamicTitleMode', mode); } catch (_) {}
         });
+        this.elements.sessionBadgesEnabled?.addEventListener('change', (e) => {
+            try { appStore.setPath('preferences.sessionBadges.enabled', !!e.target.checked); } catch (_) {}
+            this.updateSessionBadgeTestPreview();
+        });
+        this.elements.sessionBadgeAddRule?.addEventListener('click', () => {
+            try {
+                this.elements.sessionBadgeRulesList?.appendChild(this.createSessionBadgeRuleRow(createDefaultSessionBadgeRule()));
+                this.updateSessionBadgeTestPreview();
+            } catch (_) {}
+        });
+        this.elements.sessionBadgeExportRules?.addEventListener('click', () => {
+            this.exportSessionBadgeRulesToFile();
+        });
+        this.elements.sessionBadgeImportRules?.addEventListener('click', () => {
+            this.elements.sessionBadgeImportInput?.click();
+        });
+        this.elements.sessionBadgeImportInput?.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) this.importSessionBadgeRulesFromFile(file);
+            e.target.value = '';
+        });
+        this.elements.sessionBadgeTestTitle?.addEventListener('input', () => {
+            this.updateSessionBadgeTestPreview();
+        });
 
         // Display settings - apply immediately
         this.elements.displayShowActivityIndicator?.addEventListener('change', (e) => {
@@ -1182,6 +1355,7 @@ export class SettingsManager {
                         showSessionTab: this.coerceBoolDefaultTrue(notesPrefs.showSessionTab),
                         showWorkspaceTab: this.coerceBoolDefaultTrue(notesPrefs.showWorkspaceTab)
                     };
+                    settings.preferences.sessionBadges = this.sanitizeSessionBadgePrefs(settings.preferences.sessionBadges || {});
                 }
                 if (settings.preferences) {
                     // Merge into existing preferences to preserve defaults for new keys (e.g., display.showActivityIndicator)
@@ -1191,6 +1365,7 @@ export class SettingsManager {
                         // Ensure nested objects preserve existing defaults when missing in saved settings
                         if (settings.preferences.links) merged.links = settings.preferences.links;
                         if (settings.preferences.notes) merged.notes = settings.preferences.notes;
+                        if (settings.preferences.sessionBadges) merged.sessionBadges = settings.preferences.sessionBadges;
                         merged.display = { ...(existing.display || {}), ...(settings.preferences.display || {}) };
                         appStore.setState({ preferences: merged });
                     } catch (_) {
@@ -1242,6 +1417,7 @@ export class SettingsManager {
                     showSessionTab: this.coerceBoolDefaultTrue(notesPrefs.showSessionTab),
                     showWorkspaceTab: this.coerceBoolDefaultTrue(notesPrefs.showWorkspaceTab)
                 };
+                settings.preferences.sessionBadges = this.sanitizeSessionBadgePrefs(settings.preferences.sessionBadges || {});
             }
             if (settings.preferences) {
                 try {
@@ -1249,6 +1425,7 @@ export class SettingsManager {
                     const merged = { ...existing, ...settings.preferences };
                     if (settings.preferences.links) merged.links = settings.preferences.links;
                     if (settings.preferences.notes) merged.notes = settings.preferences.notes;
+                    if (settings.preferences.sessionBadges) merged.sessionBadges = settings.preferences.sessionBadges;
                     merged.display = { ...(existing.display || {}), ...(settings.preferences.display || {}) };
                     appStore.setState({ preferences: merged });
                 } catch (_) {
@@ -1362,6 +1539,66 @@ export class SettingsManager {
             console.log('[Settings] Settings persisted');
         } catch (error) {
             console.error('[Settings] Error saving settings:', error);
+        }
+    }
+
+    exportSessionBadgeRulesToFile() {
+        try {
+            const payload = this.getSessionBadgePrefsFromUI();
+            const data = JSON.stringify(payload, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'session-badge-rules.json';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 0);
+        } catch (e) {
+            console.error('[Settings] Failed to export session badge rules:', e);
+            notificationDisplay?.show?.({
+                notification_type: 'error',
+                title: 'Export Failed',
+                message: 'Could not export session badge rules.',
+                timestamp: new Date().toISOString()
+            }, { duration: 5000 });
+        }
+    }
+
+    async importSessionBadgeRulesFromFile(file) {
+        try {
+            const text = await file.text();
+            const json = JSON.parse(text);
+
+            let source = null;
+            if (json && typeof json === 'object' && (Object.prototype.hasOwnProperty.call(json, 'enabled') || Array.isArray(json.rules))) {
+                source = json;
+            } else if (json?.sessionBadges && typeof json.sessionBadges === 'object') {
+                source = json.sessionBadges;
+            } else if (json?.preferences?.sessionBadges && typeof json.preferences.sessionBadges === 'object') {
+                source = json.preferences.sessionBadges;
+            } else {
+                throw new Error('invalid-session-badge-rules-format');
+            }
+
+            const normalized = this.applySessionBadgePrefs(source, { refreshUi: true });
+            notificationDisplay?.show?.({
+                notification_type: 'success',
+                title: 'Rules Imported',
+                message: `Imported ${normalized.rules.length} session badge rule${normalized.rules.length === 1 ? '' : 's'}. Click Save to persist.`,
+                timestamp: new Date().toISOString()
+            }, { duration: 4500 });
+        } catch (e) {
+            console.error('[Settings] Failed to import session badge rules:', e);
+            notificationDisplay?.show?.({
+                notification_type: 'error',
+                title: 'Import Failed',
+                message: 'Invalid or corrupted session badge rules file.',
+                timestamp: new Date().toISOString()
+            }, { duration: 6000 });
         }
     }
 
@@ -1640,6 +1877,12 @@ export class SettingsManager {
         if (this.elements.dynamicTitleMode) {
             this.elements.dynamicTitleMode.value = state.preferences?.terminal?.dynamicTitleMode ?? 'ifUnset';
         }
+        // Session badge rules
+        const badgePrefs = this.sanitizeSessionBadgePrefs(state.preferences?.sessionBadges || {});
+        if (this.elements.sessionBadgesEnabled) {
+            this.elements.sessionBadgesEnabled.checked = badgePrefs.enabled === true;
+        }
+        this.renderSessionBadgeRules(badgePrefs.rules);
 
         // Display settings
         if (this.elements.displayShowActivityIndicator) {
@@ -1941,6 +2184,10 @@ export class SettingsManager {
                         collapseNakedRgbRuns: this.elements.terminalCollapseNakedRgb?.checked !== false,
                         autoAttachOnSelect: this.elements.terminalAutoAttachOnSelect?.checked ?? true
                     },
+                    sessionBadges: this.sanitizeSessionBadgePrefs({
+                        enabled: this.elements.sessionBadgesEnabled?.checked === true,
+                        rules: this.getSessionBadgeRulesFromUI()
+                    }),
                     links: {
                         searchRevealGroupLinks: this.elements.linksSearchRevealGroup?.checked ?? true,
                         // Default OFF unless explicitly checked
@@ -2059,10 +2306,13 @@ export class SettingsManager {
                 if (tm) {
                     tm.sessionList?.render();
                     tm.sessionTabsManager?.refresh();
+                    tm.updateAvailableTemplateFilters?.();
                     if (tm.currentSessionId) {
                         tm.updateSessionUI(tm.currentSessionId);
                     }
+                    tm.scheduleSessionSidebarRefresh?.();
                 }
+                ctx?.app?.modules?.workspaceList?.render?.();
             } catch (e) {
                 console.warn('[Settings] Failed to refresh titles after settings change:', e);
             }
@@ -2154,6 +2404,10 @@ export class SettingsManager {
                     scrollback: 1000,
                     dynamicTitleMode: 'ifUnset',
                     autoAttachOnSelect: true
+                },
+                sessionBadges: {
+                    enabled: false,
+                    rules: []
                 },
                 display: {
                     showActivityIndicator: true,

@@ -36,6 +36,7 @@ import { TerminalSearchController } from './search-controller.js';
 import { appStore } from '../../core/store.js';
 import { iconUtils } from '../../utils/icon-utils.js';
 import { computeDisplayTitle, getDynamicTitleMode } from '../../utils/title-utils.js';
+import { resolveSessionBadgeRule } from '../../utils/session-badge-rules.js';
 import { settingsManager } from '../settings/settings-manager.js';
 import { fontDetector } from '../../utils/font-detector.js';
 import { keyboardShortcuts } from '../shortcuts/keyboard-shortcuts.js';
@@ -100,6 +101,7 @@ export class TerminalManager {
         this._lastParentAttachAt = new Map(); // Map<parentId, timestamp>
         // Activity timers for transient activity (stdout bursts)
         this._activityTimers = new Map(); // Map<sessionId, timeoutId>
+        this._sessionSidebarRefreshTimer = null;
         // Load persisted workspace selections
         this.loadWorkspaceSelections();
 
@@ -625,6 +627,25 @@ export class TerminalManager {
             const templateName = data.template_name || null;
             this.updateSessionInfoToolbar(effective, sid, templateName);
         } catch (_) { /* ignore */ }
+    }
+
+    /**
+     * Debounced refresh of sidebar/session chrome for metadata-only updates
+     * (for example dynamic title changes that affect derived badge labels/colors).
+     */
+    scheduleSessionSidebarRefresh() {
+        try {
+            if (this._sessionSidebarRefreshTimer) {
+                clearTimeout(this._sessionSidebarRefreshTimer);
+            }
+        } catch (_) {}
+        this._sessionSidebarRefreshTimer = setTimeout(() => {
+            this._sessionSidebarRefreshTimer = null;
+            try { this.sessionList?.render?.(); } catch (_) {}
+            try { this.updateAvailableTemplateFilters?.(); } catch (_) {}
+            try { this.sessionTabsManager?.refresh?.(); } catch (_) {}
+            try { this.workspaceListComponent?.render?.(); } catch (_) {}
+        }, 80);
     }
 
     async init() {
@@ -7629,6 +7650,10 @@ export class TerminalManager {
                     const prevNote = existingSessionData.note;
                     const prevNoteUpdatedAt = existingSessionData.note_updated_at;
                     const prevNoteUpdatedBy = existingSessionData.note_updated_by;
+                    const prevTitle = existingSessionData.title;
+                    const prevTemplateBadgeLabel = existingSessionData.template_badge_label;
+                    const prevTemplateName = existingSessionData.template_name;
+                    const prevLocalOnly = existingSessionData.local_only;
                     // Check if workspace changed
                     const oldWorkspace = existingSessionData.workspace || 'Default';
                     // Only treat workspace as changed if the update explicitly included a workspace
@@ -7706,6 +7731,20 @@ export class TerminalManager {
                     
                     // Also update the local reference for backward compatibility
                     Object.assign(existingSessionData, sessionData);
+
+                    const badgeRelevantChanged =
+                        (Object.prototype.hasOwnProperty.call(sessionData, 'title') &&
+                            sessionData.title !== prevTitle) ||
+                        dynamicChanged ||
+                        (Object.prototype.hasOwnProperty.call(sessionData, 'template_badge_label') &&
+                            sessionData.template_badge_label !== prevTemplateBadgeLabel) ||
+                        (Object.prototype.hasOwnProperty.call(sessionData, 'template_name') &&
+                            sessionData.template_name !== prevTemplateName) ||
+                        (Object.prototype.hasOwnProperty.call(sessionData, 'local_only') &&
+                            sessionData.local_only !== prevLocalOnly);
+                    if (badgeRelevantChanged) {
+                        this.scheduleSessionSidebarRefresh();
+                    }
 
                     // Keep stop inputs state in sync when included in payload
                     if (Object.prototype.hasOwnProperty.call(sessionData, 'stop_inputs_enabled') ||
@@ -8735,8 +8774,11 @@ export class TerminalManager {
                 // Treat local-only sessions as a first-class "Local" template for filtering
                 let label = '';
                 try {
+                    const badgeRuleMatch = resolveSessionBadgeRule(sessionData);
                     if (sessionData && sessionData.local_only === true) {
                         label = 'Local';
+                    } else if (badgeRuleMatch && badgeRuleMatch.label) {
+                        label = badgeRuleMatch.label;
                     } else if (sessionData && typeof sessionData.template_badge_label === 'string' && sessionData.template_badge_label.trim()) {
                         label = sessionData.template_badge_label.trim();
                     } else if (sessionData && sessionData.template_name) {
@@ -9074,11 +9116,16 @@ export class TerminalManager {
     /**
      * Create template badge HTML with color support
      */
-    createTemplateBadgeHtml(templateName) {
+    createTemplateBadgeHtml(templateName, options = {}) {
         // Get template data if available
         const template = this.getTemplateByName(templateName);
-        const badgeStyle = template && template.color ? this.getTemplateBadgeStyle(template.color) : '';
-        const label = (template && typeof template.badge_label === 'string' && template.badge_label.trim())
+        const resolvedColor = (typeof options.color === 'string' && options.color.trim())
+            ? options.color.trim()
+            : (template && template.color ? template.color : '');
+        const badgeStyle = resolvedColor ? this.getTemplateBadgeStyle(resolvedColor) : '';
+        const label = (typeof options.label === 'string' && options.label.trim())
+            ? options.label.trim()
+            : (template && typeof template.badge_label === 'string' && template.badge_label.trim())
             ? template.badge_label.trim()
             : templateName;
         return `<span class="template-badge"${badgeStyle}>${label}</span>`;
@@ -9088,9 +9135,9 @@ export class TerminalManager {
      * Create a pseudo-badge for non-template commands
      * Uses the same off-white color as the tab color dot for non-templates
      */
-    createCommandBadgeHtml(label = 'Command') {
+    createCommandBadgeHtml(label = 'Command', color = '') {
         const fallbackColor = '#f5f5f5';
-        const badgeStyle = this.getTemplateBadgeStyle(fallbackColor);
+        const badgeStyle = this.getTemplateBadgeStyle(color || fallbackColor);
         const text = typeof label === 'string' && label.trim() ? label.trim() : 'Command';
         return `<span class="template-badge"${badgeStyle}>${text}</span>`;
     }
