@@ -1254,7 +1254,7 @@ export class TerminalManager {
                 status: filter,
                 search: '',
                 template: 'all',
-                pinned: false,
+                pinned: this.sessionList?.store?.getState()?.sessionList?.filters?.pinned === true,
                 pinnedSessions: this.sessionList.store.getState().sessionList.filters.pinnedSessions
             };
             
@@ -8843,7 +8843,8 @@ export class TerminalManager {
             status: currentFilter,
             search: '',
             template: 'all',
-            pinned: false
+            pinned: this.sessionList?.store?.getState()?.sessionList?.filters?.pinned === true,
+            pinnedSessions: this.sessionList?.store?.getState()?.sessionList?.filters?.pinnedSessions || new Set()
         });
         
         const hasVisibleSessions = visibleSessions.length > 0;
@@ -8913,12 +8914,11 @@ export class TerminalManager {
     togglePinnedFilter() {
         this.pinnedFilterActive = !this.pinnedFilterActive;
         this.updatePinnedFilterButton();
-        // Apply to workspaces (sidebar)
+        // Apply to sessions (sidebar + workspace-derived views)
         try {
-            this.sessionList?.store?.setPath('workspaces.filterPinned', this.pinnedFilterActive);
-        } catch (e) {}
-        // Maintain session filter behavior if ever used elsewhere
-        // this.applyFilters();
+            this.sessionList?.setPinnedFilter(this.pinnedFilterActive);
+        } catch (_) {}
+        try { this.applyFilters(); } catch (_) {}
     }
 
     /**
@@ -9104,7 +9104,8 @@ export class TerminalManager {
             status: currentFilter,
             search: '',
             template: 'all',
-            pinned: false
+            pinned: this.sessionList?.store?.getState()?.sessionList?.filters?.pinned === true,
+            pinnedSessions: this.sessionList?.store?.getState()?.sessionList?.filters?.pinnedSessions || new Set()
         });
         
         // If no sessions are visible in current tab, user needs to manually select one
@@ -9564,17 +9565,18 @@ export class TerminalManager {
             const sessionArray = sessionsMap instanceof Map ? Array.from(sessionsMap.values()) : [];
             const pinnedSessions = storeState?.sessionList?.filters?.pinnedSessions || new Set();
             const templateFilter = storeState?.sessionList?.filters?.template || 'all';
+            const pinnedFilterActive = storeState?.sessionList?.filters?.pinned === true;
 
             const filteredSessions = SessionFilterService.filter(sessionArray, {
                 status: 'all',
                 search: '', // search results are already materialized into sessions
                 template: templateFilter,
-                pinned: false,
+                pinned: pinnedFilterActive,
                 pinnedSessions,
                 workspace: null
             });
 
-            const hideForFilters = filterActive || templateFilterActive || searchActive;
+            const hideForFilters = filterActive || templateFilterActive || searchActive || pinnedFilterActive;
 
             // Helper to count active sessions for a workspace
             const activeCountFor = (name) => {
