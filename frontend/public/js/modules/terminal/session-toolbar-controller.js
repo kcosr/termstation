@@ -7,6 +7,7 @@
 
 import { apiService } from '../../services/api.service.js';
 import { iconUtils } from '../../utils/icon-utils.js';
+import { resolveSessionBadgeRule } from '../../utils/session-badge-rules.js';
 
 export class SessionToolbarController {
   constructor(elements, manager) {
@@ -161,11 +162,15 @@ export class SessionToolbarController {
     }
     if (terminalTitle && terminalSessionId) {
       if (hasTitle || templateName !== null) {
+        const badgeRuleMatch = resolveSessionBadgeRule(sessionData || {});
         // Always show a badge: template badge if available, otherwise Command pseudo-badge
         let badgeHtml = '';
         if (templateName) {
           badgeHtml = this.manager.createTemplateBadgeHtml
-            ? this.manager.createTemplateBadgeHtml(templateName)
+            ? this.manager.createTemplateBadgeHtml(templateName, {
+              label: badgeRuleMatch?.label || '',
+              color: badgeRuleMatch?.color || ''
+            })
             : `<span class=\"template-badge\">${templateName}</span>`;
         } else {
           // For local-only sessions, use a white "Local" badge instead of "Command"
@@ -173,7 +178,10 @@ export class SessionToolbarController {
             badgeHtml = this.manager.createCommandBadgeHtml('Local');
           } else {
             badgeHtml = this.manager.createCommandBadgeHtml
-              ? this.manager.createCommandBadgeHtml()
+              ? this.manager.createCommandBadgeHtml(
+                badgeRuleMatch?.label || 'Command',
+                badgeRuleMatch?.color || ''
+              )
               : `<span class=\"template-badge\">Command</span>`;
           }
         }

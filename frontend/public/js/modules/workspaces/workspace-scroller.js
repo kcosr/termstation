@@ -72,19 +72,22 @@ export class WorkspaceScroller {
     const sessionArray = sessionsMap instanceof Map ? Array.from(sessionsMap.values()) : [];
 
     let filteredSessionArray = sessionArray;
+    this._pinnedSessionFilterActive = false;
     try {
       const sl = this.store.getState().sessionList || {};
       const filters = sl.filters || {};
       const pinnedSessions = filters.pinnedSessions || new Set();
+      const pinnedFilterActive = filters.pinned === true;
       filteredSessionArray = SessionFilterService.filter(sessionArray, {
         status: 'all',
         search: '',
         template: filters.template || 'all',
-        pinned: false,
+        pinned: pinnedFilterActive,
         pinnedSessions,
         workspace: null
       });
       this._templateFilterActive = !!(filters && filters.template && filters.template !== 'all' && ((filters.template instanceof Set && filters.template.size > 0) || (Array.isArray(filters.template) && filters.template.length > 0) || (typeof filters.template === 'string' && filters.template.trim() !== '')));
+      this._pinnedSessionFilterActive = pinnedFilterActive;
       // Determine if a search is active
       try {
         const tm = getContext()?.app?.modules?.terminal;
@@ -97,7 +100,7 @@ export class WorkspaceScroller {
       } catch (_) { this._searchActive = false; }
     } catch (_) {}
 
-    const requireActive = filterActive || this._templateFilterActive || this._searchActive;
+    const requireActive = filterActive || this._templateFilterActive || this._searchActive || this._pinnedSessionFilterActive;
 
     // Compute which workspaces should be shown
     const visible = [];

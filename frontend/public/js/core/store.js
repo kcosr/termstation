@@ -501,6 +501,10 @@ export const appStore = new Store({
             // New: auto-attach on session select
             autoAttachOnSelect: true
         },
+        sessionBadges: {
+            enabled: false,
+            rules: []
+        },
         links: {
             searchRevealGroupLinks: true,
             showSessionTabs: true,

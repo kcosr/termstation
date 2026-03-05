@@ -17,6 +17,7 @@ import { delegate } from '../../utils/delegate.js';
 import { getContext } from '../../core/context.js';
 import { parseColor, getContrastColor } from '../../utils/color-utils.js';
 import { iconUtils } from '../../utils/icon-utils.js';
+import { resolveSessionBadgeRule } from '../../utils/session-badge-rules.js';
 
 export class SessionList {
     constructor(container, manager) {
@@ -752,11 +753,18 @@ export class SessionList {
         const pinIconHtml = isPinned ? '<svg class="pin-indicator" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" title="Pinned"><path d="M4.146.146A.5.5 0 0 1 4.5 0h7a.5.5 0 0 1 .5.5c0 .68-.342 1.174-.646 1.479-.126.125-.25.224-.354.298v4.431l.078.048c.203.127.476.314.751.555C12.36 7.775 13 8.527 13 9.5a.5.5 0 0 1-.5.5h-4v4.5c0 .276-.224 1.5-.5 1.5s-.5-1.224-.5-1.5V10h-4a.5.5 0 0 1-.5-.5c0-.973.64-1.725 1.17-2.189A6 6 0 0 1 5 6.708V2.277a3 3 0 0 1-.354-.298C4.342 1.674 4 1.179 4 .5a.5.5 0 0 1 .146-.354Z"/></svg>' : '';
         
         // Create template badge and title on separate lines
+        const badgeRuleMatch = resolveSessionBadgeRule(sessionData);
         let templateHtml = '';
         if (templateName) {
-            templateHtml = this.createTemplateBadgeHtml(templateName);
+            templateHtml = this.createTemplateBadgeHtml(templateName, {
+                label: badgeRuleMatch?.label || '',
+                color: badgeRuleMatch?.color || ''
+            });
         } else {
-            templateHtml = this.createCommandBadgeHtml();
+            templateHtml = this.createCommandBadgeHtml(
+                badgeRuleMatch?.label || 'Command',
+                badgeRuleMatch?.color || ''
+            );
         }
         // Local-only indicator (determine from session data; do not depend on desktop bridge presence)
         const isLocalOnly = !!(sessionData && sessionData.local_only === true);
@@ -1377,7 +1385,7 @@ export class SessionList {
     /**
      * Create template badge HTML with color support
      */
-    createTemplateBadgeHtml(templateName) {
+    createTemplateBadgeHtml(templateName, options = {}) {
         // Try to get template color and label
         let color = this.templateColors.get(templateName);
         let label = templateName;
@@ -1394,14 +1402,21 @@ export class SessionList {
             }
         }
 
+        if (typeof options.label === 'string' && options.label.trim()) {
+            label = options.label.trim();
+        }
+        if (typeof options.color === 'string' && options.color.trim()) {
+            color = options.color.trim();
+        }
+
         const badgeStyle = color ? this.getTemplateBadgeStyle(color) : '';
 
         return `<div class="session-template"><span class="activity-slot" aria-hidden="true"></span><span class="visibility-icon-slot" aria-hidden="true"></span><span class="template-badge"${badgeStyle}>${label}</span></div>`;
     }
 
-    createCommandBadgeHtml(label = 'Command') {
+    createCommandBadgeHtml(label = 'Command', color = '') {
         const fallbackColor = '#f5f5f5';
-        const badgeStyle = this.getTemplateBadgeStyle(fallbackColor);
+        const badgeStyle = this.getTemplateBadgeStyle(color || fallbackColor);
         const text = typeof label === 'string' && label.trim() ? label.trim() : 'Command';
         return `<div class="session-template"><span class="activity-slot" aria-hidden="true"></span><span class="visibility-icon-slot" aria-hidden="true"></span><span class="template-badge"${badgeStyle}>${text}</span></div>`;
     }

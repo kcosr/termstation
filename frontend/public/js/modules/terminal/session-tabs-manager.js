@@ -16,6 +16,7 @@ import { appStore } from '../../core/store.js';
 import { countOtherClients } from '../../utils/clients-utils.js';
 import { iconUtils } from '../../utils/icon-utils.js';
 import { keyboardShortcuts } from '../shortcuts/keyboard-shortcuts.js';
+import { resolveSessionBadgeRule } from '../../utils/session-badge-rules.js';
 
 export class SessionTabsManager {
     constructor(manager) {
@@ -274,8 +275,7 @@ export class SessionTabsManager {
         const tooltipText = sessionData.session_id || '';
         
         // Get template color for the dot
-        const templateColor = this.getTemplateColor(sessionData.template_name);
-        const dotColor = templateColor || '#f5f5f5'; // Use off-white fallback for no template
+        const dotColor = this.getSessionDotColor(sessionData);
         const colorDotStyle = ` style="background-color: ${dotColor};"`;
         
         // Check if session has links for indicator
@@ -759,8 +759,7 @@ export class SessionTabsManager {
             const isTerminated = sessionData.is_active === false;
             
             // Get template color for the dot
-            const templateColor = this.getTemplateColor(sessionData.template_name);
-            const dotColor = templateColor || '#f5f5f5'; // Use off-white fallback for no template
+            const dotColor = this.getSessionDotColor(sessionData);
             const colorDotStyle = ` style="background-color: ${dotColor};"`;
             
             // Check if session has links for indicator
@@ -997,6 +996,16 @@ export class SessionTabsManager {
         }
         
         return color ? parseColor(color) : null;
+    }
+
+    getSessionDotColor(sessionData) {
+        try {
+            const match = resolveSessionBadgeRule(sessionData || {});
+            const override = parseColor(match?.color || '');
+            if (override) return override;
+        } catch (_) {}
+        const templateColor = this.getTemplateColor(sessionData?.template_name);
+        return templateColor || '#f5f5f5';
     }
     
     /**

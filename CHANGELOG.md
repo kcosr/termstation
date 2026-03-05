@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Added
+
+- Frontend: session badge rules utility and proactive static title/session badge refresh across terminal and workspace views. ([#27](https://github.com/kcosr/termstation/pull/27))
+
+### Fixed
+
+- Frontend: pinned-session filtering now stays consistent across workspace views. ([#27](https://github.com/kcosr/termstation/pull/27))
 
 ## [0.0.4] - 2026-01-09
 

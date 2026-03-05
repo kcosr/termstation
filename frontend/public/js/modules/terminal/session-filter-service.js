@@ -2,12 +2,18 @@
  * Session Filter Service
  * Centralized filtering logic for session lists
  */
+import { resolveSessionBadgeRule } from '../../utils/session-badge-rules.js';
+
 export class SessionFilterService {
     static _badgeOrName(session) {
         try {
             // Treat local-only sessions as a distinct "Local" template for filtering purposes
             if (session && session.local_only === true) {
                 return 'Local';
+            }
+            const ruleMatch = resolveSessionBadgeRule(session);
+            if (ruleMatch && ruleMatch.label) {
+                return ruleMatch.label;
             }
             const lbl = (session && typeof session.template_badge_label === 'string' && session.template_badge_label.trim())
                 ? session.template_badge_label.trim()

@@ -12,6 +12,7 @@ import { iconUtils } from '../../utils/icon-utils.js';
 import { countOtherClients } from '../../utils/clients-utils.js';
 import { getContext } from '../../core/context.js';
 import { delegate } from '../../utils/delegate.js';
+import { resolveSessionBadgeRule } from '../../utils/session-badge-rules.js';
 import { SessionFilterService } from '../terminal/session-filter-service.js';
 import { FormModal, ConfirmationModal } from '../ui/modal.js';
 
@@ -511,20 +512,23 @@ export class WorkspaceList {
     }
     // Respect current template filter so workspace rows reflect the same view as the session tabs
     let filteredSessionArray = sessionArray;
+    this._pinnedSessionFilterActive = false;
     try {
       const sl = sessionState || {};
       const filters = sl.filters || {};
       const pinnedSessions = filters.pinnedSessions || new Set();
+      const pinnedFilterActive = filters.pinned === true;
       // When filteredIds overlay is active, search is already materialized into sessionArray
       filteredSessionArray = SessionFilterService.filter(sessionArray, {
         status: 'all',
         search: Array.isArray(filteredIds) ? '' : (filters.search || ''),
         template: filters.template || 'all',
-        pinned: false,
+        pinned: pinnedFilterActive,
         pinnedSessions,
         workspace: null
       });
       this._templateFilterActive = !!(filters && filters.template && filters.template !== 'all' && ((filters.template instanceof Set && filters.template.size > 0) || (Array.isArray(filters.template) && filters.template.length > 0) || (typeof filters.template === 'string' && filters.template.trim() !== '')));
+      this._pinnedSessionFilterActive = pinnedFilterActive;
       // Determine if a search is active (via TerminalManager state or input value)
       try {
         const tm = getContext()?.app?.modules?.terminal;
@@ -543,7 +547,7 @@ export class WorkspaceList {
       const stats = this.getWorkspaceStats(filteredSessionArray, name);
       // Hide workspaces with no ACTIVE sessions when Active filter is on
       // Also hide when template/search filters are active to match sidebar view
-      const hideForFilters = filterActive || this._templateFilterActive || this._searchActive;
+      const hideForFilters = filterActive || this._templateFilterActive || this._searchActive || this._pinnedSessionFilterActive;
       if (hideForFilters && (stats.live === 0)) {
         return;
       }
@@ -648,15 +652,19 @@ export class WorkspaceList {
             // Only consider ACTIVE sessions for template badges
             if (!s.is_active) return;
             const tmpl = s.template_name || null;
-            const label = tmpl || (s && s.local_only === true ? 'Local' : 'Command');
+            const ruleMatch = resolveSessionBadgeRule(s);
+            const label = ruleMatch?.label || tmpl || (s && s.local_only === true ? 'Local' : 'Command');
             if (seen.has(label)) return;
             seen.add(label);
             const tm = getContext()?.app?.modules?.terminal;
             if (tm?.sessionList?.createTemplateBadgeHtml) {
               try {
                 const badgeHtml = tmpl
-                  ? tm.sessionList.createTemplateBadgeHtml(tmpl)
-                  : tm.sessionList.createCommandBadgeHtml(label);
+                  ? tm.sessionList.createTemplateBadgeHtml(tmpl, {
+                    label: ruleMatch?.label || '',
+                    color: ruleMatch?.color || ''
+                  })
+                  : tm.sessionList.createCommandBadgeHtml(label, ruleMatch?.color || '');
                 const tmp = document.createElement('div');
                 tmp.innerHTML = badgeHtml;
                 const badgeSpan = tmp.querySelector('.template-badge');
@@ -750,9 +758,16 @@ export class WorkspaceList {
             try {
               const tm = getContext()?.app?.modules?.terminal;
               const isLocalOnly = !!(sess && sess.local_only === true);
+              const ruleMatch = resolveSessionBadgeRule(sess);
               const badgeHtml = tmpl
-                ? tm.sessionList.createTemplateBadgeHtml(tmpl)
-                : tm.sessionList.createCommandBadgeHtml(isLocalOnly ? 'Local' : 'Command');
+                ? tm.sessionList.createTemplateBadgeHtml(tmpl, {
+                  label: ruleMatch?.label || '',
+                  color: ruleMatch?.color || ''
+                })
+                : tm.sessionList.createCommandBadgeHtml(
+                  ruleMatch?.label || (isLocalOnly ? 'Local' : 'Command'),
+                  ruleMatch?.color || ''
+                );
               const tmp = document.createElement('div');
               tmp.innerHTML = badgeHtml;
               // Extract only the inner badge span to keep inline, but prepend activity indicator dot
