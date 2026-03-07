@@ -10,6 +10,10 @@
 
 - Frontend: improve Settings modal usability on small/mobile screens by switching to a single-column layout with horizontal section chips and active-chip auto-scroll behavior. ([#28](https://github.com/kcosr/termstation/pull/28))
 
+### Fixed
+
+- Frontend: initialize Session Badge rule color inputs with normalized six-digit hex values so native custom-color sliders reflect the currently selected color instead of falling back to zeroed defaults. ([#28](https://github.com/kcosr/termstation/pull/28))
+
 ## [0.0.5] - 2026-03-05
 
 ### Added
