@@ -30,6 +30,100 @@ import {
 
 let _colorInputParserCtx = null;
 
+function clampColorChannel(value, min, max) {
+    const numeric = Number(value);
+    if (Number.isNaN(numeric)) return min;
+    return Math.min(max, Math.max(min, numeric));
+}
+
+function hexToRgb(hex) {
+    if (typeof hex !== 'string') return null;
+    const match = hex.trim().toLowerCase().match(/^#([a-f0-9]{6})$/i);
+    if (!match) return null;
+    return {
+        r: parseInt(match[1].slice(0, 2), 16),
+        g: parseInt(match[1].slice(2, 4), 16),
+        b: parseInt(match[1].slice(4, 6), 16)
+    };
+}
+
+function rgbToHex({ r, g, b }) {
+    const rr = clampColorChannel(r, 0, 255).toString(16).padStart(2, '0');
+    const gg = clampColorChannel(g, 0, 255).toString(16).padStart(2, '0');
+    const bb = clampColorChannel(b, 0, 255).toString(16).padStart(2, '0');
+    return `#${rr}${gg}${bb}`;
+}
+
+function rgbToHsv({ r, g, b }) {
+    const rn = clampColorChannel(r, 0, 255) / 255;
+    const gn = clampColorChannel(g, 0, 255) / 255;
+    const bn = clampColorChannel(b, 0, 255) / 255;
+    const max = Math.max(rn, gn, bn);
+    const min = Math.min(rn, gn, bn);
+    const delta = max - min;
+
+    let h = 0;
+    if (delta !== 0) {
+        if (max === rn) h = 60 * (((gn - bn) / delta) % 6);
+        else if (max === gn) h = 60 * (((bn - rn) / delta) + 2);
+        else h = 60 * (((rn - gn) / delta) + 4);
+    }
+    if (h < 0) h += 360;
+
+    const s = max === 0 ? 0 : (delta / max) * 100;
+    const v = max * 100;
+
+    return {
+        h: Math.round(h),
+        s: Math.round(s),
+        v: Math.round(v)
+    };
+}
+
+function hsvToRgb({ h, s, v }) {
+    const hue = clampColorChannel(h, 0, 360);
+    const sat = clampColorChannel(s, 0, 100) / 100;
+    const val = clampColorChannel(v, 0, 100) / 100;
+
+    const c = val * sat;
+    const hp = (hue % 360) / 60;
+    const x = c * (1 - Math.abs((hp % 2) - 1));
+
+    let rn = 0;
+    let gn = 0;
+    let bn = 0;
+    if (hp >= 0 && hp < 1) {
+        rn = c; gn = x;
+    } else if (hp >= 1 && hp < 2) {
+        rn = x; gn = c;
+    } else if (hp >= 2 && hp < 3) {
+        gn = c; bn = x;
+    } else if (hp >= 3 && hp < 4) {
+        gn = x; bn = c;
+    } else if (hp >= 4 && hp < 5) {
+        rn = x; bn = c;
+    } else {
+        rn = c; bn = x;
+    }
+
+    const m = val - c;
+    return {
+        r: Math.round((rn + m) * 255),
+        g: Math.round((gn + m) * 255),
+        b: Math.round((bn + m) * 255)
+    };
+}
+
+function hexToHsv(hex) {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return null;
+    return rgbToHsv(rgb);
+}
+
+function hsvToHex(hsv) {
+    return rgbToHex(hsvToRgb(hsv));
+}
+
 function toColorInputHex(color, fallback = '#f5f5f5') {
     const normalize = (value) => {
         const parsed = parseColor(value || '');
@@ -714,20 +808,93 @@ export class SettingsManager {
             <input type="checkbox" class="session-badge-rule-enabled" title="Enable rule" ${normalized.enabled ? 'checked' : ''}>
             <input type="text" class="session-badge-rule-pattern" placeholder="Regex pattern" value="${this.escapeHtml(normalized.pattern)}" aria-label="Regex pattern">
             <input type="text" class="session-badge-rule-label" placeholder="Badge text (or capture group 1)" value="${this.escapeHtml(normalized.badgeText)}" aria-label="Badge text">
-            <input type="color" class="session-badge-rule-color" value="${this.escapeHtml(colorValue)}" title="Badge color" aria-label="Badge color">
+            <div class="session-badge-color-control">
+                <input type="color" class="session-badge-rule-color" value="${this.escapeHtml(colorValue)}" title="Badge color" aria-label="Badge color">
+                <details class="session-badge-color-details">
+                    <summary>HSV</summary>
+                    <div class="session-badge-color-popover">
+                        <label>
+                            <span>H</span>
+                            <input type="range" class="session-badge-color-hue" min="0" max="360" step="1" value="0">
+                            <span class="session-badge-color-hue-value">0</span>
+                        </label>
+                        <label>
+                            <span>S</span>
+                            <input type="range" class="session-badge-color-saturation" min="0" max="100" step="1" value="0">
+                            <span class="session-badge-color-saturation-value">0</span>
+                        </label>
+                        <label>
+                            <span>V</span>
+                            <input type="range" class="session-badge-color-value" min="0" max="100" step="1" value="0">
+                            <span class="session-badge-color-value-value">0</span>
+                        </label>
+                        <div class="session-badge-color-swatch" aria-hidden="true"></div>
+                    </div>
+                </details>
+            </div>
             <button type="button" class="btn btn-danger session-badge-rule-remove">Remove</button>
         `;
+
+        const colorInput = row.querySelector('.session-badge-rule-color');
+        const colorDetails = row.querySelector('.session-badge-color-details');
+        const hueInput = row.querySelector('.session-badge-color-hue');
+        const saturationInput = row.querySelector('.session-badge-color-saturation');
+        const valueInput = row.querySelector('.session-badge-color-value');
+        const hueValue = row.querySelector('.session-badge-color-hue-value');
+        const saturationValue = row.querySelector('.session-badge-color-saturation-value');
+        const valueValue = row.querySelector('.session-badge-color-value-value');
+        const colorSwatch = row.querySelector('.session-badge-color-swatch');
+
+        const applyColorToSwatch = () => {
+            if (colorSwatch && colorInput) colorSwatch.style.backgroundColor = colorInput.value;
+        };
+
+        const syncHsvFromCurrentColor = () => {
+            const hex = toColorInputHex(colorInput?.value || colorValue, '#f5f5f5');
+            if (colorInput) colorInput.value = hex;
+            const hsv = hexToHsv(hex) || { h: 0, s: 0, v: 96 };
+            if (hueInput) hueInput.value = String(hsv.h);
+            if (saturationInput) saturationInput.value = String(hsv.s);
+            if (valueInput) valueInput.value = String(hsv.v);
+            if (hueValue) hueValue.textContent = String(hsv.h);
+            if (saturationValue) saturationValue.textContent = String(hsv.s);
+            if (valueValue) valueValue.textContent = String(hsv.v);
+            applyColorToSwatch();
+        };
+
+        const syncColorFromHsv = () => {
+            const h = clampColorChannel(hueInput?.value, 0, 360);
+            const s = clampColorChannel(saturationInput?.value, 0, 100);
+            const v = clampColorChannel(valueInput?.value, 0, 100);
+            if (hueValue) hueValue.textContent = String(h);
+            if (saturationValue) saturationValue.textContent = String(s);
+            if (valueValue) valueValue.textContent = String(v);
+            const nextHex = hsvToHex({ h, s, v });
+            if (colorInput) colorInput.value = nextHex;
+            applyColorToSwatch();
+            this.updateSessionBadgeTestPreview();
+        };
 
         const onChange = () => this.updateSessionBadgeTestPreview();
         row.querySelector('.session-badge-rule-enabled')?.addEventListener('change', onChange);
         row.querySelector('.session-badge-rule-pattern')?.addEventListener('input', onChange);
         row.querySelector('.session-badge-rule-label')?.addEventListener('input', onChange);
-        row.querySelector('.session-badge-rule-color')?.addEventListener('input', onChange);
+        colorInput?.addEventListener('input', () => {
+            syncHsvFromCurrentColor();
+            onChange();
+        });
+        colorDetails?.addEventListener('toggle', () => {
+            if (colorDetails.open) syncHsvFromCurrentColor();
+        });
+        hueInput?.addEventListener('input', syncColorFromHsv);
+        saturationInput?.addEventListener('input', syncColorFromHsv);
+        valueInput?.addEventListener('input', syncColorFromHsv);
         row.querySelector('.session-badge-rule-remove')?.addEventListener('click', () => {
             try { row.remove(); } catch (_) {}
             this.updateSessionBadgeTestPreview();
         });
 
+        syncHsvFromCurrentColor();
         return row;
     }
 

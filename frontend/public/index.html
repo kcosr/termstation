@@ -906,6 +906,76 @@
                         display: inline-block;
                         margin-top: 4px;
                     }
+                    #settings-modal .session-badge-color-control {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        position: relative;
+                    }
+                    #settings-modal .session-badge-color-control input[type="color"] {
+                        width: 34px;
+                        height: 28px;
+                        padding: 0;
+                        border: 1px solid var(--border-color);
+                        border-radius: 4px;
+                        background: var(--bg-primary);
+                    }
+                    #settings-modal .session-badge-color-details {
+                        position: relative;
+                    }
+                    #settings-modal .session-badge-color-details > summary {
+                        list-style: none;
+                        cursor: pointer;
+                        font-size: 11px;
+                        color: var(--text-secondary);
+                        border: 1px solid var(--border-color);
+                        border-radius: 4px;
+                        padding: 3px 6px;
+                        user-select: none;
+                    }
+                    #settings-modal .session-badge-color-details > summary::-webkit-details-marker {
+                        display: none;
+                    }
+                    #settings-modal .session-badge-color-details[open] > summary {
+                        color: var(--text-primary);
+                        background: var(--bg-secondary);
+                    }
+                    #settings-modal .session-badge-color-popover {
+                        position: absolute;
+                        right: 0;
+                        top: calc(100% + 6px);
+                        width: 210px;
+                        border: 1px solid var(--border-color);
+                        border-radius: 8px;
+                        background: var(--bg-secondary);
+                        padding: 8px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 6px;
+                        z-index: 20;
+                        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+                    }
+                    #settings-modal .session-badge-color-popover label {
+                        display: grid;
+                        grid-template-columns: 14px 1fr 32px;
+                        align-items: center;
+                        gap: 6px;
+                        font-size: 11px;
+                        color: var(--text-secondary);
+                    }
+                    #settings-modal .session-badge-color-popover label span:last-child {
+                        text-align: right;
+                        color: var(--text-primary);
+                    }
+                    #settings-modal .session-badge-color-popover input[type="range"] {
+                        height: 4px;
+                    }
+                    #settings-modal .session-badge-color-swatch {
+                        height: 18px;
+                        border-radius: 4px;
+                        border: 1px solid var(--border-color);
+                        background: #f5f5f5;
+                    }
                     
                 </style>
                 <div class="settings-layout">

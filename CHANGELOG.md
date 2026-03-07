@@ -12,7 +12,7 @@
 
 ### Fixed
 
-- Frontend: initialize Session Badge rule color inputs with normalized six-digit hex values so native custom-color sliders reflect the currently selected color instead of falling back to zeroed defaults. ([#28](https://github.com/kcosr/termstation/pull/28))
+- Frontend: improve Session Badge rule color editing by normalizing stored colors to six-digit hex and adding an in-app HSV editor that initializes from the currently selected color. ([#28](https://github.com/kcosr/termstation/pull/28))
 
 ## [0.0.5] - 2026-03-05
 
