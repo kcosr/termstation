@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Added
+
+- Docs: mobile settings layout proposal mock in `docs/settings-mobile-layout-proposal.html`. ([#28](https://github.com/kcosr/termstation/pull/28))
+
+### Changed
+
+- Frontend: improve Settings modal usability on small/mobile screens by switching to a single-column layout with horizontal section chips and active-chip auto-scroll behavior. ([#28](https://github.com/kcosr/termstation/pull/28))
 
 ## [0.0.5] - 2026-03-05
 
