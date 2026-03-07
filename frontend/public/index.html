@@ -906,6 +906,59 @@
                         display: inline-block;
                         margin-top: 4px;
                     }
+                    #settings-modal .session-badge-color-control {
+                        display: inline-flex;
+                        align-items: center;
+                        position: relative;
+                    }
+                    #settings-modal .session-badge-rule-color-swatch-btn {
+                        width: 34px;
+                        height: 28px;
+                        padding: 0;
+                        border: 1px solid var(--border-color);
+                        border-radius: 4px;
+                        background: #f5f5f5;
+                        cursor: pointer;
+                    }
+                    #settings-modal .session-badge-color-popover {
+                        position: absolute;
+                        right: 0;
+                        top: calc(100% + 6px);
+                        width: 210px;
+                        border: 1px solid var(--border-color);
+                        border-radius: 8px;
+                        background: var(--bg-secondary);
+                        padding: 8px;
+                        flex-direction: column;
+                        gap: 6px;
+                        z-index: 20;
+                        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+                        display: none;
+                    }
+                    #settings-modal .session-badge-color-control.open .session-badge-color-popover {
+                        display: flex;
+                    }
+                    #settings-modal .session-badge-color-popover label {
+                        display: grid;
+                        grid-template-columns: 14px 1fr 32px;
+                        align-items: center;
+                        gap: 6px;
+                        font-size: 11px;
+                        color: var(--text-secondary);
+                    }
+                    #settings-modal .session-badge-color-popover label span:last-child {
+                        text-align: right;
+                        color: var(--text-primary);
+                    }
+                    #settings-modal .session-badge-color-popover input[type="range"] {
+                        height: 4px;
+                    }
+                    #settings-modal .session-badge-color-swatch {
+                        height: 18px;
+                        border-radius: 4px;
+                        border: 1px solid var(--border-color);
+                        background: #f5f5f5;
+                    }
                     
                 </style>
                 <div class="settings-layout">

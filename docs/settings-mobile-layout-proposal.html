@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TermStation Settings Mobile Layout Proposal</title>
+  <style>
+    :root {
+      --bg: #111418;
+      --surface: #181d23;
+      --surface-2: #202734;
+      --text: #e8edf7;
+      --muted: #99a4b5;
+      --accent: #f97316;
+      --accent-2: #fb923c;
+      --line: #2b3442;
+      --ok: #16a34a;
+      --danger: #ef4444;
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 400px at 10% -10%, #1f293733, transparent 60%),
+        radial-gradient(800px 300px at 100% 0%, #ea580c22, transparent 60%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+      display: grid;
+      place-items: center;
+    }
+
+    .phone {
+      width: min(420px, 100%);
+      height: min(880px, 92vh);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      overflow: hidden;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 18px 40px #0008;
+      position: relative;
+    }
+
+    .topbar {
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #202733, #181d23);
+      position: sticky;
+      top: 0;
+      z-index: 3;
+    }
+
+    .topbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .section-picker {
+      border: 1px solid var(--line);
+      background: #111827;
+      color: var(--text);
+      font-size: 12px;
+      border-radius: 999px;
+      padding: 8px 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .chips-wrap {
+      margin-top: 10px;
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+
+    .chips {
+      display: inline-flex;
+      gap: 8px;
+      min-width: 100%;
+      padding-bottom: 2px;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      background: #111827;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .chip.active {
+      color: #111418;
+      background: linear-gradient(180deg, var(--accent-2), var(--accent));
+      border-color: transparent;
+    }
+
+    .content {
+      overflow: auto;
+      padding: 12px 12px 78px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+
+    .card-head {
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .card-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .card-body {
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .row label {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .help {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+
+    .toggle {
+      width: 44px;
+      height: 26px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #111827;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .toggle::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #94a3b8;
+      transition: transform 130ms ease;
+    }
+
+    .toggle.on {
+      background: #7c2d12;
+      border-color: #9a3412;
+    }
+
+    .toggle.on::after {
+      transform: translateX(18px);
+      background: #fdba74;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: #121826;
+      font-size: 12px;
+    }
+
+    .pill {
+      border: 1px solid #275a3e;
+      color: #86efac;
+      background: #052e1a;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .collapsed {
+      opacity: 0.72;
+    }
+
+    .bottom-bar {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #0b1220ee;
+      backdrop-filter: blur(8px);
+    }
+
+    button.action {
+      border: 1px solid var(--line);
+      background: #111827;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.action.primary {
+      background: linear-gradient(180deg, var(--accent-2), var(--accent));
+      color: #111418;
+      border: none;
+    }
+
+    .sheet {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 74px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #0f172a;
+      padding: 8px;
+      display: none;
+      z-index: 5;
+      box-shadow: 0 14px 32px #0008;
+    }
+
+    .sheet.show { display: grid; gap: 6px; }
+
+    .sheet button {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--line);
+      background: #111827;
+      color: var(--text);
+      padding: 10px;
+      border-radius: 9px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .sheet button.active {
+      border-color: #9a3412;
+      background: #2c1305;
+      color: #fdba74;
+    }
+  </style>
+</head>
+<body>
+  <main class="phone" aria-label="Settings mockup on mobile">
+    <header class="topbar">
+      <div class="topbar-row">
+        <div>
+          <div class="title">Settings</div>
+          <div class="subtitle">Mobile-first single-column mode</div>
+        </div>
+        <button class="section-picker" id="section-picker" type="button">Sections v</button>
+      </div>
+      <div class="chips-wrap">
+        <div class="chips" role="tablist" aria-label="Quick sections">
+          <button class="chip active" type="button">Terminal</button>
+          <button class="chip" type="button">Display</button>
+          <button class="chip" type="button">Notifications</button>
+          <button class="chip" type="button">Session Badges</button>
+          <button class="chip" type="button">Links</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="content">
+      <article class="card" aria-label="Active settings section">
+        <div class="card-head">
+          <h2 class="card-title">Terminal</h2>
+          <div class="card-meta">6 controls</div>
+        </div>
+        <div class="card-body">
+          <div>
+            <div class="row">
+              <div>
+                <label>Font size</label>
+                <div class="help">Use a slider in live preview mode.</div>
+              </div>
+              <div class="kv"><span>14 px</span><span class="pill">Live</span></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="row">
+              <div>
+                <label>Cursor blink</label>
+                <div class="help">Enable only if you need visual focus tracking.</div>
+              </div>
+              <div class="toggle on" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="row">
+              <div>
+                <label>Auto-attach on select</label>
+                <div class="help">Switch active terminal when tapping a session.</div>
+              </div>
+              <div class="toggle" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card collapsed" aria-label="Collapsed preview card">
+        <div class="card-head">
+          <h2 class="card-title">Display</h2>
+          <div class="card-meta">Collapsed preview</div>
+        </div>
+      </article>
+
+      <article class="card collapsed" aria-label="Collapsed preview card">
+        <div class="card-head">
+          <h2 class="card-title">Notifications</h2>
+          <div class="card-meta">Collapsed preview</div>
+        </div>
+      </article>
+    </section>
+
+    <div class="sheet" id="sheet" role="dialog" aria-label="Section picker">
+      <button class="active" type="button">Terminal</button>
+      <button type="button">Display</button>
+      <button type="button">Notifications</button>
+      <button type="button">Session Badges</button>
+      <button type="button">Links</button>
+      <button type="button">Keyboard</button>
+      <button type="button">Import / Export</button>
+      <button type="button">Developer</button>
+      <button type="button">Admin</button>
+    </div>
+
+    <footer class="bottom-bar">
+      <button class="action" type="button">Cancel</button>
+      <button class="action primary" type="button">Save Changes</button>
+    </footer>
+  </main>
+
+  <script>
+    const picker = document.getElementById('section-picker');
+    const sheet = document.getElementById('sheet');
+    picker.addEventListener('click', () => {
+      sheet.classList.toggle('show');
+    });
+    document.addEventListener('click', (event) => {
+      if (!sheet.contains(event.target) && event.target !== picker) {
+        sheet.classList.remove('show');
+      }
+    });
+  </script>
+</body>
+</html>
