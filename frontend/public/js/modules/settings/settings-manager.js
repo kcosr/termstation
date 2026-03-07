@@ -249,8 +249,19 @@ export class SettingsManager {
         if (!this.modal) return;
         const buttons = this.modal.querySelectorAll('.settings-nav button[data-section]');
         const panels = this.modal.querySelectorAll('.settings-panel[data-section]');
+        let activeButton = null;
         buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.section === section));
+        buttons.forEach((btn) => {
+            if (btn.dataset.section === section) activeButton = btn;
+        });
         panels.forEach(panel => panel.classList.toggle('active', panel.dataset.section === section));
+        if (activeButton && typeof activeButton.scrollIntoView === 'function') {
+            try {
+                activeButton.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+            } catch (_) {
+                activeButton.scrollIntoView();
+            }
+        }
         // Trigger desktop font scan when opening Display tab
         if (section === 'display') {
             this.loadInstalledFontsOnce();
