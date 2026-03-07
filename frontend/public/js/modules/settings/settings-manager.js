@@ -809,7 +809,8 @@ export class SettingsManager {
             <input type="text" class="session-badge-rule-pattern" placeholder="Regex pattern" value="${this.escapeHtml(normalized.pattern)}" aria-label="Regex pattern">
             <input type="text" class="session-badge-rule-label" placeholder="Badge text (or capture group 1)" value="${this.escapeHtml(normalized.badgeText)}" aria-label="Badge text">
             <div class="session-badge-color-control">
-                <input type="color" class="session-badge-rule-color" value="${this.escapeHtml(colorValue)}" title="Badge color" aria-label="Badge color">
+                <button type="button" class="session-badge-rule-color-swatch-btn" title="Badge color" aria-label="Badge color"></button>
+                <input type="hidden" class="session-badge-rule-color" value="${this.escapeHtml(colorValue)}">
                 <details class="session-badge-color-details">
                     <summary>HSV</summary>
                     <div class="session-badge-color-popover">
@@ -836,6 +837,7 @@ export class SettingsManager {
         `;
 
         const colorInput = row.querySelector('.session-badge-rule-color');
+        const colorSwatchButton = row.querySelector('.session-badge-rule-color-swatch-btn');
         const colorDetails = row.querySelector('.session-badge-color-details');
         const hueInput = row.querySelector('.session-badge-color-hue');
         const saturationInput = row.querySelector('.session-badge-color-saturation');
@@ -847,6 +849,7 @@ export class SettingsManager {
 
         const applyColorToSwatch = () => {
             if (colorSwatch && colorInput) colorSwatch.style.backgroundColor = colorInput.value;
+            if (colorSwatchButton && colorInput) colorSwatchButton.style.backgroundColor = colorInput.value;
         };
 
         const syncHsvFromCurrentColor = () => {
@@ -879,9 +882,11 @@ export class SettingsManager {
         row.querySelector('.session-badge-rule-enabled')?.addEventListener('change', onChange);
         row.querySelector('.session-badge-rule-pattern')?.addEventListener('input', onChange);
         row.querySelector('.session-badge-rule-label')?.addEventListener('input', onChange);
-        colorInput?.addEventListener('input', () => {
-            syncHsvFromCurrentColor();
-            onChange();
+        colorSwatchButton?.addEventListener('click', () => {
+            if (!colorDetails) return;
+            const willOpen = !colorDetails.open;
+            colorDetails.open = willOpen;
+            if (willOpen) syncHsvFromCurrentColor();
         });
         colorDetails?.addEventListener('toggle', () => {
             if (colorDetails.open) syncHsvFromCurrentColor();
