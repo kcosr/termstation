@@ -28,6 +28,46 @@ import {
     getThemeStateFromSettings
 } from './theme-persistence.js';
 
+let _colorInputParserCtx = null;
+
+function toColorInputHex(color, fallback = '#f5f5f5') {
+    const normalize = (value) => {
+        const parsed = parseColor(value || '');
+        if (!parsed) return null;
+
+        const lower = String(parsed).trim().toLowerCase();
+        const full = lower.match(/^#([a-f0-9]{6})$/i);
+        if (full) return `#${full[1].toLowerCase()}`;
+
+        const short = lower.match(/^#([a-f0-9]{3})$/i);
+        if (short) {
+            const [r, g, b] = short[1].toLowerCase().split('');
+            return `#${r}${r}${g}${g}${b}${b}`;
+        }
+
+        try {
+            if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+                return null;
+            }
+            if (!_colorInputParserCtx) {
+                _colorInputParserCtx = document.createElement('canvas')?.getContext?.('2d') || null;
+            }
+            if (!_colorInputParserCtx) return null;
+            _colorInputParserCtx.fillStyle = '#000000';
+            _colorInputParserCtx.fillStyle = lower;
+            const resolved = String(_colorInputParserCtx.fillStyle || '').trim().toLowerCase();
+            const resolvedHex = resolved.match(/^#([a-f0-9]{6})$/i);
+            if (resolvedHex) return `#${resolvedHex[1].toLowerCase()}`;
+        } catch (_) {
+            // Ignore parser fallbacks and try other paths.
+        }
+
+        return null;
+    };
+
+    return normalize(color) || normalize(fallback) || '#f5f5f5';
+}
+
 export class SettingsManager {
     constructor() {
         this.modal = null;
@@ -666,7 +706,7 @@ export class SettingsManager {
     createSessionBadgeRuleRow(rule = null) {
         const normalized = this.sanitizeSessionBadgePrefs({ enabled: true, rules: [rule || createDefaultSessionBadgeRule()] }).rules[0]
             || createDefaultSessionBadgeRule();
-        const colorValue = parseColor(normalized.color || '') || '#f5f5f5';
+        const colorValue = toColorInputHex(normalized.color || '', '#f5f5f5');
         const row = document.createElement('div');
         row.className = 'session-badge-rule-row';
         row.dataset.ruleId = normalized.id;
