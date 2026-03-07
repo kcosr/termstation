@@ -811,34 +811,31 @@ export class SettingsManager {
             <div class="session-badge-color-control">
                 <button type="button" class="session-badge-rule-color-swatch-btn" title="Badge color" aria-label="Badge color"></button>
                 <input type="hidden" class="session-badge-rule-color" value="${this.escapeHtml(colorValue)}">
-                <details class="session-badge-color-details">
-                    <summary>HSV</summary>
-                    <div class="session-badge-color-popover">
-                        <label>
-                            <span>H</span>
-                            <input type="range" class="session-badge-color-hue" min="0" max="360" step="1" value="0">
-                            <span class="session-badge-color-hue-value">0</span>
-                        </label>
-                        <label>
-                            <span>S</span>
-                            <input type="range" class="session-badge-color-saturation" min="0" max="100" step="1" value="0">
-                            <span class="session-badge-color-saturation-value">0</span>
-                        </label>
-                        <label>
-                            <span>V</span>
-                            <input type="range" class="session-badge-color-value" min="0" max="100" step="1" value="0">
-                            <span class="session-badge-color-value-value">0</span>
-                        </label>
-                        <div class="session-badge-color-swatch" aria-hidden="true"></div>
-                    </div>
-                </details>
+                <div class="session-badge-color-popover">
+                    <label>
+                        <span>H</span>
+                        <input type="range" class="session-badge-color-hue" min="0" max="360" step="1" value="0">
+                        <span class="session-badge-color-hue-value">0</span>
+                    </label>
+                    <label>
+                        <span>S</span>
+                        <input type="range" class="session-badge-color-saturation" min="0" max="100" step="1" value="0">
+                        <span class="session-badge-color-saturation-value">0</span>
+                    </label>
+                    <label>
+                        <span>V</span>
+                        <input type="range" class="session-badge-color-value" min="0" max="100" step="1" value="0">
+                        <span class="session-badge-color-value-value">0</span>
+                    </label>
+                    <div class="session-badge-color-swatch" aria-hidden="true"></div>
+                </div>
             </div>
             <button type="button" class="btn btn-danger session-badge-rule-remove">Remove</button>
         `;
 
         const colorInput = row.querySelector('.session-badge-rule-color');
+        const colorControl = row.querySelector('.session-badge-color-control');
         const colorSwatchButton = row.querySelector('.session-badge-rule-color-swatch-btn');
-        const colorDetails = row.querySelector('.session-badge-color-details');
         const hueInput = row.querySelector('.session-badge-color-hue');
         const saturationInput = row.querySelector('.session-badge-color-saturation');
         const valueInput = row.querySelector('.session-badge-color-value');
@@ -883,13 +880,10 @@ export class SettingsManager {
         row.querySelector('.session-badge-rule-pattern')?.addEventListener('input', onChange);
         row.querySelector('.session-badge-rule-label')?.addEventListener('input', onChange);
         colorSwatchButton?.addEventListener('click', () => {
-            if (!colorDetails) return;
-            const willOpen = !colorDetails.open;
-            colorDetails.open = willOpen;
+            if (!colorControl) return;
+            const willOpen = !colorControl.classList.contains('open');
+            colorControl.classList.toggle('open', willOpen);
             if (willOpen) syncHsvFromCurrentColor();
-        });
-        colorDetails?.addEventListener('toggle', () => {
-            if (colorDetails.open) syncHsvFromCurrentColor();
         });
         hueInput?.addEventListener('input', syncColorFromHsv);
         saturationInput?.addEventListener('input', syncColorFromHsv);

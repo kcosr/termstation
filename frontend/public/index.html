@@ -909,7 +909,6 @@
                     #settings-modal .session-badge-color-control {
                         display: inline-flex;
                         align-items: center;
-                        gap: 6px;
                         position: relative;
                     }
                     #settings-modal .session-badge-rule-color-swatch-btn {
@@ -921,26 +920,6 @@
                         background: #f5f5f5;
                         cursor: pointer;
                     }
-                    #settings-modal .session-badge-color-details {
-                        position: relative;
-                    }
-                    #settings-modal .session-badge-color-details > summary {
-                        list-style: none;
-                        cursor: pointer;
-                        font-size: 11px;
-                        color: var(--text-secondary);
-                        border: 1px solid var(--border-color);
-                        border-radius: 4px;
-                        padding: 3px 6px;
-                        user-select: none;
-                    }
-                    #settings-modal .session-badge-color-details > summary::-webkit-details-marker {
-                        display: none;
-                    }
-                    #settings-modal .session-badge-color-details[open] > summary {
-                        color: var(--text-primary);
-                        background: var(--bg-secondary);
-                    }
                     #settings-modal .session-badge-color-popover {
                         position: absolute;
                         right: 0;
@@ -950,11 +929,14 @@
                         border-radius: 8px;
                         background: var(--bg-secondary);
                         padding: 8px;
-                        display: flex;
                         flex-direction: column;
                         gap: 6px;
                         z-index: 20;
                         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+                        display: none;
+                    }
+                    #settings-modal .session-badge-color-control.open .session-badge-color-popover {
+                        display: flex;
                     }
                     #settings-modal .session-badge-color-popover label {
                         display: grid;
