@@ -507,6 +507,14 @@ export class TerminalManager {
         return this.activeChildSessionId || this.currentSessionId;
     }
 
+    shouldPersistEndedSessions() {
+        try {
+            return appStore.getState('preferences.terminal.persistEndedSessions') !== false;
+        } catch (_) {
+            return true;
+        }
+    }
+
     /** Get session data for either a parent (sidebar) or child (container) id. */
     getAnySessionData(sessionId) {
         if (!sessionId) return null;
@@ -3988,7 +3996,8 @@ export class TerminalManager {
             }
 
             // Capture sticky terminated sessions so they can survive reloads
-            const stickySnapshots = (this.sessionList && typeof this.sessionList.getStickyTerminatedSessionsSnapshot === 'function')
+            const persistEndedSessions = this.shouldPersistEndedSessions();
+            const stickySnapshots = (persistEndedSessions && this.sessionList && typeof this.sessionList.getStickyTerminatedSessionsSnapshot === 'function')
                 ? this.sessionList.getStickyTerminatedSessionsSnapshot()
                 : [];
 
@@ -4029,7 +4038,7 @@ export class TerminalManager {
             });
 
             // Reapply sticky terminated sessions that were active before the reload
-            if (Array.isArray(stickySnapshots) && stickySnapshots.length > 0) {
+            if (persistEndedSessions && Array.isArray(stickySnapshots) && stickySnapshots.length > 0) {
                 stickySnapshots.forEach(stickySession => {
                     if (!stickySession || !stickySession.session_id) return;
                     const existing = this.sessionList.getSessionData(stickySession.session_id);
@@ -7958,6 +7967,7 @@ export class TerminalManager {
             case 'terminated': {
                 const terminatedId = sessionData.session_id;
                 const wasCurrentSession = this.currentSessionId === terminatedId;
+                const persistEndedSessions = this.shouldPersistEndedSessions();
 
                 // If the session is not currently displayed in our sidebar/store,
                 // do not re-add it on a terminated event. This prevents a session
@@ -7987,7 +7997,9 @@ export class TerminalManager {
                 }
 
                 // Merge termination payload into existing sidebar state so the session stays visible
-                const mergedSessionData = { ...existingSessionData, ...sessionData, is_active: false, __stickyTerminated: true };
+                const mergedSessionData = persistEndedSessions
+                    ? { ...existingSessionData, ...sessionData, is_active: false, __stickyTerminated: true }
+                    : { ...existingSessionData, ...sessionData, is_active: false };
                 this.sessionList.updateSession(mergedSessionData);
 
                 // Keep a local terminal instance around for read-only viewing
@@ -8015,6 +8027,11 @@ export class TerminalManager {
 
                 // Ensure workspace metadata reflects latest session set
                 this.updateWorkspacesFromSessions();
+
+                if (!persistEndedSessions) {
+                    try { this._removeEndedSessionFromSidebar(terminatedId); } catch (_) {}
+                    break;
+                }
 
                 if (wasCurrentSession) {
                     try {

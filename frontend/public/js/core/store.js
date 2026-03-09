@@ -499,7 +499,9 @@ export const appStore = new Store({
             filterOscColors: true,
             collapseNakedRgbRuns: true,
             // New: auto-attach on session select
-            autoAttachOnSelect: true
+            autoAttachOnSelect: true,
+            // Keep ended sessions visible with badge until user clears them
+            persistEndedSessions: true
         },
         sessionBadges: {
             enabled: false,

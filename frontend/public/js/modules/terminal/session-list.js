@@ -529,13 +529,21 @@ export class SessionList {
         
         if (sessionData) {
             console.log(`[SessionList] Marking session ${sessionId} as terminated (was is_active=${sessionData.is_active})`);
+            const persistEndedSessions = this.store.getState().preferences?.terminal?.persistEndedSessions !== false;
             
             // Update the session data to mark it as inactive
-            const updatedSessionData = { ...sessionData, is_active: false, __stickyTerminated: true };
+            const updatedSessionData = persistEndedSessions
+                ? { ...sessionData, is_active: false, __stickyTerminated: true }
+                : { ...sessionData, is_active: false };
             const newSessions = new Map(currentSessions);
             newSessions.set(sessionId, updatedSessionData);
             this.store.setPath('sessionList.sessions', newSessions);
-            this.stickyTerminatedSessions.add(sessionId);
+            if (persistEndedSessions) {
+                this.stickyTerminatedSessions.add(sessionId);
+            } else {
+                this.stickyTerminatedSessions.delete(sessionId);
+                try { this.manager?._removeEndedSessionFromSidebar?.(sessionId); } catch (_) {}
+            }
             
             console.log(`[SessionList] After termination: is_active=${updatedSessionData.is_active}`);
             
