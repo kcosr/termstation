@@ -2532,6 +2532,17 @@ export class TerminalManager {
             }
         });
 
+        // Cmd/Alt + Shift + R → Open rename/set-title modal for active session
+        registerShortcut({
+            id: 'terminal.shortcut.rename-session',
+            description: 'Rename active session',
+            keys: [...modShiftCombos('code:KeyR')],
+            // Try to win against hard-reload handling where the browser allows preventDefault.
+            priority: 30,
+            preventDefault: true,
+            handler: () => this.showSetTitleModalForActiveSession() === true
+        });
+
         // Removed pin toggle shortcut (Issue #1148). Pin/unpin remains available via UI menus/buttons.
 
         registerShortcut({
@@ -9225,21 +9236,27 @@ export class TerminalManager {
      * Show set title modal for the currently active session
      */
     showSetTitleModalForActiveSession() {
-        if (!this.currentSessionId) {
+        const sessionId = (typeof this.getActiveEffectiveSessionId === 'function')
+            ? this.getActiveEffectiveSessionId()
+            : this.currentSessionId;
+        if (!sessionId) {
             console.warn('[Manager] No active session to set title for');
-            return;
+            return false;
         }
-        
-        const sessionData = this.sessionList.getSessionData(this.currentSessionId);
+
+        const sessionData = (typeof this.getAnySessionData === 'function')
+            ? this.getAnySessionData(sessionId)
+            : this.sessionList?.getSessionData?.(sessionId);
         if (!sessionData) {
             console.warn('[Manager] Current session data not found');
-            return;
+            return false;
         }
-        
+
         this.sessionList.modals.showSetTitleModal(sessionData, (sessionId, newTitle) => {
             this.sessionList.updateSessionTitle(sessionId, newTitle);
             try { this.refreshHeaderForSession(sessionId); } catch (_) {}
         });
+        return true;
     }
 
     /**
