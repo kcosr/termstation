@@ -471,6 +471,7 @@ export class SettingsManager {
             terminalFilterOscColors: document.getElementById('terminal-filter-osc-colors'),
             terminalCollapseNakedRgb: document.getElementById('terminal-collapse-naked-rgb'),
             terminalAutoAttachOnSelect: document.getElementById('terminal-auto-attach-on-select'),
+            terminalPersistEndedSessions: document.getElementById('terminal-persist-ended-sessions'),
             dynamicTitleMode: document.getElementById('dynamic-title-mode'),
             sessionBadgesEnabled: document.getElementById('session-badges-enabled'),
             sessionBadgeRulesList: document.getElementById('session-badge-rules-list'),
@@ -1407,6 +1408,10 @@ export class SettingsManager {
             const enabled = !!e.target.checked;
             try { appStore.setPath('preferences.terminal.autoAttachOnSelect', enabled); } catch (_) {}
         });
+        this.elements.terminalPersistEndedSessions?.addEventListener('change', (e) => {
+            const enabled = !!e.target.checked;
+            try { appStore.setPath('preferences.terminal.persistEndedSessions', enabled); } catch (_) {}
+        });
         this.elements.dynamicTitleMode?.addEventListener('change', (e) => {
             const mode = e.target.value || 'ifUnset';
             try { appStore.setPath('preferences.terminal.dynamicTitleMode', mode); } catch (_) {}
@@ -1560,6 +1565,11 @@ export class SettingsManager {
                 // Migrate if needed
                 settings = this.applyMigrations(settings);
                 if (settings.preferences) {
+                    const terminalPrefs = settings.preferences.terminal || {};
+                    settings.preferences.terminal = {
+                        ...terminalPrefs,
+                        persistEndedSessions: this.coerceBoolDefaultTrue(terminalPrefs.persistEndedSessions)
+                    };
                     const linksPrefs = settings.preferences.links || {};
                     settings.preferences.links = {
                         searchRevealGroupLinks: this.coerceBoolDefaultTrue(linksPrefs.searchRevealGroupLinks),
@@ -1622,6 +1632,11 @@ export class SettingsManager {
             // Migrate if needed
             settings = this.applyMigrations(settings);
             if (settings.preferences) {
+                const terminalPrefs = settings.preferences.terminal || {};
+                settings.preferences.terminal = {
+                    ...terminalPrefs,
+                    persistEndedSessions: this.coerceBoolDefaultTrue(terminalPrefs.persistEndedSessions)
+                };
                 const linksPrefs = settings.preferences.links || {};
                 settings.preferences.links = {
                     searchRevealGroupLinks: this.coerceBoolDefaultTrue(linksPrefs.searchRevealGroupLinks),
@@ -2090,6 +2105,9 @@ export class SettingsManager {
         if (this.elements.terminalAutoAttachOnSelect) {
             this.elements.terminalAutoAttachOnSelect.checked = state.preferences?.terminal?.autoAttachOnSelect ?? true;
         }
+        if (this.elements.terminalPersistEndedSessions) {
+            this.elements.terminalPersistEndedSessions.checked = state.preferences?.terminal?.persistEndedSessions !== false;
+        }
         // Dynamic title mode
         if (this.elements.dynamicTitleMode) {
             this.elements.dynamicTitleMode.value = state.preferences?.terminal?.dynamicTitleMode ?? 'ifUnset';
@@ -2399,7 +2417,8 @@ export class SettingsManager {
                         dynamicTitleMode: this.elements.dynamicTitleMode?.value || 'ifUnset',
                         filterOscColors: this.elements.terminalFilterOscColors?.checked !== false,
                         collapseNakedRgbRuns: this.elements.terminalCollapseNakedRgb?.checked !== false,
-                        autoAttachOnSelect: this.elements.terminalAutoAttachOnSelect?.checked ?? true
+                        autoAttachOnSelect: this.elements.terminalAutoAttachOnSelect?.checked ?? true,
+                        persistEndedSessions: this.elements.terminalPersistEndedSessions?.checked !== false
                     },
                     sessionBadges: this.sanitizeSessionBadgePrefs({
                         enabled: this.elements.sessionBadgesEnabled?.checked === true,
@@ -2521,6 +2540,9 @@ export class SettingsManager {
                 const ctx = getContext();
                 const tm = ctx?.app?.modules?.terminal;
                 if (tm) {
+                    if (newSettings.preferences?.terminal?.persistEndedSessions === false) {
+                        try { tm.removeAllEndedSessionsFromUI?.(); } catch (_) {}
+                    }
                     tm.sessionList?.render();
                     tm.sessionTabsManager?.refresh();
                     tm.updateAvailableTemplateFilters?.();
@@ -2620,7 +2642,8 @@ export class SettingsManager {
                     cursorBlink: true,
                     scrollback: 1000,
                     dynamicTitleMode: 'ifUnset',
-                    autoAttachOnSelect: true
+                    autoAttachOnSelect: true,
+                    persistEndedSessions: true
                 },
                 sessionBadges: {
                     enabled: false,
