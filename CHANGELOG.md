@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Added
+
+- Frontend: add `Cmd/Alt + Shift + R` shortcut to open Rename/Set Title for the active effective session. ([#29](https://github.com/kcosr/termstation/pull/29))
+
+### Changed
+
+- Frontend: add `Persist ended sessions` terminal setting (default on). When disabled, ended sessions are removed immediately and sticky ended sessions are not rehydrated on reload. ([#29](https://github.com/kcosr/termstation/pull/29))
 
 ## [0.0.6] - 2026-03-07
 
