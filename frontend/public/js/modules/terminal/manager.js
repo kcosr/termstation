@@ -48,10 +48,13 @@ import {
     WORKSPACE_SORT_MODE_RECENT,
     normalizeWorkspaceSortMode,
     buildRecencyMapFromSessions,
+    buildWorkspaceDisplayOrder,
     mergeRecencyMapsMaxWins,
     parseTimestampToMillis,
     pruneRecencyMapBySessionIds,
+    resolveWorkspaceSortTransition,
     resolveSessionId,
+    shouldShowWorkspaceSortRefresh,
     sortWorkspaceNamesByRecency
 } from '../workspaces/workspace-recency.js';
 
@@ -483,20 +486,25 @@ export class TerminalManager {
 
     setWorkspaceSortMode(mode, options = {}) {
         const { persist = true, applyRecent = true } = options || {};
-        const normalized = normalizeWorkspaceSortMode(mode);
+        const currentDirty = this.sessionList?.store?.getState?.()?.workspaces?.sortDirty === true;
+        const transition = resolveWorkspaceSortTransition({
+            requestedMode: mode,
+            applyRecent,
+            currentDirty
+        });
         try {
-            this.sessionList?.store?.setPath('workspaces.sortMode', normalized);
-            if (normalized === WORKSPACE_SORT_MODE_MANUAL) {
-                this.sessionList?.store?.setPath('workspaces.sortDirty', false);
-            } else if (applyRecent) {
+            this.sessionList?.store?.setPath('workspaces.sortMode', transition.nextMode);
+            if (transition.shouldApplyRecent) {
                 this.applyRecentWorkspaceOrder();
+            } else if (transition.nextDirty !== currentDirty) {
+                this.sessionList?.store?.setPath('workspaces.sortDirty', transition.nextDirty);
             }
         } catch (_) { /* ignore */ }
         if (persist) {
-            try { queueStateSet(WORKSPACE_SORT_MODE_STORAGE_KEY, normalized, 200); } catch (_) { /* ignore */ }
+            try { queueStateSet(WORKSPACE_SORT_MODE_STORAGE_KEY, transition.nextMode, 200); } catch (_) { /* ignore */ }
         }
         this.updateWorkspaceSortControls();
-        return normalized;
+        return transition.nextMode;
     }
 
     getAppliedRecentWorkspaceOrder() {
@@ -9236,7 +9244,6 @@ export class TerminalManager {
 
         const workspacesState = this.sessionList?.store?.getState?.()?.workspaces || {};
         const sortMode = normalizeWorkspaceSortMode(workspacesState.sortMode);
-        const sortDirty = workspacesState.sortDirty === true;
         const isRecent = sortMode === WORKSPACE_SORT_MODE_RECENT;
 
         if (modeText) {
@@ -9254,7 +9261,7 @@ export class TerminalManager {
             );
         }
 
-        const showRefresh = isRecent && sortDirty;
+        const showRefresh = shouldShowWorkspaceSortRefresh(sortMode, workspacesState.sortDirty);
         if (refreshBtn) {
             const hadFocus = document.activeElement === refreshBtn;
             refreshBtn.style.display = showRefresh ? 'inline-flex' : 'none';
@@ -9844,16 +9851,12 @@ export class TerminalManager {
             const manualOrder = (Array.isArray(wsState.order) && wsState.order.length > 0)
                 ? wsState.order.slice()
                 : Array.from(itemsSet);
-            let baseOrder = manualOrder.slice();
-            const sortMode = normalizeWorkspaceSortMode(wsState.sortMode);
-            if (sortMode === WORKSPACE_SORT_MODE_RECENT) {
-                const appliedRecent = this.getAppliedRecentWorkspaceOrder();
-                const manualSet = new Set(manualOrder);
-                const orderedFromRecent = appliedRecent.filter((name) => manualSet.has(name));
-                const recentSet = new Set(orderedFromRecent);
-                const missing = manualOrder.filter((name) => !recentSet.has(name));
-                baseOrder = [...orderedFromRecent, ...missing];
-            }
+            const baseOrder = buildWorkspaceDisplayOrder({
+                sortMode: wsState.sortMode,
+                manualOrder,
+                eligibleNames: manualOrder,
+                appliedRecentOrder: this.getAppliedRecentWorkspaceOrder()
+            });
 
             // Apply pinned filter to the order
             const ordered = baseOrder.filter(name => !filterPinned || pinnedSet.has(name));

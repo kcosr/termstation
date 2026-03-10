@@ -165,3 +165,60 @@ export function sortWorkspaceNamesByRecency({
     return String(a).localeCompare(String(b));
   });
 }
+
+/**
+ * Resolve deterministic display order for sidebar workspaces.
+ * - manual mode: manual order filtered to eligible set
+ * - recent mode: applied recent snapshot filtered to eligible set,
+ *   then append missing eligible names in manual-order fallback
+ */
+export function buildWorkspaceDisplayOrder({
+  sortMode,
+  manualOrder,
+  eligibleNames,
+  appliedRecentOrder
+}) {
+  const mode = normalizeWorkspaceSortMode(sortMode);
+  const manualList = Array.isArray(manualOrder) ? manualOrder.filter(Boolean) : [];
+  const eligibleList = Array.isArray(eligibleNames) ? eligibleNames.filter(Boolean) : [];
+  const eligibleSet = new Set(eligibleList);
+
+  const manualOrderedEligible = manualList.filter((name) => eligibleSet.has(name));
+  const manualSet = new Set(manualOrderedEligible);
+  const manualFallback = [
+    ...manualOrderedEligible,
+    ...eligibleList.filter((name) => !manualSet.has(name))
+  ];
+
+  if (mode !== WORKSPACE_SORT_MODE_RECENT) {
+    return manualFallback;
+  }
+
+  const appliedRecent = Array.isArray(appliedRecentOrder) ? appliedRecentOrder.filter(Boolean) : [];
+  const recentEligible = appliedRecent.filter((name) => eligibleSet.has(name));
+  const recentSet = new Set(recentEligible);
+  const missing = manualFallback.filter((name) => !recentSet.has(name));
+  return [...recentEligible, ...missing];
+}
+
+/**
+ * Compute sort-mode transition effects for manager state updates.
+ */
+export function resolveWorkspaceSortTransition({
+  requestedMode,
+  applyRecent = true,
+  currentDirty = false
+}) {
+  const nextMode = normalizeWorkspaceSortMode(requestedMode);
+  if (nextMode === WORKSPACE_SORT_MODE_MANUAL) {
+    return { nextMode, nextDirty: false, shouldApplyRecent: false };
+  }
+  if (applyRecent) {
+    return { nextMode, nextDirty: false, shouldApplyRecent: true };
+  }
+  return { nextMode, nextDirty: currentDirty === true, shouldApplyRecent: false };
+}
+
+export function shouldShowWorkspaceSortRefresh(sortMode, sortDirty) {
+  return normalizeWorkspaceSortMode(sortMode) === WORKSPACE_SORT_MODE_RECENT && sortDirty === true;
+}

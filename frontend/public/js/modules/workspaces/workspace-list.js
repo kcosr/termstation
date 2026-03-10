@@ -15,6 +15,7 @@ import { delegate } from '../../utils/delegate.js';
 import { resolveSessionBadgeRule } from '../../utils/session-badge-rules.js';
 import { SessionFilterService } from '../terminal/session-filter-service.js';
 import { FormModal, ConfirmationModal } from '../ui/modal.js';
+import { buildWorkspaceDisplayOrder } from './workspace-recency.js';
 
 export class WorkspaceList {
   constructor(container, onSelect) {
@@ -581,19 +582,16 @@ export class WorkspaceList {
     const state = renderContext.workspacesState;
     const pinnedSet = renderContext.pinnedSet;
     const current = state.current || null;
-    const sortMode = state.sortMode === 'recent' ? 'recent' : 'manual';
-    let orderToRender = renderContext.eligibleNames;
-    if (sortMode === 'recent') {
-      const tm = getContext()?.app?.modules?.terminal;
-      const appliedOrder = Array.isArray(tm?.getAppliedRecentWorkspaceOrder?.())
-        ? tm.getAppliedRecentWorkspaceOrder()
-        : [];
-      const eligibleSet = new Set(renderContext.eligibleNames);
-      const orderedFromSnapshot = appliedOrder.filter((name) => eligibleSet.has(name));
-      const orderedSnapshotSet = new Set(orderedFromSnapshot);
-      const missingNames = renderContext.eligibleNames.filter((name) => !orderedSnapshotSet.has(name));
-      orderToRender = [...orderedFromSnapshot, ...missingNames];
-    }
+    const tm = getContext()?.app?.modules?.terminal;
+    const appliedOrder = Array.isArray(tm?.getAppliedRecentWorkspaceOrder?.())
+      ? tm.getAppliedRecentWorkspaceOrder()
+      : [];
+    const orderToRender = buildWorkspaceDisplayOrder({
+      sortMode: state.sortMode,
+      manualOrder: renderContext.orderedNames,
+      eligibleNames: renderContext.eligibleNames,
+      appliedRecentOrder: appliedOrder
+    });
 
     this.container.innerHTML = '';
     // Reset the numbering serial at the start of a full render pass
