@@ -197,11 +197,40 @@ Evidence schema (mandatory per phase):
 - Go/No-Go decision: Go.
 
 #### H2 Evidence
-- Completion date:
-- Commit hash(es):
+- Completion date: 2026-03-10.
+- Commit hash(es): `1e09e1a`.
 - Acceptance evidence:
+  - Added recent-mode ordering engine helper `sortWorkspaceNamesByRecency(...)` in `workspace-recency.js` implementing deterministic recency-desc sort with manual-order tie-break and empty-workspace `0` recency baseline.
+  - Added manager-owned applied snapshot flow:
+    - `appliedRecentWorkspaceOrder`,
+    - `getAppliedRecentWorkspaceOrder()`,
+    - `applyRecentWorkspaceOrder()`,
+    - `refreshRecentWorkspaceOrder()`.
+  - `setWorkspaceSortMode(...)` now enforces phase semantics:
+    - entering recent applies snapshot order,
+    - leaving recent clears dirty,
+    - loading persisted mode can skip immediate apply until post-init.
+  - Fixed critical candidate-set wiring bug identified in review:
+    - `applyRecentWorkspaceOrder()` now consumes `getRenderEligibleWorkspaceNames().eligibleNames` (array) instead of passing the full context object.
+  - `WorkspaceList.render()` now consumes applied recent snapshot order while preserving eligibility gate and appending newly eligible names without auto-reorder.
+  - `TerminalManager.getVisibleOrderedWorkspaces()` mirrors recent-mode snapshot ordering so keyboard workspace cycling matches sidebar order.
+  - Dirty/apply behavior wired:
+    - websocket recency advancement in recent mode marks `workspaces.sortDirty=true`,
+    - refresh/apply clears dirty and updates applied snapshot,
+    - no automatic reorder occurs while dirty (snapshot remains stable until explicit apply).
+  - Verification commands:
+    - `npm run lint --if-present` (root): passed (no script defined, no-op).
+    - `npm test --if-present` (root): passed (no script defined, no-op).
+    - `node --test frontend/tests/theme-persistence.test.js frontend/tests/notes-model.test.js`: passed (7 tests).
 - Review run IDs + triage outcomes:
-- Go/No-Go decision:
+  - `r_20260310162600610_3302b465` (generic-gemini)
+    - `accept`: reduce unnecessary duplicate-render risk in apply flow. Applied by only forcing explicit render when dirty state was already false (when dirty was true, store update drives subscribed render).
+    - `defer`: possible init timing edge where early recent snapshot could be empty before all session/filter state settles. Rationale: behavior remains deterministic and within phase scope; comprehensive regression assertions are scheduled in H4 tests.
+  - `r_20260310162716289_6b8ca83a` (generic-pi)
+    - `accept`: fix return-type mismatch in `applyRecentWorkspaceOrder()` by extracting `eligibleNames` from workspace render context.
+    - `defer`: duplicate merge logic between `WorkspaceList.render()` and `TerminalManager.getVisibleOrderedWorkspaces()`. Rationale: parity is currently intentional for render/keyboard consistency; refactor to shared helper can be done post-feature without changing behavior.
+    - `reject`: set dirty on structural workspace/session membership changes while in recent mode. Rationale: locked design explicitly states structural changes do not force reorder unless user refreshes/re-enters recent mode.
+- Go/No-Go decision: Go.
 
 #### H3 Evidence
 - Completion date:
