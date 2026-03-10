@@ -81,3 +81,31 @@ export function buildRecencyMapFromSessions(sessions) {
   });
   return recencyById;
 }
+
+export function mergeRecencyMapsMaxWins(baseMap, incomingMap) {
+  const next = new Map(baseMap instanceof Map ? baseMap : []);
+  if (!(incomingMap instanceof Map)) return next;
+  incomingMap.forEach((incomingTs, sessionId) => {
+    const normalizedId = String(sessionId || '').trim();
+    if (!normalizedId) return;
+    const safeIncoming = Number.isFinite(incomingTs) ? incomingTs : 0;
+    const current = Number(next.get(normalizedId)) || 0;
+    if (safeIncoming > current) {
+      next.set(normalizedId, safeIncoming);
+    }
+  });
+  return next;
+}
+
+export function pruneRecencyMapBySessionIds(recencyMap, validSessionIds) {
+  if (!(recencyMap instanceof Map)) return new Map();
+  const validSet = validSessionIds instanceof Set ? validSessionIds : new Set();
+  const next = new Map();
+  recencyMap.forEach((ts, sessionId) => {
+    const normalizedId = String(sessionId || '').trim();
+    if (!normalizedId) return;
+    if (!validSet.has(normalizedId)) return;
+    next.set(normalizedId, Number.isFinite(ts) ? ts : 0);
+  });
+  return next;
+}

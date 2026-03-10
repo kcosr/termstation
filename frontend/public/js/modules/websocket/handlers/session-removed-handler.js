@@ -11,6 +11,7 @@ export const sessionRemovedHandler = {
             if (!terminalManager || !terminalManager.sessionList) return;
             // Remove from session list store
             try { terminalManager.sessionList.removeSession(sessionId); } catch (_) {}
+            try { terminalManager.pruneSessionRecencyForRemovedSession?.(sessionId); } catch (_) {}
             // Clear selection if it was the current one
             try {
                 if (terminalManager.currentSessionId === sessionId) {

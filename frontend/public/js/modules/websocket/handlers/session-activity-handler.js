@@ -43,6 +43,13 @@ export class SessionActivityHandler {
       const sid = String(message.session_id || message.sessionId || '').trim();
       if (!sid) return;
       const state = String(message.activity_state || '').toLowerCase();
+      try {
+        mgr.ingestSessionRecencyFromActivity?.({
+          session_id: sid,
+          activity_state: state,
+          last_output_at: message.last_output_at
+        });
+      } catch (_) { /* ignore */ }
       if (state === 'inactive' || state === 'idle') {
         // Persistently set as inactive and, when the session is not the one
         // currently being viewed, mark that output stopped while hidden.

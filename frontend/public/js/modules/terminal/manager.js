@@ -46,7 +46,11 @@ import { getSettingsStore } from '../../core/settings-store/index.js';
 import {
     WORKSPACE_SORT_MODE_MANUAL,
     normalizeWorkspaceSortMode,
-    buildRecencyMapFromSessions
+    buildRecencyMapFromSessions,
+    mergeRecencyMapsMaxWins,
+    parseTimestampToMillis,
+    pruneRecencyMapBySessionIds,
+    resolveSessionId
 } from '../workspaces/workspace-recency.js';
 
 
@@ -493,9 +497,41 @@ export class TerminalManager {
     seedSessionRecencyFromApiSessions(sessions) {
         try {
             const seed = buildRecencyMapFromSessions(sessions);
-            this.sessionRecencyById = seed;
+            const merged = mergeRecencyMapsMaxWins(this.sessionRecencyById, seed);
+            const validIds = new Set(seed.keys());
+            this.sessionRecencyById = pruneRecencyMapBySessionIds(merged, validIds);
         } catch (_) {
-            this.sessionRecencyById = new Map();
+            // Preserve the existing map on seed failures; malformed payloads should not
+            // discard already-tracked runtime recency state.
+        }
+    }
+
+    pruneSessionRecencyForRemovedSession(sessionId) {
+        const normalizedId = String(sessionId || '').trim();
+        if (!normalizedId) return;
+        try { this.sessionRecencyById.delete(normalizedId); } catch (_) { /* ignore */ }
+    }
+
+    ingestSessionRecencyFromActivity(message = {}) {
+        const sessionId = resolveSessionId(message);
+        if (!sessionId) return;
+
+        // Ignore unknown sessions to keep runtime map bounded to known sidebar sessions.
+        const known = !!(this.sessionList?.getSessionData?.(sessionId));
+        if (!known) return;
+
+        // Treat idle as the same ingestion path as inactive.
+        const activityState = String(message.activity_state || '').trim().toLowerCase();
+        if (activityState !== 'active' && activityState !== 'inactive' && activityState !== 'idle') {
+            return;
+        }
+
+        const lastOutputTs = parseTimestampToMillis(message.last_output_at);
+        if (lastOutputTs == null) return;
+
+        const current = Number(this.sessionRecencyById.get(sessionId)) || 0;
+        if (lastOutputTs > current) {
+            this.sessionRecencyById.set(sessionId, lastOutputTs);
         }
     }
 
@@ -3365,6 +3401,7 @@ export class TerminalManager {
 
         if (this.sessionList?.getSessionData(childId)) {
             this.sessionList.removeSession(childId);
+            this.pruneSessionRecencyForRemovedSession(childId);
         }
 
         this.ensureParentSessionInSidebar(parentId, { forceActiveChildren: true });
@@ -7408,6 +7445,7 @@ export class TerminalManager {
 
             // Remove from UI list
             this.sessionList.removeSession(sessionId);
+            this.pruneSessionRecencyForRemovedSession(sessionId);
 
             // Clean up attached session instance
             if (this.attachedSessions && this.attachedSessions.has(sessionId)) {
@@ -7471,6 +7509,7 @@ export class TerminalManager {
             await apiService.clearSessionHistory(sessionId);
             // Remove session from UI
             this.sessionList.removeSession(sessionId);
+            this.pruneSessionRecencyForRemovedSession(sessionId);
             
             // If this session was attached, clean it up
             if (this.attachedSessions.has(sessionId)) {
@@ -8166,6 +8205,7 @@ export class TerminalManager {
 
                 // Remove the session completely from the list
                 this.sessionList.removeSession(sessionData.session_id);
+                this.pruneSessionRecencyForRemovedSession(sessionData.session_id);
                 break;
                 
             default:
