@@ -702,6 +702,7 @@ When running the Electron desktop app, a lightweight state store persists UI sta
 - `local_session_workspaces` — Map of local session ID → workspace name. Used to restore each local PTY session into the correct workspace across reloads.
 - `workspace_session_selections` — Map of workspace name → last selected session ID. Used to restore selection when switching workspaces or after reload.
 - `terminal_manual_order` — Per‑workspace arrays of session IDs capturing the sidebar manual order (respected by tabs as `visibleOrder`).
+- `terminal_workspace_sort_mode` — Workspace sidebar ordering mode (`manual` or `recent`). Recency map state and dirty/apply flags are runtime-only and are rebuilt from API/WebSocket data.
 
 These entries are written via the frontend state‑store batcher and read during startup to rehydrate the UI without contacting the server for local‑only sessions.
 

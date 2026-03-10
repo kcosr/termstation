@@ -268,11 +268,38 @@ Evidence schema (mandatory per phase):
 - Go/No-Go decision: Go.
 
 #### H4 Evidence
-- Completion date:
-- Commit hash(es):
+- Completion date: 2026-03-10.
+- Commit hash(es): `3b75294`.
 - Acceptance evidence:
+  - Added comprehensive frontend unit coverage in `frontend/tests/workspace-recency.test.js` for:
+    - timestamp parsing and fallback edge cases (`parseTimestampToMillis`, `computeSessionRecencyMillis`),
+    - API/websocket race merge semantics (`mergeRecencyMapsMaxWins`),
+    - lifecycle pruning semantics (`pruneRecencyMapBySessionIds`),
+    - mode/dirty/apply semantics (`resolveWorkspaceSortTransition`),
+    - manual-order restoration and recent snapshot behavior (`buildWorkspaceDisplayOrder`),
+    - refresh icon visibility gate (`shouldShowWorkspaceSortRefresh`),
+    - no-auto-reorder invariant until explicit apply.
+  - Added direct tests for previously indirect helpers (`normalizeWorkspaceSortMode`, `resolveSessionId`) after review triage.
+  - Refactored ordering/control semantics into tested pure helpers and wired runtime consumers:
+    - `buildWorkspaceDisplayOrder` used by both `WorkspaceList.render()` and `TerminalManager.getVisibleOrderedWorkspaces()`,
+    - `resolveWorkspaceSortTransition` used by `TerminalManager.setWorkspaceSortMode(...)`,
+    - `shouldShowWorkspaceSortRefresh` used by sidebar control rendering.
+  - Finalization docs updated in last phase:
+    - reference/persistence docs (`docs/README.md`) updated with `terminal_workspace_sort_mode`,
+    - milestone tracker updated (`docs/implementation/implementation-plan.md`),
+    - changelog entry added under `## [Unreleased]` (`CHANGELOG.md`).
+  - Verification commands:
+    - `npm run lint --if-present` (root): passed (no script defined, no-op).
+    - `npm test --if-present` (root): passed (no script defined, no-op).
+    - `node --test frontend/tests/workspace-recency.test.js frontend/tests/theme-persistence.test.js frontend/tests/notes-model.test.js`: passed (18 tests).
 - Review run IDs + triage outcomes:
-- Go/No-Go decision:
+  - `r_20260310164409355_88263820` (generic-gemini)
+    - `defer`: optimize potential redundant `sortDirty=true` writes during high-frequency websocket bursts. Rationale: current behavior is functionally correct and low-cost for this phase; optimization can be revisited if profiling indicates pressure.
+    - `defer`: backend/frontend persistence timing drift on hard reload near activity bursts. Rationale: accepted tradeoff for runtime-only recency map design (locked in design doc).
+  - `r_20260310164409383_9ec76608` (generic-pi)
+    - `accept`: add direct tests for uncovered exported helpers (`normalizeWorkspaceSortMode`, `resolveSessionId`) and additional timestamp/fallback edges.
+    - `defer`: expand further non-blocking edge matrix (extra defensive-input and integration render wiring assertions) beyond locked H4 minimum set.
+- Go/No-Go decision: Go.
 
 ## 10. Status
 Locked
