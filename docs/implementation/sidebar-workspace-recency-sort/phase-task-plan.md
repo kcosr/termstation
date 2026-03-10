@@ -172,11 +172,29 @@ Evidence schema (mandatory per phase):
 - Go/No-Go decision: Go.
 
 #### H1 Evidence
-- Completion date:
-- Commit hash(es):
+- Completion date: 2026-03-10.
+- Commit hash(es): `16ee658`.
 - Acceptance evidence:
+  - Websocket recency ingestion added via `TerminalManager.ingestSessionRecencyFromActivity()` and invoked from `session-activity-handler.js` without altering existing activity-indicator behavior.
+  - Session id normalization and coalescing enforced through `resolveSessionId` helper usage.
+  - `idle` treated as inactive-equivalent for ingestion allow-list (`active|inactive|idle` accepted; invalid/empty states ignored).
+  - API seed path upgraded to max-wins merge (`mergeRecencyMapsMaxWins`) plus reload reconciliation prune (`pruneRecencyMapBySessionIds`) so newer websocket timestamps survive later API seeds.
+  - Lifecycle pruning added for removal paths:
+    - `session-removed-handler.js`,
+    - manager deleted/remove/clear paths (`_removeEndedSessionFromSidebar`, delete history flow, `updateType='deleted'`, child-session detachment removal).
+  - Verification commands:
+    - `npm run lint --if-present` (root): passed (no script defined, no-op).
+    - `npm test --if-present` (root): passed (no script defined, no-op).
+    - `node --test frontend/tests/theme-persistence.test.js frontend/tests/notes-model.test.js`: passed (7 tests).
 - Review run IDs + triage outcomes:
-- Go/No-Go decision:
+  - `r_20260310161746417_987a8eed` (generic-gemini)
+    - `accept`: preserve existing recency map on API-seed errors instead of resetting to empty map.
+    - `defer`: add dedicated recency helper tests to H4 per locked phase testing plan.
+  - `r_20260310161855027_9767f14a` (generic-pi)
+    - `accept`: tighten ingestion state validation to ignore empty/invalid `activity_state`.
+    - `defer`: `sortDirty` mutation on websocket ingestion to H2 (dirty/apply behavior phase boundary).
+    - `defer`: remove handler/manager double-normalization cleanup; currently harmless and low-risk.
+- Go/No-Go decision: Go.
 
 #### H2 Evidence
 - Completion date:
