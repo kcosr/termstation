@@ -233,11 +233,39 @@ Evidence schema (mandatory per phase):
 - Go/No-Go decision: Go.
 
 #### H3 Evidence
-- Completion date:
-- Commit hash(es):
+- Completion date: 2026-03-10.
+- Commit hash(es): `2f4d177`.
 - Acceptance evidence:
+  - Added sort controls adjacent to existing pinned/active chips in sidebar header filter row:
+    - mode chip: `#workspace-sort-mode-btn` (+ icon/text),
+    - refresh icon button: `#workspace-sort-refresh-btn`.
+  - Wired controls in `TerminalManager`:
+    - toggle button switches `manual <-> recent` via `toggleWorkspaceSortMode()`,
+    - refresh button invokes `refreshRecentWorkspaceOrder()`,
+    - subscriptions on `workspaces.sortMode` and `workspaces.sortDirty` keep UI state synchronized.
+  - Added accessibility semantics for new controls:
+    - dynamic `aria-pressed` on mode chip,
+    - dynamic `aria-label` describing current mode and next action,
+    - refresh button label + visibility hidden state.
+  - Implemented visibility gate exactly as locked:
+    - refresh icon shown only when `sortMode === recent && sortDirty === true`.
+  - Added keyboard focus continuity for refresh self-hide:
+    - when refresh is activated and disappears after apply, focus returns to mode chip.
+  - CSS updates keep controls discoverable and mobile-safe (`flex-wrap`) and size the icon-only refresh button consistently.
+  - Verification commands:
+    - `npm run lint --if-present` (root): passed (no script defined, no-op).
+    - `npm test --if-present` (root): passed (no script defined, no-op).
+    - `node --test frontend/tests/theme-persistence.test.js frontend/tests/notes-model.test.js`: passed (7 tests).
 - Review run IDs + triage outcomes:
-- Go/No-Go decision:
+  - `r_20260310163811183_beafe141` (generic-gemini)
+    - `accept`: prevent keyboard focus loss when refresh button hides after apply; implemented focus handoff to mode chip.
+    - `defer`: add dedicated DOM/a11y assertions for control state matrix to H4 automated test phase.
+  - `r_20260310163815825_ab623bc7` (generic-pi)
+    - `accept`: remove redundant duplicate `updateWorkspaceSortControls()` invocation from `toggleWorkspaceSortMode()` (already called in downstream path).
+    - `defer`: backfill `aria-pressed`/`aria-label` for pre-existing Active filter control. Rationale: pre-existing control parity improvement is outside locked H3 deliverable scope for new sort controls.
+    - `defer`: explicit unsubscribe lifecycle cleanup for manager-level subscriptions. Rationale: existing module lifecycle pattern has no teardown hook; follow-up refactor can address globally.
+    - `defer`: H3-specific UI tests to H4 per phase plan.
+- Go/No-Go decision: Go.
 
 #### H4 Evidence
 - Completion date:
