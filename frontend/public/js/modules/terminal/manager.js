@@ -49,6 +49,7 @@ import {
     normalizeWorkspaceSortMode,
     buildRecencyMapFromSessions,
     buildWorkspaceDisplayOrder,
+    hasWorkspaceDisplayOrderChanged,
     mergeRecencyMapsMaxWins,
     parseTimestampToMillis,
     pruneRecencyMapBySessionIds,
@@ -597,11 +598,33 @@ export class TerminalManager {
         if (lastOutputTs > current) {
             this.sessionRecencyById.set(sessionId, lastOutputTs);
             try {
-                const mode = normalizeWorkspaceSortMode(
-                    this.sessionList?.store?.getState?.()?.workspaces?.sortMode
-                );
+                const storeState = this.sessionList?.store?.getState?.() || {};
+                const workspacesState = storeState.workspaces || {};
+                const mode = normalizeWorkspaceSortMode(workspacesState.sortMode);
                 if (mode === WORKSPACE_SORT_MODE_RECENT) {
-                    this.sessionList?.store?.setPath('workspaces.sortDirty', true);
+                    const sessions = storeState?.sessionList?.sessions || new Map();
+                    const manualOrder = Array.isArray(workspacesState.order) ? workspacesState.order : [];
+                    const renderContext = this.workspaceListComponent?.getRenderEligibleWorkspaceNames?.();
+                    const eligibleNames = Array.isArray(renderContext?.eligibleNames)
+                        ? renderContext.eligibleNames
+                        : manualOrder;
+                    const nextRecentOrder = sortWorkspaceNamesByRecency({
+                        workspaceNames: eligibleNames,
+                        sessions,
+                        sessionRecencyById: this.sessionRecencyById,
+                        manualOrder
+                    });
+                    const nextDirty = hasWorkspaceDisplayOrderChanged({
+                        sortMode: mode,
+                        manualOrder,
+                        eligibleNames,
+                        currentAppliedRecentOrder: this.getAppliedRecentWorkspaceOrder(),
+                        nextAppliedRecentOrder: nextRecentOrder
+                    });
+                    const currentDirty = workspacesState.sortDirty === true;
+                    if (nextDirty !== currentDirty) {
+                        this.sessionList?.store?.setPath('workspaces.sortDirty', nextDirty);
+                    }
                 }
             } catch (_) { /* ignore */ }
         }

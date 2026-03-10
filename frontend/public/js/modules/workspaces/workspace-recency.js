@@ -201,6 +201,38 @@ export function buildWorkspaceDisplayOrder({
   return [...recentEligible, ...missing];
 }
 
+function areOrderedNameArraysEqual(left, right) {
+  const a = Array.isArray(left) ? left : [];
+  const b = Array.isArray(right) ? right : [];
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+export function hasWorkspaceDisplayOrderChanged({
+  sortMode,
+  manualOrder,
+  eligibleNames,
+  currentAppliedRecentOrder,
+  nextAppliedRecentOrder
+}) {
+  const currentOrder = buildWorkspaceDisplayOrder({
+    sortMode,
+    manualOrder,
+    eligibleNames,
+    appliedRecentOrder: currentAppliedRecentOrder
+  });
+  const nextOrder = buildWorkspaceDisplayOrder({
+    sortMode,
+    manualOrder,
+    eligibleNames,
+    appliedRecentOrder: nextAppliedRecentOrder
+  });
+  return !areOrderedNameArraysEqual(currentOrder, nextOrder);
+}
+
 /**
  * Compute sort-mode transition effects for manager state updates.
  */

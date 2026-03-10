@@ -6,6 +6,7 @@ import {
   buildRecencyMapFromSessions,
   buildWorkspaceDisplayOrder,
   computeSessionRecencyMillis,
+  hasWorkspaceDisplayOrderChanged,
   mergeRecencyMapsMaxWins,
   normalizeWorkspaceSortMode,
   parseTimestampToMillis,
@@ -216,4 +217,24 @@ test('shouldShowWorkspaceSortRefresh only returns true for recent && dirty', () 
   assert.equal(shouldShowWorkspaceSortRefresh('recent', true), true);
   assert.equal(shouldShowWorkspaceSortRefresh('recent', false), false);
   assert.equal(shouldShowWorkspaceSortRefresh('manual', true), false);
+});
+
+test('hasWorkspaceDisplayOrderChanged only marks dirty when display order differs', () => {
+  const unchanged = hasWorkspaceDisplayOrderChanged({
+    sortMode: WORKSPACE_SORT_MODE_RECENT,
+    manualOrder: ['Alpha', 'Beta', 'Gamma'],
+    eligibleNames: ['Alpha', 'Beta', 'Gamma'],
+    currentAppliedRecentOrder: ['Alpha', 'Beta', 'Gamma'],
+    nextAppliedRecentOrder: ['Alpha', 'Beta', 'Gamma']
+  });
+  assert.equal(unchanged, false);
+
+  const changed = hasWorkspaceDisplayOrderChanged({
+    sortMode: WORKSPACE_SORT_MODE_RECENT,
+    manualOrder: ['Alpha', 'Beta', 'Gamma'],
+    eligibleNames: ['Alpha', 'Beta', 'Gamma'],
+    currentAppliedRecentOrder: ['Alpha', 'Beta', 'Gamma'],
+    nextAppliedRecentOrder: ['Beta', 'Alpha', 'Gamma']
+  });
+  assert.equal(changed, true);
 });
