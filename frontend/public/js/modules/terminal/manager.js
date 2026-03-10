@@ -43,11 +43,17 @@ import { keyboardShortcuts } from '../shortcuts/keyboard-shortcuts.js';
 import { openAddRuleModal } from '../ui/scheduled-input-modals.js';
 import { createDebug } from '../../utils/debug.js';
 import { getSettingsStore } from '../../core/settings-store/index.js';
+import {
+    WORKSPACE_SORT_MODE_MANUAL,
+    normalizeWorkspaceSortMode,
+    buildRecencyMapFromSessions
+} from '../workspaces/workspace-recency.js';
 
 
 const TERMINAL_FONT_MIN = 8;
 const TERMINAL_FONT_MAX = 64;
 const TERMINAL_FONT_STEP = 1;
+const WORKSPACE_SORT_MODE_STORAGE_KEY = 'terminal_workspace_sort_mode';
 
 export class TerminalManager {
 
@@ -102,6 +108,7 @@ export class TerminalManager {
         // Activity timers for transient activity (stdout bursts)
         this._activityTimers = new Map(); // Map<sessionId, timeoutId>
         this._sessionSidebarRefreshTimer = null;
+        this.sessionRecencyById = new Map(); // Map<sessionId, recencyMs>
         // Load persisted workspace selections
         this.loadWorkspaceSelections();
 
@@ -437,6 +444,61 @@ export class TerminalManager {
         } catch (_) { /* ignore */ }
     }
 
+    ensureWorkspaceSortStateDefaults() {
+        try {
+            const ws = this.sessionList?.store?.getState?.()?.workspaces || {};
+            if (!Object.prototype.hasOwnProperty.call(ws, 'sortMode')) {
+                this.sessionList?.store?.setPath('workspaces.sortMode', WORKSPACE_SORT_MODE_MANUAL);
+            }
+            if (!Object.prototype.hasOwnProperty.call(ws, 'sortDirty')) {
+                this.sessionList?.store?.setPath('workspaces.sortDirty', false);
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    loadWorkspaceSortModePreference() {
+        let mode = WORKSPACE_SORT_MODE_MANUAL;
+        try {
+            const res = getStateStore().loadSync && getStateStore().loadSync();
+            const state = res && res.ok ? (res.state || {}) : {};
+            mode = normalizeWorkspaceSortMode(state[WORKSPACE_SORT_MODE_STORAGE_KEY]);
+        } catch (_) {
+            mode = WORKSPACE_SORT_MODE_MANUAL;
+        }
+        try {
+            this.sessionList?.store?.setPath('workspaces.sortMode', mode);
+            if (mode !== WORKSPACE_SORT_MODE_MANUAL) {
+                // In H0 this is defensive only; recent ordering is applied in later phases.
+                this.sessionList?.store?.setPath('workspaces.sortDirty', false);
+            }
+        } catch (_) { /* ignore */ }
+        return mode;
+    }
+
+    setWorkspaceSortMode(mode, options = {}) {
+        const { persist = true } = options || {};
+        const normalized = normalizeWorkspaceSortMode(mode);
+        try {
+            this.sessionList?.store?.setPath('workspaces.sortMode', normalized);
+            if (normalized === WORKSPACE_SORT_MODE_MANUAL) {
+                this.sessionList?.store?.setPath('workspaces.sortDirty', false);
+            }
+        } catch (_) { /* ignore */ }
+        if (persist) {
+            try { queueStateSet(WORKSPACE_SORT_MODE_STORAGE_KEY, normalized, 200); } catch (_) { /* ignore */ }
+        }
+        return normalized;
+    }
+
+    seedSessionRecencyFromApiSessions(sessions) {
+        try {
+            const seed = buildRecencyMapFromSessions(sessions);
+            this.sessionRecencyById = seed;
+        } catch (_) {
+            this.sessionRecencyById = new Map();
+        }
+    }
+
     /**
      * Unified session activation entry point used by sidebar, tabs, keyboard, and restores.
      * Ensures selection, tab restoration, and container rehydration are handled consistently.
@@ -660,6 +722,8 @@ export class TerminalManager {
 
         // Initialize session list UI
         this.sessionList = new SessionList(this.elements.sessionList, this);
+        this.ensureWorkspaceSortStateDefaults();
+        this.loadWorkspaceSortModePreference();
         // Listen for local PTY exit events globally (all windows) so the main window
         // reflects ended state even when the session ended in a dedicated window.
         try {
@@ -3984,6 +4048,8 @@ export class TerminalManager {
                 console.warn('[TerminalManager] loadSessions: sessions is not an array:', sessions);
                 return;
             }
+
+            this.seedSessionRecencyFromApiSessions(sessions);
 
             const previousActiveChild = this.activeChildSessionId;
             const previouslyAttachedChildren = this.clearChildSessions();

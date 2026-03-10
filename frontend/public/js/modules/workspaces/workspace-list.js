@@ -402,10 +402,20 @@ export class WorkspaceList {
           filterPinned: false,
           filterActive: true,
           order: ['Default'],
+          sortMode: 'manual',
+          sortDirty: false,
           current: null,
           mode: 'list'
         }
       });
+      return;
+    }
+    const workspaces = state.workspaces || {};
+    if (!Object.prototype.hasOwnProperty.call(workspaces, 'sortMode')) {
+      this.store.setPath('workspaces.sortMode', 'manual');
+    }
+    if (!Object.prototype.hasOwnProperty.call(workspaces, 'sortDirty')) {
+      this.store.setPath('workspaces.sortDirty', false);
     }
   }
 
