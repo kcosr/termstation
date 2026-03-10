@@ -1254,6 +1254,7 @@ textarea {
     display: flex;
     gap: 0.5rem;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .pinned-filter-btn {
@@ -1280,6 +1281,12 @@ textarea {
     background: var(--accent-color);
     border-color: var(--accent-color);
     color: white;
+}
+
+.workspace-sort-refresh-btn {
+    padding: 0.4rem 0.5rem;
+    min-width: 2rem;
+    justify-content: center;
 }
 
 .pinned-filter-icon {

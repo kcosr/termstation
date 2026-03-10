@@ -215,6 +215,11 @@ export class TerminalManager {
             pinnedFilterContainer: document.getElementById('pinned-filter-container'),
             pinnedFilterBtn: document.getElementById('pinned-filter-btn'),
             pinnedFilterIcon: document.getElementById('pinned-filter-icon'),
+            workspaceSortModeBtn: document.getElementById('workspace-sort-mode-btn'),
+            workspaceSortModeIcon: document.getElementById('workspace-sort-mode-icon'),
+            workspaceSortModeText: document.getElementById('workspace-sort-mode-text'),
+            workspaceSortRefreshBtn: document.getElementById('workspace-sort-refresh-btn'),
+            workspaceSortRefreshIcon: document.getElementById('workspace-sort-refresh-icon'),
             // Template filter elements
             templateFilterContainer: document.getElementById('template-filter-container'),
             templateFilterOptions: document.getElementById('template-filter-options'),
@@ -490,6 +495,7 @@ export class TerminalManager {
         if (persist) {
             try { queueStateSet(WORKSPACE_SORT_MODE_STORAGE_KEY, normalized, 200); } catch (_) { /* ignore */ }
         }
+        this.updateWorkspaceSortControls();
         return normalized;
     }
 
@@ -523,9 +529,11 @@ export class TerminalManager {
                 // No store update means no subscribed render; force one to apply the new snapshot order.
                 try { this.workspaceListComponent?.render?.(); } catch (_) {}
             }
+            this.updateWorkspaceSortControls();
             return sorted;
         } catch (_) {
             this.appliedRecentWorkspaceOrder = [];
+            this.updateWorkspaceSortControls();
             return [];
         }
     }
@@ -1737,6 +1745,31 @@ export class TerminalManager {
                 this.toggleActiveWorkspaceFilter();
             });
         }
+
+        // Workspace sort controls (manual/recent toggle + recent refresh apply)
+        if (this.elements.workspaceSortModeBtn) {
+            this.elements.workspaceSortModeBtn.addEventListener('click', () => {
+                this.toggleWorkspaceSortMode();
+            });
+        }
+        if (this.elements.workspaceSortRefreshBtn) {
+            this.elements.workspaceSortRefreshBtn.addEventListener('click', () => {
+                this.refreshRecentWorkspaceOrder();
+            });
+        }
+        try {
+            this._workspaceSortModeUnsubscribe?.();
+            this._workspaceSortDirtyUnsubscribe?.();
+            this._workspaceSortModeUnsubscribe = this.sessionList?.store?.subscribe(
+                'workspaces.sortMode',
+                () => this.updateWorkspaceSortControls()
+            );
+            this._workspaceSortDirtyUnsubscribe = this.sessionList?.store?.subscribe(
+                'workspaces.sortDirty',
+                () => this.updateWorkspaceSortControls()
+            );
+        } catch (_) { /* ignore */ }
+        this.updateWorkspaceSortControls();
 
         // Template filter event listeners
         this.elements.templateFilterClear.addEventListener('click', () => {
@@ -9166,6 +9199,70 @@ export class TerminalManager {
             btn.classList.add('active');
         } else {
             btn.classList.remove('active');
+        }
+    }
+
+    toggleWorkspaceSortMode() {
+        const currentMode = normalizeWorkspaceSortMode(
+            this.sessionList?.store?.getState?.()?.workspaces?.sortMode
+        );
+        const nextMode = currentMode === WORKSPACE_SORT_MODE_RECENT
+            ? WORKSPACE_SORT_MODE_MANUAL
+            : WORKSPACE_SORT_MODE_RECENT;
+        this.setWorkspaceSortMode(nextMode);
+    }
+
+    updateWorkspaceSortControls() {
+        const modeBtn = this.elements?.workspaceSortModeBtn;
+        const modeIcon = this.elements?.workspaceSortModeIcon;
+        const modeText = this.elements?.workspaceSortModeText;
+        const refreshBtn = this.elements?.workspaceSortRefreshBtn;
+        const refreshIcon = this.elements?.workspaceSortRefreshIcon;
+
+        if (!modeBtn && !refreshBtn) return;
+
+        try {
+            if (modeIcon && !modeIcon.dataset.iconReady) {
+                modeIcon.innerHTML = '';
+                modeIcon.appendChild(iconUtils.createIcon('clock-history', { size: 14 }));
+                modeIcon.dataset.iconReady = '1';
+            }
+            if (refreshIcon && !refreshIcon.dataset.iconReady) {
+                refreshIcon.innerHTML = '';
+                refreshIcon.appendChild(iconUtils.createIcon('arrow-clockwise', { size: 14 }));
+                refreshIcon.dataset.iconReady = '1';
+            }
+        } catch (_) { /* ignore */ }
+
+        const workspacesState = this.sessionList?.store?.getState?.()?.workspaces || {};
+        const sortMode = normalizeWorkspaceSortMode(workspacesState.sortMode);
+        const sortDirty = workspacesState.sortDirty === true;
+        const isRecent = sortMode === WORKSPACE_SORT_MODE_RECENT;
+
+        if (modeText) {
+            modeText.textContent = isRecent ? 'Recent' : 'Manual';
+        }
+        if (modeBtn) {
+            modeBtn.classList.toggle('active', isRecent);
+            modeBtn.setAttribute('aria-pressed', isRecent ? 'true' : 'false');
+            modeBtn.title = isRecent ? 'Workspace sort mode: Recent' : 'Workspace sort mode: Manual';
+            modeBtn.setAttribute(
+                'aria-label',
+                isRecent
+                    ? 'Workspace sort mode: recent. Activate to switch to manual order.'
+                    : 'Workspace sort mode: manual. Activate to switch to recent order.'
+            );
+        }
+
+        const showRefresh = isRecent && sortDirty;
+        if (refreshBtn) {
+            const hadFocus = document.activeElement === refreshBtn;
+            refreshBtn.style.display = showRefresh ? 'inline-flex' : 'none';
+            refreshBtn.disabled = !showRefresh;
+            refreshBtn.setAttribute('aria-hidden', showRefresh ? 'false' : 'true');
+            if (!showRefresh && hadFocus) {
+                try { modeBtn?.focus?.(); } catch (_) { /* ignore */ }
+            }
         }
     }
 
