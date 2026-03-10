@@ -109,3 +109,59 @@ export function pruneRecencyMapBySessionIds(recencyMap, validSessionIds) {
   });
   return next;
 }
+
+/**
+ * Sort workspace names by recency descending with manual-order tie-break.
+ */
+export function sortWorkspaceNamesByRecency({
+  workspaceNames,
+  sessions,
+  sessionRecencyById,
+  manualOrder
+}) {
+  const names = Array.isArray(workspaceNames) ? workspaceNames.filter(Boolean) : [];
+  const sessionArray = sessions instanceof Map
+    ? Array.from(sessions.values())
+    : (Array.isArray(sessions) ? sessions : []);
+  const recencyMap = sessionRecencyById instanceof Map ? sessionRecencyById : new Map();
+  const manualList = Array.isArray(manualOrder) ? manualOrder : [];
+
+  const workspaceSet = new Set(names);
+  const workspaceRecency = new Map();
+  names.forEach((name) => workspaceRecency.set(name, 0));
+
+  sessionArray.forEach((session) => {
+    if (!session || typeof session !== 'object') return;
+    const workspace = String(session.workspace || 'Default');
+    if (!workspaceSet.has(workspace)) return;
+
+    const sessionId = resolveSessionId(session);
+    const fromMap = sessionId != null ? Number(recencyMap.get(sessionId)) : NaN;
+    const recency = Number.isFinite(fromMap) ? fromMap : computeSessionRecencyMillis(session);
+    const current = Number(workspaceRecency.get(workspace)) || 0;
+    if (recency > current) {
+      workspaceRecency.set(workspace, recency);
+    }
+  });
+
+  const manualIndex = new Map();
+  manualList.forEach((name, idx) => {
+    if (!manualIndex.has(name)) manualIndex.set(name, idx);
+  });
+  const inputIndex = new Map();
+  names.forEach((name, idx) => {
+    if (!inputIndex.has(name)) inputIndex.set(name, idx);
+  });
+
+  return [...names].sort((a, b) => {
+    const recencyA = Number(workspaceRecency.get(a)) || 0;
+    const recencyB = Number(workspaceRecency.get(b)) || 0;
+    if (recencyA !== recencyB) return recencyB - recencyA;
+
+    const manualA = manualIndex.has(a) ? manualIndex.get(a) : (inputIndex.get(a) ?? Number.MAX_SAFE_INTEGER);
+    const manualB = manualIndex.has(b) ? manualIndex.get(b) : (inputIndex.get(b) ?? Number.MAX_SAFE_INTEGER);
+    if (manualA !== manualB) return manualA - manualB;
+
+    return String(a).localeCompare(String(b));
+  });
+}

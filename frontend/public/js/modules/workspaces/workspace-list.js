@@ -483,52 +483,39 @@ export class WorkspaceList {
     } catch (_) { /* ignore storage failures */ }
   }
 
-  render() {
-    if (!this.container) return;
-    // Keep trying to ensure colors until sessionList is ready
-    if (!this._templateColorsLoaded && !this._templateColorsRetryTimer) {
-      this.ensureTemplateColorsLoaded();
-    }
-    const state = this.store.getState().workspaces;
-    const itemsSet = state.items || new Set();
-    const order = Array.isArray(state.order) && state.order.length > 0
-      ? state.order.filter(n => !state.filterPinned || (state.pinned || new Set()).has(n))
+  getRenderEligibleWorkspaceNames() {
+    const workspacesState = this.store.getState().workspaces || {};
+    const itemsSet = workspacesState.items || new Set();
+    const pinnedSet = workspacesState.pinned || new Set();
+    const filterPinned = !!workspacesState.filterPinned;
+    const filterActive = workspacesState.filterActive !== false; // default true
+    const manualOrder = Array.isArray(workspacesState.order) && workspacesState.order.length > 0
+      ? workspacesState.order
       : Array.from(itemsSet);
-    const pinnedSet = state.pinned || new Set();
-    const filterPinned = !!state.filterPinned;
-    const filterActive = state.filterActive !== false; // default true
-    const current = state.current || null;
+    const orderedNames = manualOrder.filter((name) => !filterPinned || pinnedSet.has(name));
+    const hasWorkspaceName = (name) => {
+      if (itemsSet instanceof Set) return itemsSet.has(name);
+      if (Array.isArray(itemsSet)) return itemsSet.includes(name);
+      return true;
+    };
 
-    this.container.innerHTML = '';
-    // Reset the numbering serial at the start of a full render pass
-    this._visibleSessionSerial = 0;
-
-    // Track visible workspace names during this render
-    const visibleNames = [];
-
-    // Preserve the order from the store (which reflects server order)
-
-    // Inline add removed in favor of modal
-
-    // Compute stats from sessions (apply template filter from sidebar)
     const sessionState = this.store.getState().sessionList || {};
     const sessions = sessionState.sessions || new Map();
     const filteredIds = sessionState.filteredIds || null;
     let sessionArray = sessions instanceof Map ? Array.from(sessions.values()) : [];
-    // If an overlay of filteredIds is active (e.g., content search), restrict base set
     if (Array.isArray(filteredIds)) {
       const idSet = new Set(filteredIds);
-      sessionArray = sessionArray.filter(s => idSet.has(s.session_id));
+      sessionArray = sessionArray.filter((s) => idSet.has(s.session_id));
     }
-    // Respect current template filter so workspace rows reflect the same view as the session tabs
+
     let filteredSessionArray = sessionArray;
     this._pinnedSessionFilterActive = false;
+    this._templateFilterActive = false;
+    this._searchActive = false;
     try {
-      const sl = sessionState || {};
-      const filters = sl.filters || {};
+      const filters = sessionState.filters || {};
       const pinnedSessions = filters.pinnedSessions || new Set();
       const pinnedFilterActive = filters.pinned === true;
-      // When filteredIds overlay is active, search is already materialized into sessionArray
       filteredSessionArray = SessionFilterService.filter(sessionArray, {
         status: 'all',
         search: Array.isArray(filteredIds) ? '' : (filters.search || ''),
@@ -537,9 +524,17 @@ export class WorkspaceList {
         pinnedSessions,
         workspace: null
       });
-      this._templateFilterActive = !!(filters && filters.template && filters.template !== 'all' && ((filters.template instanceof Set && filters.template.size > 0) || (Array.isArray(filters.template) && filters.template.length > 0) || (typeof filters.template === 'string' && filters.template.trim() !== '')));
+      this._templateFilterActive = !!(
+        filters &&
+        filters.template &&
+        filters.template !== 'all' &&
+        (
+          (filters.template instanceof Set && filters.template.size > 0) ||
+          (Array.isArray(filters.template) && filters.template.length > 0) ||
+          (typeof filters.template === 'string' && filters.template.trim() !== '')
+        )
+      );
       this._pinnedSessionFilterActive = pinnedFilterActive;
-      // Determine if a search is active (via TerminalManager state or input value)
       try {
         const tm = getContext()?.app?.modules?.terminal;
         if (tm && typeof tm.searchQuery === 'string') {
@@ -551,18 +546,62 @@ export class WorkspaceList {
       } catch (_) { this._searchActive = false; }
     } catch (_) {}
 
-    order.forEach((name) => {
-      if ((itemsSet && !itemsSet.has(name))) return;
+    const hideForFilters = filterActive || this._templateFilterActive || this._searchActive || this._pinnedSessionFilterActive;
+    const statsByWorkspace = new Map();
+    const eligibleNames = [];
+    orderedNames.forEach((name) => {
+      if (!hasWorkspaceName(name)) return;
       if (filterPinned && !pinnedSet.has(name)) return;
       const stats = this.getWorkspaceStats(filteredSessionArray, name);
-      // Hide workspaces with no ACTIVE sessions when Active filter is on
-      // Also hide when template/search filters are active to match sidebar view
-      const hideForFilters = filterActive || this._templateFilterActive || this._searchActive || this._pinnedSessionFilterActive;
-      if (hideForFilters && (stats.live === 0)) {
-        return;
-      }
-      // Count as visible for this render
-      visibleNames.push(name);
+      statsByWorkspace.set(name, stats);
+      if (hideForFilters && stats.live === 0) return;
+      eligibleNames.push(name);
+    });
+
+    return {
+      workspacesState,
+      itemsSet,
+      pinnedSet,
+      filterPinned,
+      filterActive,
+      filteredSessionArray,
+      orderedNames,
+      eligibleNames,
+      statsByWorkspace
+    };
+  }
+
+  render() {
+    if (!this.container) return;
+    // Keep trying to ensure colors until sessionList is ready
+    if (!this._templateColorsLoaded && !this._templateColorsRetryTimer) {
+      this.ensureTemplateColorsLoaded();
+    }
+    const renderContext = this.getRenderEligibleWorkspaceNames();
+    const state = renderContext.workspacesState;
+    const pinnedSet = renderContext.pinnedSet;
+    const current = state.current || null;
+    const sortMode = state.sortMode === 'recent' ? 'recent' : 'manual';
+    let orderToRender = renderContext.eligibleNames;
+    if (sortMode === 'recent') {
+      const tm = getContext()?.app?.modules?.terminal;
+      const appliedOrder = Array.isArray(tm?.getAppliedRecentWorkspaceOrder?.())
+        ? tm.getAppliedRecentWorkspaceOrder()
+        : [];
+      const eligibleSet = new Set(renderContext.eligibleNames);
+      const orderedFromSnapshot = appliedOrder.filter((name) => eligibleSet.has(name));
+      const orderedSnapshotSet = new Set(orderedFromSnapshot);
+      const missingNames = renderContext.eligibleNames.filter((name) => !orderedSnapshotSet.has(name));
+      orderToRender = [...orderedFromSnapshot, ...missingNames];
+    }
+
+    this.container.innerHTML = '';
+    // Reset the numbering serial at the start of a full render pass
+    this._visibleSessionSerial = 0;
+    const filteredSessionArray = renderContext.filteredSessionArray;
+
+    orderToRender.forEach((name) => {
+      const stats = renderContext.statsByWorkspace.get(name) || this.getWorkspaceStats(filteredSessionArray, name);
       const item = document.createElement('div');
       // Auto-expand newly seen workspaces by default
       if (!this._seenWorkspaces.has(name)) {

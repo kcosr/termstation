@@ -45,12 +45,14 @@ import { createDebug } from '../../utils/debug.js';
 import { getSettingsStore } from '../../core/settings-store/index.js';
 import {
     WORKSPACE_SORT_MODE_MANUAL,
+    WORKSPACE_SORT_MODE_RECENT,
     normalizeWorkspaceSortMode,
     buildRecencyMapFromSessions,
     mergeRecencyMapsMaxWins,
     parseTimestampToMillis,
     pruneRecencyMapBySessionIds,
-    resolveSessionId
+    resolveSessionId,
+    sortWorkspaceNamesByRecency
 } from '../workspaces/workspace-recency.js';
 
 
@@ -113,6 +115,7 @@ export class TerminalManager {
         this._activityTimers = new Map(); // Map<sessionId, timeoutId>
         this._sessionSidebarRefreshTimer = null;
         this.sessionRecencyById = new Map(); // Map<sessionId, recencyMs>
+        this.appliedRecentWorkspaceOrder = [];
         // Load persisted workspace selections
         this.loadWorkspaceSelections();
 
@@ -469,29 +472,74 @@ export class TerminalManager {
         } catch (_) {
             mode = WORKSPACE_SORT_MODE_MANUAL;
         }
-        try {
-            this.sessionList?.store?.setPath('workspaces.sortMode', mode);
-            if (mode !== WORKSPACE_SORT_MODE_MANUAL) {
-                // In H0 this is defensive only; recent ordering is applied in later phases.
-                this.sessionList?.store?.setPath('workspaces.sortDirty', false);
-            }
-        } catch (_) { /* ignore */ }
+        this.setWorkspaceSortMode(mode, { persist: false, applyRecent: false });
         return mode;
     }
 
     setWorkspaceSortMode(mode, options = {}) {
-        const { persist = true } = options || {};
+        const { persist = true, applyRecent = true } = options || {};
         const normalized = normalizeWorkspaceSortMode(mode);
         try {
             this.sessionList?.store?.setPath('workspaces.sortMode', normalized);
             if (normalized === WORKSPACE_SORT_MODE_MANUAL) {
                 this.sessionList?.store?.setPath('workspaces.sortDirty', false);
+            } else if (applyRecent) {
+                this.applyRecentWorkspaceOrder();
             }
         } catch (_) { /* ignore */ }
         if (persist) {
             try { queueStateSet(WORKSPACE_SORT_MODE_STORAGE_KEY, normalized, 200); } catch (_) { /* ignore */ }
         }
         return normalized;
+    }
+
+    getAppliedRecentWorkspaceOrder() {
+        return Array.isArray(this.appliedRecentWorkspaceOrder)
+            ? [...this.appliedRecentWorkspaceOrder]
+            : [];
+    }
+
+    applyRecentWorkspaceOrder() {
+        try {
+            const storeState = this.sessionList?.store?.getState?.() || {};
+            const workspacesState = storeState.workspaces || {};
+            const sessions = storeState?.sessionList?.sessions || new Map();
+            const manualOrder = Array.isArray(workspacesState.order) ? workspacesState.order : [];
+            const renderContext = this.workspaceListComponent?.getRenderEligibleWorkspaceNames?.();
+            const candidateNames = Array.isArray(renderContext?.eligibleNames)
+                ? renderContext.eligibleNames
+                : [];
+            const sorted = sortWorkspaceNamesByRecency({
+                workspaceNames: candidateNames,
+                sessions,
+                sessionRecencyById: this.sessionRecencyById,
+                manualOrder
+            });
+            this.appliedRecentWorkspaceOrder = sorted;
+            const wasDirty = workspacesState.sortDirty === true;
+            if (wasDirty) {
+                this.sessionList?.store?.setPath('workspaces.sortDirty', false);
+            } else {
+                // No store update means no subscribed render; force one to apply the new snapshot order.
+                try { this.workspaceListComponent?.render?.(); } catch (_) {}
+            }
+            return sorted;
+        } catch (_) {
+            this.appliedRecentWorkspaceOrder = [];
+            return [];
+        }
+    }
+
+    refreshRecentWorkspaceOrder() {
+        try {
+            const mode = normalizeWorkspaceSortMode(
+                this.sessionList?.store?.getState?.()?.workspaces?.sortMode
+            );
+            if (mode !== WORKSPACE_SORT_MODE_RECENT) return [];
+        } catch (_) {
+            return [];
+        }
+        return this.applyRecentWorkspaceOrder();
     }
 
     seedSessionRecencyFromApiSessions(sessions) {
@@ -532,6 +580,14 @@ export class TerminalManager {
         const current = Number(this.sessionRecencyById.get(sessionId)) || 0;
         if (lastOutputTs > current) {
             this.sessionRecencyById.set(sessionId, lastOutputTs);
+            try {
+                const mode = normalizeWorkspaceSortMode(
+                    this.sessionList?.store?.getState?.()?.workspaces?.sortMode
+                );
+                if (mode === WORKSPACE_SORT_MODE_RECENT) {
+                    this.sessionList?.store?.setPath('workspaces.sortDirty', true);
+                }
+            } catch (_) { /* ignore */ }
         }
     }
 
@@ -759,7 +815,7 @@ export class TerminalManager {
         // Initialize session list UI
         this.sessionList = new SessionList(this.elements.sessionList, this);
         this.ensureWorkspaceSortStateDefaults();
-        this.loadWorkspaceSortModePreference();
+        const initialWorkspaceSortMode = this.loadWorkspaceSortModePreference();
         // Listen for local PTY exit events globally (all windows) so the main window
         // reflects ended state even when the session ended in a dedicated window.
         try {
@@ -932,6 +988,10 @@ export class TerminalManager {
 
         // Apply saved Active filter preference (default ON) after DOM is ready
         try { this.loadActiveWorkspaceFilter(); } catch (_) {}
+
+        if (initialWorkspaceSortMode === WORKSPACE_SORT_MODE_RECENT) {
+            this.applyRecentWorkspaceOrder();
+        }
     }
     
     /**
@@ -9683,10 +9743,20 @@ export class TerminalManager {
             const filterPinned = !!wsState.filterPinned;
             const filterActive = wsState.filterActive !== false; // default true
 
-            // Base order matches the sidebar behavior
-            const baseOrder = (Array.isArray(wsState.order) && wsState.order.length > 0)
+            // Base order matches the sidebar behavior in both manual/recent modes.
+            const manualOrder = (Array.isArray(wsState.order) && wsState.order.length > 0)
                 ? wsState.order.slice()
                 : Array.from(itemsSet);
+            let baseOrder = manualOrder.slice();
+            const sortMode = normalizeWorkspaceSortMode(wsState.sortMode);
+            if (sortMode === WORKSPACE_SORT_MODE_RECENT) {
+                const appliedRecent = this.getAppliedRecentWorkspaceOrder();
+                const manualSet = new Set(manualOrder);
+                const orderedFromRecent = appliedRecent.filter((name) => manualSet.has(name));
+                const recentSet = new Set(orderedFromRecent);
+                const missing = manualOrder.filter((name) => !recentSet.has(name));
+                baseOrder = [...orderedFromRecent, ...missing];
+            }
 
             // Apply pinned filter to the order
             const ordered = baseOrder.filter(name => !filterPinned || pinnedSet.has(name));
