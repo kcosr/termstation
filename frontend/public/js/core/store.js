@@ -498,6 +498,8 @@ export const appStore = new Store({
             // Filters (default ON)
             filterOscColors: true,
             collapseNakedRgbRuns: true,
+            // Trim leading/trailing whitespace on each auto-copied selection line
+            trimSelectionLineWhitespace: false,
             // New: auto-attach on session select
             autoAttachOnSelect: true,
             // Keep ended sessions visible with badge until user clears them

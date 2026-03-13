@@ -811,7 +811,8 @@ export class MobileTerminalTouchHandler {
                     this.terminal.focus();
                 }, TOUCH_CONFIG.REFOCUS_DELAY);
             };
-            TerminalAutoCopy.copyToClipboard(selectedText, `mobile-selection-${this.sessionId}`, refocusCallback);
+            const textToCopy = TerminalAutoCopy.normalizeSelectionTextForCopy(selectedText);
+            TerminalAutoCopy.copyToClipboard(textToCopy, `mobile-selection-${this.sessionId}`, refocusCallback);
         }
     }
     

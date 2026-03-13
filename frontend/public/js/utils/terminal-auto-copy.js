@@ -4,6 +4,7 @@
  */
 
 import { getContext } from '../core/context.js';
+import { appStore } from '../core/store.js';
 
 export class TerminalAutoCopy {
     /**
@@ -68,7 +69,10 @@ export class TerminalAutoCopy {
                 }
 
                 if (selectedText && selectedText.trim()) {
-                    TerminalAutoCopy.copyToClipboard(selectedText, identifier, onCopyCallback);
+                    const copyText = TerminalAutoCopy.normalizeSelectionTextForCopy(selectedText, options);
+                    if (copyText && copyText.trim()) {
+                        TerminalAutoCopy.copyToClipboard(copyText, identifier, onCopyCallback);
+                    }
                 }
                 // Reset cached selection after finalize to avoid stale copies
                 lastDragSelection = '';
@@ -143,6 +147,51 @@ export class TerminalAutoCopy {
             window.removeEventListener('pointercancel', handlePointerCancel, { passive: true });
             document.removeEventListener('mousemove', handleDocMouseMove, { passive: true });
         };
+    }
+
+    /**
+     * Determine whether line-level whitespace trimming is enabled for auto-copy
+     * @param {Object} options - Optional setup options
+     * @returns {boolean}
+     */
+    static shouldTrimSelectionLineWhitespace(options = null) {
+        try {
+            if (options && typeof options.trimSelectionLineWhitespace === 'boolean') {
+                return options.trimSelectionLineWhitespace;
+            }
+        } catch (_) { /* ignore */ }
+        try {
+            return appStore.getState('preferences.terminal.trimSelectionLineWhitespace') === true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
+     * Trim leading/trailing whitespace from every line in a text block.
+     * @param {string} text - Source text
+     * @returns {string}
+     */
+    static trimLineWhitespace(text) {
+        return String(text ?? '')
+            .split('\n')
+            .map((line) => line.trim())
+            .join('\n');
+    }
+
+    /**
+     * Normalize selected text according to auto-copy preferences.
+     * @param {string} text - Selected text
+     * @param {Object} options - Optional setup options
+     * @returns {string}
+     */
+    static normalizeSelectionTextForCopy(text, options = null) {
+        const sourceText = String(text ?? '');
+        if (!sourceText) return sourceText;
+        if (!TerminalAutoCopy.shouldTrimSelectionLineWhitespace(options)) {
+            return sourceText;
+        }
+        return TerminalAutoCopy.trimLineWhitespace(sourceText);
     }
 
     /**

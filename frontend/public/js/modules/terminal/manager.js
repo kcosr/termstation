@@ -43,11 +43,27 @@ import { keyboardShortcuts } from '../shortcuts/keyboard-shortcuts.js';
 import { openAddRuleModal } from '../ui/scheduled-input-modals.js';
 import { createDebug } from '../../utils/debug.js';
 import { getSettingsStore } from '../../core/settings-store/index.js';
+import {
+    WORKSPACE_SORT_MODE_MANUAL,
+    WORKSPACE_SORT_MODE_RECENT,
+    normalizeWorkspaceSortMode,
+    buildRecencyMapFromSessions,
+    buildWorkspaceDisplayOrder,
+    hasWorkspaceDisplayOrderChanged,
+    mergeRecencyMapsMaxWins,
+    parseTimestampToMillis,
+    pruneRecencyMapBySessionIds,
+    resolveWorkspaceSortTransition,
+    resolveSessionId,
+    shouldShowWorkspaceSortRefresh,
+    sortWorkspaceNamesByRecency
+} from '../workspaces/workspace-recency.js';
 
 
 const TERMINAL_FONT_MIN = 8;
 const TERMINAL_FONT_MAX = 64;
 const TERMINAL_FONT_STEP = 1;
+const WORKSPACE_SORT_MODE_STORAGE_KEY = 'terminal_workspace_sort_mode';
 
 export class TerminalManager {
 
@@ -102,6 +118,8 @@ export class TerminalManager {
         // Activity timers for transient activity (stdout bursts)
         this._activityTimers = new Map(); // Map<sessionId, timeoutId>
         this._sessionSidebarRefreshTimer = null;
+        this.sessionRecencyById = new Map(); // Map<sessionId, recencyMs>
+        this.appliedRecentWorkspaceOrder = [];
         // Load persisted workspace selections
         this.loadWorkspaceSelections();
 
@@ -201,6 +219,11 @@ export class TerminalManager {
             pinnedFilterContainer: document.getElementById('pinned-filter-container'),
             pinnedFilterBtn: document.getElementById('pinned-filter-btn'),
             pinnedFilterIcon: document.getElementById('pinned-filter-icon'),
+            workspaceSortModeBtn: document.getElementById('workspace-sort-mode-btn'),
+            workspaceSortModeIcon: document.getElementById('workspace-sort-mode-icon'),
+            workspaceSortModeText: document.getElementById('workspace-sort-mode-text'),
+            workspaceSortRefreshBtn: document.getElementById('workspace-sort-refresh-btn'),
+            workspaceSortRefreshIcon: document.getElementById('workspace-sort-refresh-icon'),
             // Template filter elements
             templateFilterContainer: document.getElementById('template-filter-container'),
             templateFilterOptions: document.getElementById('template-filter-options'),
@@ -437,6 +460,176 @@ export class TerminalManager {
         } catch (_) { /* ignore */ }
     }
 
+    ensureWorkspaceSortStateDefaults() {
+        try {
+            const ws = this.sessionList?.store?.getState?.()?.workspaces || {};
+            if (!Object.prototype.hasOwnProperty.call(ws, 'sortMode')) {
+                this.sessionList?.store?.setPath('workspaces.sortMode', WORKSPACE_SORT_MODE_MANUAL);
+            }
+            if (!Object.prototype.hasOwnProperty.call(ws, 'sortDirty')) {
+                this.sessionList?.store?.setPath('workspaces.sortDirty', false);
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    loadWorkspaceSortModePreference() {
+        let mode = WORKSPACE_SORT_MODE_MANUAL;
+        try {
+            const res = getStateStore().loadSync && getStateStore().loadSync();
+            const state = res && res.ok ? (res.state || {}) : {};
+            mode = normalizeWorkspaceSortMode(state[WORKSPACE_SORT_MODE_STORAGE_KEY]);
+        } catch (_) {
+            mode = WORKSPACE_SORT_MODE_MANUAL;
+        }
+        this.setWorkspaceSortMode(mode, { persist: false, applyRecent: false });
+        return mode;
+    }
+
+    setWorkspaceSortMode(mode, options = {}) {
+        const { persist = true, applyRecent = true } = options || {};
+        const currentDirty = this.sessionList?.store?.getState?.()?.workspaces?.sortDirty === true;
+        const transition = resolveWorkspaceSortTransition({
+            requestedMode: mode,
+            applyRecent,
+            currentDirty
+        });
+        try {
+            this.sessionList?.store?.setPath('workspaces.sortMode', transition.nextMode);
+            if (transition.shouldApplyRecent) {
+                this.applyRecentWorkspaceOrder();
+            } else if (transition.nextDirty !== currentDirty) {
+                this.sessionList?.store?.setPath('workspaces.sortDirty', transition.nextDirty);
+            }
+        } catch (_) { /* ignore */ }
+        if (persist) {
+            try { queueStateSet(WORKSPACE_SORT_MODE_STORAGE_KEY, transition.nextMode, 200); } catch (_) { /* ignore */ }
+        }
+        this.updateWorkspaceSortControls();
+        return transition.nextMode;
+    }
+
+    getAppliedRecentWorkspaceOrder() {
+        return Array.isArray(this.appliedRecentWorkspaceOrder)
+            ? [...this.appliedRecentWorkspaceOrder]
+            : [];
+    }
+
+    applyRecentWorkspaceOrder() {
+        try {
+            const storeState = this.sessionList?.store?.getState?.() || {};
+            const workspacesState = storeState.workspaces || {};
+            const sessions = storeState?.sessionList?.sessions || new Map();
+            const manualOrder = Array.isArray(workspacesState.order) ? workspacesState.order : [];
+            const renderContext = this.workspaceListComponent?.getRenderEligibleWorkspaceNames?.();
+            const candidateNames = Array.isArray(renderContext?.eligibleNames)
+                ? renderContext.eligibleNames
+                : [];
+            const sorted = sortWorkspaceNamesByRecency({
+                workspaceNames: candidateNames,
+                sessions,
+                sessionRecencyById: this.sessionRecencyById,
+                manualOrder
+            });
+            this.appliedRecentWorkspaceOrder = sorted;
+            const wasDirty = workspacesState.sortDirty === true;
+            if (wasDirty) {
+                this.sessionList?.store?.setPath('workspaces.sortDirty', false);
+            } else {
+                // No store update means no subscribed render; force one to apply the new snapshot order.
+                try { this.workspaceListComponent?.render?.(); } catch (_) {}
+            }
+            this.updateWorkspaceSortControls();
+            return sorted;
+        } catch (_) {
+            this.appliedRecentWorkspaceOrder = [];
+            this.updateWorkspaceSortControls();
+            return [];
+        }
+    }
+
+    refreshRecentWorkspaceOrder() {
+        try {
+            const mode = normalizeWorkspaceSortMode(
+                this.sessionList?.store?.getState?.()?.workspaces?.sortMode
+            );
+            if (mode !== WORKSPACE_SORT_MODE_RECENT) return [];
+        } catch (_) {
+            return [];
+        }
+        return this.applyRecentWorkspaceOrder();
+    }
+
+    seedSessionRecencyFromApiSessions(sessions) {
+        try {
+            const seed = buildRecencyMapFromSessions(sessions);
+            const merged = mergeRecencyMapsMaxWins(this.sessionRecencyById, seed);
+            const validIds = new Set(seed.keys());
+            this.sessionRecencyById = pruneRecencyMapBySessionIds(merged, validIds);
+        } catch (_) {
+            // Preserve the existing map on seed failures; malformed payloads should not
+            // discard already-tracked runtime recency state.
+        }
+    }
+
+    pruneSessionRecencyForRemovedSession(sessionId) {
+        const normalizedId = String(sessionId || '').trim();
+        if (!normalizedId) return;
+        try { this.sessionRecencyById.delete(normalizedId); } catch (_) { /* ignore */ }
+    }
+
+    ingestSessionRecencyFromActivity(message = {}) {
+        const sessionId = resolveSessionId(message);
+        if (!sessionId) return;
+
+        // Ignore unknown sessions to keep runtime map bounded to known sidebar sessions.
+        const known = !!(this.sessionList?.getSessionData?.(sessionId));
+        if (!known) return;
+
+        // Treat idle as the same ingestion path as inactive.
+        const activityState = String(message.activity_state || '').trim().toLowerCase();
+        if (activityState !== 'active' && activityState !== 'inactive' && activityState !== 'idle') {
+            return;
+        }
+
+        const lastOutputTs = parseTimestampToMillis(message.last_output_at);
+        if (lastOutputTs == null) return;
+
+        const current = Number(this.sessionRecencyById.get(sessionId)) || 0;
+        if (lastOutputTs > current) {
+            this.sessionRecencyById.set(sessionId, lastOutputTs);
+            try {
+                const storeState = this.sessionList?.store?.getState?.() || {};
+                const workspacesState = storeState.workspaces || {};
+                const mode = normalizeWorkspaceSortMode(workspacesState.sortMode);
+                if (mode === WORKSPACE_SORT_MODE_RECENT) {
+                    const sessions = storeState?.sessionList?.sessions || new Map();
+                    const manualOrder = Array.isArray(workspacesState.order) ? workspacesState.order : [];
+                    const renderContext = this.workspaceListComponent?.getRenderEligibleWorkspaceNames?.();
+                    const eligibleNames = Array.isArray(renderContext?.eligibleNames)
+                        ? renderContext.eligibleNames
+                        : manualOrder;
+                    const nextRecentOrder = sortWorkspaceNamesByRecency({
+                        workspaceNames: eligibleNames,
+                        sessions,
+                        sessionRecencyById: this.sessionRecencyById,
+                        manualOrder
+                    });
+                    const nextDirty = hasWorkspaceDisplayOrderChanged({
+                        sortMode: mode,
+                        manualOrder,
+                        eligibleNames,
+                        currentAppliedRecentOrder: this.getAppliedRecentWorkspaceOrder(),
+                        nextAppliedRecentOrder: nextRecentOrder
+                    });
+                    const currentDirty = workspacesState.sortDirty === true;
+                    if (nextDirty !== currentDirty) {
+                        this.sessionList?.store?.setPath('workspaces.sortDirty', nextDirty);
+                    }
+                }
+            } catch (_) { /* ignore */ }
+        }
+    }
+
     /**
      * Unified session activation entry point used by sidebar, tabs, keyboard, and restores.
      * Ensures selection, tab restoration, and container rehydration are handled consistently.
@@ -660,6 +853,8 @@ export class TerminalManager {
 
         // Initialize session list UI
         this.sessionList = new SessionList(this.elements.sessionList, this);
+        this.ensureWorkspaceSortStateDefaults();
+        const initialWorkspaceSortMode = this.loadWorkspaceSortModePreference();
         // Listen for local PTY exit events globally (all windows) so the main window
         // reflects ended state even when the session ended in a dedicated window.
         try {
@@ -832,6 +1027,10 @@ export class TerminalManager {
 
         // Apply saved Active filter preference (default ON) after DOM is ready
         try { this.loadActiveWorkspaceFilter(); } catch (_) {}
+
+        if (initialWorkspaceSortMode === WORKSPACE_SORT_MODE_RECENT) {
+            this.applyRecentWorkspaceOrder();
+        }
     }
     
     /**
@@ -1577,6 +1776,31 @@ export class TerminalManager {
                 this.toggleActiveWorkspaceFilter();
             });
         }
+
+        // Workspace sort controls (manual/recent toggle + recent refresh apply)
+        if (this.elements.workspaceSortModeBtn) {
+            this.elements.workspaceSortModeBtn.addEventListener('click', () => {
+                this.toggleWorkspaceSortMode();
+            });
+        }
+        if (this.elements.workspaceSortRefreshBtn) {
+            this.elements.workspaceSortRefreshBtn.addEventListener('click', () => {
+                this.refreshRecentWorkspaceOrder();
+            });
+        }
+        try {
+            this._workspaceSortModeUnsubscribe?.();
+            this._workspaceSortDirtyUnsubscribe?.();
+            this._workspaceSortModeUnsubscribe = this.sessionList?.store?.subscribe(
+                'workspaces.sortMode',
+                () => this.updateWorkspaceSortControls()
+            );
+            this._workspaceSortDirtyUnsubscribe = this.sessionList?.store?.subscribe(
+                'workspaces.sortDirty',
+                () => this.updateWorkspaceSortControls()
+            );
+        } catch (_) { /* ignore */ }
+        this.updateWorkspaceSortControls();
 
         // Template filter event listeners
         this.elements.templateFilterClear.addEventListener('click', () => {
@@ -3301,6 +3525,7 @@ export class TerminalManager {
 
         if (this.sessionList?.getSessionData(childId)) {
             this.sessionList.removeSession(childId);
+            this.pruneSessionRecencyForRemovedSession(childId);
         }
 
         this.ensureParentSessionInSidebar(parentId, { forceActiveChildren: true });
@@ -3984,6 +4209,8 @@ export class TerminalManager {
                 console.warn('[TerminalManager] loadSessions: sessions is not an array:', sessions);
                 return;
             }
+
+            this.seedSessionRecencyFromApiSessions(sessions);
 
             const previousActiveChild = this.activeChildSessionId;
             const previouslyAttachedChildren = this.clearChildSessions();
@@ -7342,6 +7569,7 @@ export class TerminalManager {
 
             // Remove from UI list
             this.sessionList.removeSession(sessionId);
+            this.pruneSessionRecencyForRemovedSession(sessionId);
 
             // Clean up attached session instance
             if (this.attachedSessions && this.attachedSessions.has(sessionId)) {
@@ -7405,6 +7633,7 @@ export class TerminalManager {
             await apiService.clearSessionHistory(sessionId);
             // Remove session from UI
             this.sessionList.removeSession(sessionId);
+            this.pruneSessionRecencyForRemovedSession(sessionId);
             
             // If this session was attached, clean it up
             if (this.attachedSessions.has(sessionId)) {
@@ -8100,6 +8329,7 @@ export class TerminalManager {
 
                 // Remove the session completely from the list
                 this.sessionList.removeSession(sessionData.session_id);
+                this.pruneSessionRecencyForRemovedSession(sessionData.session_id);
                 break;
                 
             default:
@@ -9003,6 +9233,69 @@ export class TerminalManager {
         }
     }
 
+    toggleWorkspaceSortMode() {
+        const currentMode = normalizeWorkspaceSortMode(
+            this.sessionList?.store?.getState?.()?.workspaces?.sortMode
+        );
+        const nextMode = currentMode === WORKSPACE_SORT_MODE_RECENT
+            ? WORKSPACE_SORT_MODE_MANUAL
+            : WORKSPACE_SORT_MODE_RECENT;
+        this.setWorkspaceSortMode(nextMode);
+    }
+
+    updateWorkspaceSortControls() {
+        const modeBtn = this.elements?.workspaceSortModeBtn;
+        const modeIcon = this.elements?.workspaceSortModeIcon;
+        const modeText = this.elements?.workspaceSortModeText;
+        const refreshBtn = this.elements?.workspaceSortRefreshBtn;
+        const refreshIcon = this.elements?.workspaceSortRefreshIcon;
+
+        if (!modeBtn && !refreshBtn) return;
+
+        try {
+            if (modeIcon && !modeIcon.dataset.iconReady) {
+                modeIcon.innerHTML = '';
+                modeIcon.appendChild(iconUtils.createIcon('clock-history', { size: 14 }));
+                modeIcon.dataset.iconReady = '1';
+            }
+            if (refreshIcon && !refreshIcon.dataset.iconReady) {
+                refreshIcon.innerHTML = '';
+                refreshIcon.appendChild(iconUtils.createIcon('arrow-clockwise', { size: 14 }));
+                refreshIcon.dataset.iconReady = '1';
+            }
+        } catch (_) { /* ignore */ }
+
+        const workspacesState = this.sessionList?.store?.getState?.()?.workspaces || {};
+        const sortMode = normalizeWorkspaceSortMode(workspacesState.sortMode);
+        const isRecent = sortMode === WORKSPACE_SORT_MODE_RECENT;
+
+        if (modeText) {
+            modeText.textContent = isRecent ? 'Recent' : 'Manual';
+        }
+        if (modeBtn) {
+            modeBtn.classList.toggle('active', isRecent);
+            modeBtn.setAttribute('aria-pressed', isRecent ? 'true' : 'false');
+            modeBtn.title = isRecent ? 'Workspace sort mode: Recent' : 'Workspace sort mode: Manual';
+            modeBtn.setAttribute(
+                'aria-label',
+                isRecent
+                    ? 'Workspace sort mode: recent. Activate to switch to manual order.'
+                    : 'Workspace sort mode: manual. Activate to switch to recent order.'
+            );
+        }
+
+        const showRefresh = shouldShowWorkspaceSortRefresh(sortMode, workspacesState.sortDirty);
+        if (refreshBtn) {
+            const hadFocus = document.activeElement === refreshBtn;
+            refreshBtn.style.display = showRefresh ? 'inline-flex' : 'none';
+            refreshBtn.disabled = !showRefresh;
+            refreshBtn.setAttribute('aria-hidden', showRefresh ? 'false' : 'true');
+            if (!showRefresh && hadFocus) {
+                try { modeBtn?.focus?.(); } catch (_) { /* ignore */ }
+            }
+        }
+    }
+
     /**
      * Clear all template filters
      */
@@ -9571,16 +9864,45 @@ export class TerminalManager {
         try {
             const storeState = this.sessionList?.store?.getState();
             const wsState = storeState?.workspaces || {};
+            const renderContext = this.workspaceListComponent?.getRenderEligibleWorkspaceNames?.();
+            if (renderContext && Array.isArray(renderContext.orderedNames) && Array.isArray(renderContext.eligibleNames)) {
+                const visibleOrdered = buildWorkspaceDisplayOrder({
+                    sortMode: wsState.sortMode,
+                    manualOrder: renderContext.orderedNames,
+                    eligibleNames: renderContext.eligibleNames,
+                    appliedRecentOrder: this.getAppliedRecentWorkspaceOrder()
+                });
+                if (visibleOrdered.length > 0) {
+                    return visibleOrdered;
+                }
+
+                // When filters hide all rows, keep shortcuts navigable using the base ordered set.
+                const fallbackOrdered = buildWorkspaceDisplayOrder({
+                    sortMode: wsState.sortMode,
+                    manualOrder: renderContext.orderedNames,
+                    eligibleNames: renderContext.orderedNames,
+                    appliedRecentOrder: this.getAppliedRecentWorkspaceOrder()
+                });
+                if (fallbackOrdered.length > 0) {
+                    return fallbackOrdered;
+                }
+            }
 
             const itemsSet = wsState.items || new Set(['Default']);
             const pinnedSet = wsState.pinned || new Set();
             const filterPinned = !!wsState.filterPinned;
             const filterActive = wsState.filterActive !== false; // default true
 
-            // Base order matches the sidebar behavior
-            const baseOrder = (Array.isArray(wsState.order) && wsState.order.length > 0)
+            // Base order matches the sidebar behavior in both manual/recent modes.
+            const manualOrder = (Array.isArray(wsState.order) && wsState.order.length > 0)
                 ? wsState.order.slice()
                 : Array.from(itemsSet);
+            const baseOrder = buildWorkspaceDisplayOrder({
+                sortMode: wsState.sortMode,
+                manualOrder,
+                eligibleNames: manualOrder,
+                appliedRecentOrder: this.getAppliedRecentWorkspaceOrder()
+            });
 
             // Apply pinned filter to the order
             const ordered = baseOrder.filter(name => !filterPinned || pinnedSet.has(name));
