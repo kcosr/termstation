@@ -10,6 +10,7 @@
 
 - Frontend: implement recency-driven workspace ordering snapshot logic (no auto-reorder while dirty), persistent sort-mode preference, and helper-driven ordering/refinement utilities. ([#30](https://github.com/kcosr/termstation/pull/30))
 - Frontend tests: add `workspace-recency.test.js` coverage for timestamp parsing/fallbacks, max-wins merge/prune lifecycle, mode transitions, refresh gate semantics, manual/recent ordering behavior, and no-auto-reorder invariants. ([#30](https://github.com/kcosr/termstation/pull/30))
+- Frontend: add a terminal setting to trim leading/trailing whitespace per copied selection line, and apply it across auto-copy selection flows (desktop/mobile/history). ([#30](https://github.com/kcosr/termstation/pull/30))
 
 ### Fixed
 

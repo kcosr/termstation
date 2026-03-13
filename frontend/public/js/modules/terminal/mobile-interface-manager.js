@@ -492,11 +492,12 @@ export class MobileInterfaceManager {
             this.showHistoryMobileUrlPopup(extractedUrl, originalSelection, historyTerminal);
         } else {
             // Auto-copy the selected text; fall back to utility if manager method not available
+            const textToCopy = TerminalAutoCopy.normalizeSelectionTextForCopy(selectedText);
             if (this.terminalManager && typeof this.terminalManager.handleAutocopiedText === 'function') {
-                this.terminalManager.handleAutocopiedText(selectedText, null);
+                this.terminalManager.handleAutocopiedText(textToCopy, null);
             } else {
                 const refocus = () => { try { historyTerminal && historyTerminal.focus && historyTerminal.focus(); } catch(_){} };
-                TerminalAutoCopy.copyToClipboard(selectedText, 'mobile-history', refocus);
+                TerminalAutoCopy.copyToClipboard(textToCopy, 'mobile-history', refocus);
             }
         }
     }
@@ -584,7 +585,8 @@ export class MobileInterfaceManager {
             copySelectionButton.className = 'mobile-url-btn copy-selection-btn';
             copySelectionButton.textContent = 'Copy Selection';
             copySelectionButton.addEventListener('click', () => {
-                this.terminalManager.handleAutocopiedText(originalSelection, null);
+                const textToCopy = TerminalAutoCopy.normalizeSelectionTextForCopy(originalSelection);
+                this.terminalManager.handleAutocopiedText(textToCopy, null);
                 this.hideHistoryMobileUrlPopup();
             });
             buttonContainer.appendChild(copySelectionButton);

@@ -74,12 +74,13 @@ export class MobileUrlPopup {
         const textToCopy = originalSelection || url;
         const copyLabel = originalSelection ? 'Copy Text' : 'Copy URL';
         const copyButton = this._createButton(copyLabel, 'rgba(255, 255, 255, 0.1)', () => {
+            const normalizedText = TerminalAutoCopy.normalizeSelectionTextForCopy(textToCopy);
             const refocusCallback = () => {
                 setTimeout(() => {
                     if (focusCallback) focusCallback();
                 }, TOUCH_CONFIG.REFOCUS_DELAY);
             };
-            TerminalAutoCopy.copyToClipboard(textToCopy, `mobile-url-${sessionId}`, refocusCallback);
+            TerminalAutoCopy.copyToClipboard(normalizedText, `mobile-url-${sessionId}`, refocusCallback);
             this.hide();
         }, true, 'copy');
         

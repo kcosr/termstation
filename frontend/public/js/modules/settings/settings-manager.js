@@ -470,6 +470,7 @@ export class SettingsManager {
             terminalCursorBlink: document.getElementById('terminal-cursor-blink'),
             terminalFilterOscColors: document.getElementById('terminal-filter-osc-colors'),
             terminalCollapseNakedRgb: document.getElementById('terminal-collapse-naked-rgb'),
+            terminalTrimSelectionLineWhitespace: document.getElementById('terminal-trim-selection-line-whitespace'),
             terminalAutoAttachOnSelect: document.getElementById('terminal-auto-attach-on-select'),
             terminalPersistEndedSessions: document.getElementById('terminal-persist-ended-sessions'),
             dynamicTitleMode: document.getElementById('dynamic-title-mode'),
@@ -1264,6 +1265,9 @@ export class SettingsManager {
         this.elements.terminalCollapseNakedRgb?.addEventListener('change', (e) => {
             appStore.setPath('preferences.terminal.collapseNakedRgbRuns', !!e.target.checked);
         });
+        this.elements.terminalTrimSelectionLineWhitespace?.addEventListener('change', (e) => {
+            appStore.setPath('preferences.terminal.trimSelectionLineWhitespace', !!e.target.checked);
+        });
         
         // Theme selector - preview changes immediately (persist on Save)
         this.elements.appTheme?.addEventListener('change', (e) => {
@@ -1568,6 +1572,7 @@ export class SettingsManager {
                     const terminalPrefs = settings.preferences.terminal || {};
                     settings.preferences.terminal = {
                         ...terminalPrefs,
+                        trimSelectionLineWhitespace: this.coerceBoolDefaultFalse(terminalPrefs.trimSelectionLineWhitespace),
                         persistEndedSessions: this.coerceBoolDefaultTrue(terminalPrefs.persistEndedSessions)
                     };
                     const linksPrefs = settings.preferences.links || {};
@@ -1635,6 +1640,7 @@ export class SettingsManager {
                 const terminalPrefs = settings.preferences.terminal || {};
                 settings.preferences.terminal = {
                     ...terminalPrefs,
+                    trimSelectionLineWhitespace: this.coerceBoolDefaultFalse(terminalPrefs.trimSelectionLineWhitespace),
                     persistEndedSessions: this.coerceBoolDefaultTrue(terminalPrefs.persistEndedSessions)
                 };
                 const linksPrefs = settings.preferences.links || {};
@@ -2102,6 +2108,9 @@ export class SettingsManager {
         if (this.elements.terminalCollapseNakedRgb) {
             this.elements.terminalCollapseNakedRgb.checked = state.preferences?.terminal?.collapseNakedRgbRuns !== false;
         }
+        if (this.elements.terminalTrimSelectionLineWhitespace) {
+            this.elements.terminalTrimSelectionLineWhitespace.checked = state.preferences?.terminal?.trimSelectionLineWhitespace === true;
+        }
         if (this.elements.terminalAutoAttachOnSelect) {
             this.elements.terminalAutoAttachOnSelect.checked = state.preferences?.terminal?.autoAttachOnSelect ?? true;
         }
@@ -2417,6 +2426,7 @@ export class SettingsManager {
                         dynamicTitleMode: this.elements.dynamicTitleMode?.value || 'ifUnset',
                         filterOscColors: this.elements.terminalFilterOscColors?.checked !== false,
                         collapseNakedRgbRuns: this.elements.terminalCollapseNakedRgb?.checked !== false,
+                        trimSelectionLineWhitespace: this.elements.terminalTrimSelectionLineWhitespace?.checked === true,
                         autoAttachOnSelect: this.elements.terminalAutoAttachOnSelect?.checked ?? true,
                         persistEndedSessions: this.elements.terminalPersistEndedSessions?.checked !== false
                     },
@@ -2642,6 +2652,7 @@ export class SettingsManager {
                     cursorBlink: true,
                     scrollback: 1000,
                     dynamicTitleMode: 'ifUnset',
+                    trimSelectionLineWhitespace: false,
                     autoAttachOnSelect: true,
                     persistEndedSessions: true
                 },
