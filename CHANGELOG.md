@@ -14,6 +14,7 @@
 ### Fixed
 
 - Frontend: in recent-sort mode, only show the refresh affordance when applying pending recency updates would actually change visible workspace order. ([#30](https://github.com/kcosr/termstation/pull/30))
+- Frontend: align workspace scroller/shortcut navigation order with sidebar render-eligible ordering so recent/manual sort stays consistent under filters. ([#30](https://github.com/kcosr/termstation/pull/30))
 
 ## [0.0.7] - 2026-03-09
 

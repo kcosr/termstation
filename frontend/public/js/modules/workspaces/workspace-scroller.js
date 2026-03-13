@@ -7,6 +7,7 @@
 import { appStore } from '../../core/store.js';
 import { getContext } from '../../core/context.js';
 import { SessionFilterService } from '../terminal/session-filter-service.js';
+import { buildWorkspaceDisplayOrder } from './workspace-recency.js';
 
 export class WorkspaceScroller {
   /**
@@ -59,6 +60,20 @@ export class WorkspaceScroller {
 
   getVisibleWorkspaceNames() {
     const wsState = this.store.getState().workspaces || {};
+    const tm = this.terminalManager || getContext()?.app?.modules?.terminal;
+    const renderContext = tm?.workspaceListComponent?.getRenderEligibleWorkspaceNames?.();
+    if (renderContext && Array.isArray(renderContext.orderedNames) && Array.isArray(renderContext.eligibleNames)) {
+      const appliedOrder = Array.isArray(tm?.getAppliedRecentWorkspaceOrder?.())
+        ? tm.getAppliedRecentWorkspaceOrder()
+        : [];
+      return buildWorkspaceDisplayOrder({
+        sortMode: wsState.sortMode,
+        manualOrder: renderContext.orderedNames,
+        eligibleNames: renderContext.eligibleNames,
+        appliedRecentOrder: appliedOrder
+      });
+    }
+
     const itemsSet = wsState.items || new Set();
     const pinnedSet = wsState.pinned || new Set();
     const filterPinned = !!wsState.filterPinned;

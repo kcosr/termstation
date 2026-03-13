@@ -9864,6 +9864,29 @@ export class TerminalManager {
         try {
             const storeState = this.sessionList?.store?.getState();
             const wsState = storeState?.workspaces || {};
+            const renderContext = this.workspaceListComponent?.getRenderEligibleWorkspaceNames?.();
+            if (renderContext && Array.isArray(renderContext.orderedNames) && Array.isArray(renderContext.eligibleNames)) {
+                const visibleOrdered = buildWorkspaceDisplayOrder({
+                    sortMode: wsState.sortMode,
+                    manualOrder: renderContext.orderedNames,
+                    eligibleNames: renderContext.eligibleNames,
+                    appliedRecentOrder: this.getAppliedRecentWorkspaceOrder()
+                });
+                if (visibleOrdered.length > 0) {
+                    return visibleOrdered;
+                }
+
+                // When filters hide all rows, keep shortcuts navigable using the base ordered set.
+                const fallbackOrdered = buildWorkspaceDisplayOrder({
+                    sortMode: wsState.sortMode,
+                    manualOrder: renderContext.orderedNames,
+                    eligibleNames: renderContext.orderedNames,
+                    appliedRecentOrder: this.getAppliedRecentWorkspaceOrder()
+                });
+                if (fallbackOrdered.length > 0) {
+                    return fallbackOrdered;
+                }
+            }
 
             const itemsSet = wsState.items || new Set(['Default']);
             const pinnedSet = wsState.pinned || new Set();
