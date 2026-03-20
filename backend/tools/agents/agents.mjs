@@ -118,6 +118,7 @@ async function main() {
     .argument('[message]', 'Optional prompt (or read from stdin)')
     .option('--post-create-delay <seconds>', 'Seconds to wait after successful creation (default: 10)')
     .option('--description <description>', 'Short description to append to the session title')
+    .option('--cwd <path>', 'Override working directory for the created session')
     .description('Create a new peer agent session')
     .action(async (agent, messageArg, cmd) => {
       const opts = program.opts();
@@ -156,6 +157,8 @@ async function main() {
         code_review: true,
         as_user: cfg.TERMSTATION_USER,
       };
+      const cwd = (typeof cmd?.cwd === 'string') ? cmd.cwd.trim() : '';
+      if (cwd) payload.working_directory = cwd;
 
       const resp = await api.createSession(payload);
       const id = resp?.session_id || resp?.id;
