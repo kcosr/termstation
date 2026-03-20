@@ -227,6 +227,7 @@ export async function runAutoStartTemplates({ logger } = {}) {
           workspace_service_enabled_for_session: workspaceServiceEnabledForSession,
           workspace_service_port: workspaceServicePort,
           template_parameters: resolveWithDefaults(tplForRun, paramValues),
+          session_token: sessionUnifiedToken || '',
           // Pass alias to SessionManager so it registers the mapping
           ...(computedAlias ? { session_alias: computedAlias } : {})
         };
