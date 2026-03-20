@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Added
+
+- Backend tools: add `agents.js list --json` support with expanded session metadata (`session_id`, `created_at`, `workspace`, `title`, `dynamic_title`, `template_id`, `template_name`, `last_output_at`, `output_active`). ([#31](https://github.com/kcosr/termstation/pull/31))
+
+### Fixed
+
+- Backend: ensure `SESSION_TOK` and `SESSIONS_API_BASE_URL` are injected for `isolation_mode=none` sessions, including route-created and auto-started sessions. ([#31](https://github.com/kcosr/termstation/pull/31))
 
 ## [0.0.8] - 2026-03-13
 
