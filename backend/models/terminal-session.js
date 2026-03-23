@@ -68,6 +68,7 @@ export class TerminalSession {
     this.workspace_service_port = Number.isFinite(Number(options.workspace_service_port))
       ? Math.floor(Number(options.workspace_service_port))
       : null;
+    this.session_token = typeof options.session_token === 'string' ? options.session_token : '';
     // Fork metadata
     this.is_fork = options.is_fork === true;
     this.forked_from_session_id = options.forked_from_session_id || null;
@@ -224,6 +225,10 @@ export class TerminalSession {
         TERMSTATION_USER: this.created_by,
         SESSIONS_BASE_URL: config.SESSIONS_BASE_URL
       };
+      if (String(this.isolation_mode || 'none') === 'none') {
+        if (this.session_token) env.SESSION_TOK = this.session_token;
+        if (config.SESSIONS_API_BASE_URL) env.SESSIONS_API_BASE_URL = config.SESSIONS_API_BASE_URL;
+      }
 
       // For host sessions (non-container) without a per-session bootstrap, make
       // backend-managed bootstrap tools available by appending backend/bootstrap/bin

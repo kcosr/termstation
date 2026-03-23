@@ -7,6 +7,23 @@ import { ApiClient } from './lib/apiClient.mjs';
 import { CliError } from './lib/errors.mjs';
 import { getMessageArgOrStdin, prefixMessage } from './lib/io.mjs';
 
+function toListJsonEntry(session) {
+  if (!session || typeof session !== 'object') return null;
+  const sessionId = session.session_id || session.id || '';
+  if (!sessionId) return null;
+  return {
+    session_id: sessionId,
+    created_at: Object.prototype.hasOwnProperty.call(session, 'created_at') ? session.created_at : null,
+    workspace: Object.prototype.hasOwnProperty.call(session, 'workspace') ? session.workspace : null,
+    title: Object.prototype.hasOwnProperty.call(session, 'title') ? session.title : '',
+    dynamic_title: Object.prototype.hasOwnProperty.call(session, 'dynamic_title') ? session.dynamic_title : '',
+    template_id: Object.prototype.hasOwnProperty.call(session, 'template_id') ? session.template_id : null,
+    template_name: Object.prototype.hasOwnProperty.call(session, 'template_name') ? session.template_name : null,
+    last_output_at: Object.prototype.hasOwnProperty.call(session, 'last_output_at') ? session.last_output_at : null,
+    output_active: Object.prototype.hasOwnProperty.call(session, 'output_active') ? session.output_active : null,
+  };
+}
+
 async function main() {
   const program = new Command();
   program
@@ -17,8 +34,9 @@ async function main() {
 
   program
     .command('list')
+    .option('--json', 'Output session details as JSON')
     .description('List active peer agent sessions (excluding your own)')
-    .action(async () => {
+    .action(async (cmdOpts) => {
       const opts = program.opts();
       const cfg = loadConfig();
       const api = new ApiClient(cfg.SESSIONS_API_BASE_URL, { debug: opts.debug || cfg.DEBUG, token: cfg.SESSION_TOK });
@@ -37,6 +55,14 @@ async function main() {
         const tb = Date.parse(b.created_at || '') || 0;
         return ta - tb;
       });
+
+      if (cmdOpts && cmdOpts.json) {
+        const rows = filtered
+          .map(toListJsonEntry)
+          .filter(Boolean);
+        process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+        return;
+      }
 
       for (const s of filtered) {
         const id = s.session_id || s.id || '';
