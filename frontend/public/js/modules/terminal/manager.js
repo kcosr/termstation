@@ -42,6 +42,7 @@ import { fontDetector } from '../../utils/font-detector.js';
 import { keyboardShortcuts } from '../shortcuts/keyboard-shortcuts.js';
 import { openAddRuleModal } from '../ui/scheduled-input-modals.js';
 import { createDebug } from '../../utils/debug.js';
+import { wsSessionTrace } from '../../utils/ws-session-trace.js';
 import { getSettingsStore } from '../../core/settings-store/index.js';
 import {
     WORKSPACE_SORT_MODE_MANUAL,
@@ -1879,10 +1880,17 @@ export class TerminalManager {
         // When the socket disconnects, mark all local sessions as detached so
         // subsequent reattach attempts actually send an attach message.
         this.eventBus.on('ws:disconnected', () => {
+            wsSessionTrace.push('manager.ws.disconnected');
             try {
                 if (this.sessions && typeof this.sessions.forEach === 'function') {
                     this.sessions.forEach((session) => {
-                        try { if (session) session.isAttached = false; } catch (_) {}
+                        try {
+                            if (session && typeof session.onTransportDisconnected === 'function') {
+                                session.onTransportDisconnected();
+                            } else if (session) {
+                                session.isAttached = false;
+                            }
+                        } catch (_) {}
                     });
                 }
                 // Reset compatibility tracking; preserve attachedSessions set so we know what to reattach
@@ -1891,25 +1899,39 @@ export class TerminalManager {
         });
 
         this.eventBus.on('ws:connected', async () => {
+            wsSessionTrace.push('manager.ws.connected', {
+                attached_session_count: this.attachedSessions?.size || 0
+            });
             // Only reload sessions when reconnected if we were already initialized
             // This prevents double loading during initial connection
             if (this.isInitialized) {
                 await this.loadSessions(true, true);
 
-                // Ensure the actively viewed session is fully reattached using
-                // TerminalSession.attach() so the history sync handshake completes
-                // (required for stdout to resume after reconnects).
+                // Reattach all sessions that were attached before disconnect.
                 try {
+                    const attachedIds = Array.from(this.attachedSessions || []);
+                    for (const sid of attachedIds) {
+                        const sessionObj = this.sessions && typeof this.sessions.get === 'function'
+                            ? this.sessions.get(sid)
+                            : null;
+                        if (!sessionObj || typeof sessionObj.attach !== 'function') continue;
+                        try {
+                            const forceLoadHistory = !(sessionObj?.sessionData?.local_only === true);
+                            await sessionObj.attach(forceLoadHistory, { forceReattach: true });
+                        } catch (_) {}
+                    }
+
+                    // Fallback for current session if object is missing.
                     if (this.currentSessionId && this.attachedSessions && this.attachedSessions.has(this.currentSessionId)) {
-                        const active = this.sessions && typeof this.sessions.get === 'function' ? this.sessions.get(this.currentSessionId) : null;
-                        if (active && typeof active.attach === 'function') {
-                            await active.attach(true);
-                        } else if (typeof this.attachToCurrentSession === 'function') {
+                        const active = this.sessions && typeof this.sessions.get === 'function'
+                            ? this.sessions.get(this.currentSessionId)
+                            : null;
+                        if (!active && typeof this.attachToCurrentSession === 'function') {
                             await this.attachToCurrentSession();
                         }
                     }
                 } catch (e) {
-                    console.warn('[TerminalManager] Failed to reattach active session on reconnect:', e);
+                    console.warn('[TerminalManager] Failed to reattach session(s) on reconnect:', e);
                 }
             }
         });
@@ -6505,6 +6527,11 @@ export class TerminalManager {
                 });
             }
         } catch (_) {}
+        wsSessionTrace.push('manager.select_session.start', {
+            session_id: sessionId,
+            has_existing: !!existingSession,
+            in_attached_set: this.attachedSessions.has(sessionId) === true
+        });
         
         if (existingSession) {
             // Session already exists - switch to it
@@ -6543,6 +6570,10 @@ export class TerminalManager {
             const isActive = sessionListData ? (sessionListData.is_active !== false) : true;
 
             if (this.attachedSessions.has(sessionId)) {
+                wsSessionTrace.push('manager.select_session.show_attached', {
+                    session_id: sessionId,
+                    has_container: !!existingSession.container
+                });
                 // Session is attached - show the terminal
                 this.connectedSessionId = sessionId; // For compatibility
                 
@@ -6592,6 +6623,9 @@ export class TerminalManager {
                 try {
                     const autoAttach = appStore.getState('preferences.terminal.autoAttachOnSelect') === true;
                     if (autoAttach && isActive) {
+                        wsSessionTrace.push('manager.select_session.auto_attach', {
+                            session_id: sessionId
+                        });
                         // Ensure header/links visible before attaching (history fetch)
                         try { this.updateSessionUI(sessionId, options); } catch (_) {}
                         await this.attachToCurrentSession();
@@ -7239,6 +7273,10 @@ export class TerminalManager {
             console.error('[Manager] No current session ID to attach to');
             return;
         }
+        wsSessionTrace.push('manager.attach_current.start', {
+            session_id: this.currentSessionId,
+            has_current_session_object: !!this.currentSession
+        });
 
         try {
             // Safeguard: if a dedicated window exists for this session, do not attach in main window
@@ -7310,6 +7348,10 @@ export class TerminalManager {
                 }
 
                 this.updateSessionTabs?.();
+                wsSessionTrace.push('manager.attach_current.success', {
+                    session_id: this.currentSessionId,
+                    local_only: true
+                });
                 return true;
             }
 
@@ -7365,6 +7407,10 @@ export class TerminalManager {
             
             // Update compatibility tracking
             this.connectedSessionId = this.currentSessionId;
+            wsSessionTrace.push('manager.attach_current.success', {
+                session_id: this.currentSessionId,
+                local_only: false
+            });
             
             // Clear the attach button and ensure the terminal is properly displayed
             this.viewController.clearTerminalView();

@@ -801,7 +801,7 @@ export class SessionTabsManager {
             const idx = (direction === 'left') ? (visibleSessions.length - 1) : 0;
             const target = visibleSessions[idx];
             if (target) {
-                this.selectSessionAndRestoreTab(target.session_id);
+                this.selectSessionAndRestoreTab(target.session_id, { preferLocal: true });
                 return;
             }
         }
@@ -835,7 +835,7 @@ export class SessionTabsManager {
             const newIndex = currentIndex - 1;
             const target = visibleSessions[newIndex];
             if (target) {
-                this.selectSessionAndRestoreTab(target.session_id);
+                this.selectSessionAndRestoreTab(target.session_id, { preferLocal: true });
             }
             return;
         } else { // right
@@ -851,17 +851,18 @@ export class SessionTabsManager {
             const newIndex = currentIndex + 1;
             const target = visibleSessions[newIndex];
             if (target) {
-                this.selectSessionAndRestoreTab(target.session_id);
+                this.selectSessionAndRestoreTab(target.session_id, { preferLocal: true });
             }
             return;
         }
     }
 
-    selectSessionAndRestoreTab(sessionId) {
+    selectSessionAndRestoreTab(sessionId, options = {}) {
         if (!sessionId) return;
+        const preferLocal = options?.preferLocal === true;
         // If this session has a dedicated desktop window open, focus it instead of switching locally
         try {
-            if (window.desktop && window.desktop.isElectron && typeof window.desktop.getSessionWindow === 'function' && typeof window.desktop.focusSessionWindow === 'function') {
+            if (!preferLocal && window.desktop && window.desktop.isElectron && typeof window.desktop.getSessionWindow === 'function' && typeof window.desktop.focusSessionWindow === 'function') {
                 return window.desktop.getSessionWindow(sessionId)
                     .then(async (info) => {
                         if (info && info.ok && info.windowId) {

@@ -15,6 +15,7 @@ import { getEffectiveTheme, onSystemThemeChange } from '../../utils/theme-utils.
 import { uiFonts } from '../../utils/ui-fonts.js';
 import { apiService } from '../../services/api.service.js';
 import { ConfirmationModal } from '../ui/modal.js';
+import { wsSessionTrace } from '../../utils/ws-session-trace.js';
 import { parseColor, getContrastColor } from '../../utils/color-utils.js';
 import {
     createDefaultSessionBadgeRule,
@@ -433,7 +434,14 @@ export class SettingsManager {
             reloadStateBtn: document.getElementById('reload-state-btn'),
             // Developer (desktop)
             openDevToolsBtn: document.getElementById('open-devtools-btn'),
+            openWsTraceBtn: document.getElementById('open-ws-trace-btn'),
             developerSection: document.getElementById('developer-settings-section'),
+            wsTraceModal: document.getElementById('ws-session-trace-modal'),
+            wsTraceCloseBtn: document.getElementById('ws-session-trace-close'),
+            wsTraceRefreshBtn: document.getElementById('ws-session-trace-refresh'),
+            wsTraceClearBtn: document.getElementById('ws-session-trace-clear'),
+            wsTraceCopyBtn: document.getElementById('ws-session-trace-copy'),
+            wsTraceOutput: document.getElementById('ws-session-trace-output'),
             resetTokenBtn: document.getElementById('reset-session-token-btn'),
             resetTokenGroup: document.getElementById('reset-session-token-group'),
             confirmAdminActionModal: document.getElementById('confirm-admin-action-modal'),
@@ -967,6 +975,49 @@ export class SettingsManager {
                 }
             } catch (e) {
                 console.error('[Settings] Failed to open DevTools via desktop bridge:', e);
+            }
+        });
+        this.elements.openWsTraceBtn?.addEventListener('click', () => {
+            this.openWsTraceModal();
+        });
+        this.elements.wsTraceCloseBtn?.addEventListener('click', () => {
+            this.closeWsTraceModal();
+        });
+        this.elements.wsTraceRefreshBtn?.addEventListener('click', () => {
+            this.renderWsTraceOutput();
+        });
+        this.elements.wsTraceClearBtn?.addEventListener('click', () => {
+            wsSessionTrace.clear();
+            this.renderWsTraceOutput();
+            notificationDisplay?.show?.({
+                notification_type: 'info',
+                title: 'Trace Cleared',
+                message: 'WebSocket session trace events were cleared.',
+                timestamp: new Date().toISOString()
+            }, { duration: 2500 });
+        });
+        this.elements.wsTraceCopyBtn?.addEventListener('click', async () => {
+            const text = wsSessionTrace.toPrettyText();
+            const copied = await this.copyTextToClipboard(text);
+            if (copied) {
+                notificationDisplay?.show?.({
+                    notification_type: 'success',
+                    title: 'Trace Copied',
+                    message: 'Trace output copied to clipboard.',
+                    timestamp: new Date().toISOString()
+                }, { duration: 2500 });
+            } else {
+                notificationDisplay?.show?.({
+                    notification_type: 'error',
+                    title: 'Copy Failed',
+                    message: 'Could not copy trace output.',
+                    timestamp: new Date().toISOString()
+                }, { duration: 3500 });
+            }
+        });
+        this.elements.wsTraceModal?.addEventListener('click', (e) => {
+            if (e.target === this.elements.wsTraceModal) {
+                this.closeWsTraceModal();
             }
         });
 
@@ -1526,6 +1577,12 @@ export class SettingsManager {
         
         // Handle keyboard shortcuts for modal
         document.addEventListener('keydown', (e) => {
+            if (this.elements.wsTraceModal?.classList.contains('show')) {
+                if (e.key === 'Escape') {
+                    this.closeWsTraceModal();
+                }
+                return;
+            }
             if (this.modal?.classList.contains('show')) {
                 if (e.key === 'Escape') {
                     this.closeModal();
@@ -2052,8 +2109,56 @@ export class SettingsManager {
         } catch (_) {}
         this._themeSaved = false;
         this.modal?.classList.remove('show');
+        this.closeWsTraceModal();
         if (this.prevFocused && this.prevFocused.focus) {
             this.prevFocused.focus();
+        }
+    }
+
+    openWsTraceModal() {
+        this.renderWsTraceOutput();
+        try {
+            this.elements.wsTraceModal?.classList.add('show');
+            this.elements.wsTraceModal?.focus?.();
+        } catch (_) {}
+    }
+
+    closeWsTraceModal() {
+        try {
+            this.elements.wsTraceModal?.classList.remove('show');
+        } catch (_) {}
+    }
+
+    renderWsTraceOutput() {
+        if (!this.elements.wsTraceOutput) return;
+        this.elements.wsTraceOutput.textContent = wsSessionTrace.toPrettyText();
+        try {
+            this.elements.wsTraceOutput.scrollTop = this.elements.wsTraceOutput.scrollHeight;
+        } catch (_) {}
+    }
+
+    async copyTextToClipboard(text) {
+        const value = String(text || '');
+        try {
+            if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(value);
+                return true;
+            }
+        } catch (_) {}
+
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = value;
+            ta.setAttribute('readonly', 'true');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok === true;
+        } catch (_) {
+            return false;
         }
     }
 

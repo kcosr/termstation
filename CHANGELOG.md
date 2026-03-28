@@ -5,10 +5,14 @@
 ### Added
 
 - Backend tools: add `agents.js list --json` support with expanded session metadata (`session_id`, `created_at`, `workspace`, `title`, `dynamic_title`, `template_id`, `template_name`, `last_output_at`, `output_active`). ([#31](https://github.com/kcosr/termstation/pull/31))
+- Frontend: add a Developer WebSocket Session Trace viewer (in-memory ring buffer) with refresh, clear, and copy actions for client-side session/websocket event debugging. ([#31](https://github.com/kcosr/termstation/pull/31))
 
 ### Fixed
 
 - Backend: ensure `SESSION_TOK` and `SESSIONS_API_BASE_URL` are injected for `isolation_mode=none` sessions, including route-created and auto-started sessions. ([#31](https://github.com/kcosr/termstation/pull/31))
+- Frontend desktop: keep keyboard session-tab navigation local to the current window instead of focusing a dedicated session window. ([#31](https://github.com/kcosr/termstation/pull/31))
+- Frontend desktop/macOS: remove dedicated-window header/sidebar toggle inset in fullscreen by syncing renderer fullscreen state reliably for child windows. ([#31](https://github.com/kcosr/termstation/pull/31))
+- Frontend mobile: reduce Android dictation-triggered horizontal panning by constraining terminal container overflow and adjusting xterm helper textarea placement on coarse-pointer devices. ([#31](https://github.com/kcosr/termstation/pull/31))
 
 ## [0.0.8] - 2026-03-13
 

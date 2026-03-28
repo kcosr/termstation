@@ -1348,6 +1348,10 @@
                                         <small class="form-help">Opens the native DevTools window (Electron desktop only).</small>
                                     </div>
                                     <div class="form-group">
+                                        <button type="button" id="open-ws-trace-btn" class="btn btn-secondary">Open WS Session Trace</button>
+                                        <small class="form-help">Shows recent client-side websocket/session trace events with copy support.</small>
+                                    </div>
+                                    <div class="form-group">
                                         <div class="checkbox-wrapper">
                                             <input type="checkbox" id="allow-insecure-certs">
                                             <label for="allow-insecure-certs">Allow invalid certificates</label>
@@ -1436,6 +1440,26 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" id="settings-cancel">Cancel</button>
                 <button type="button" class="btn btn-primary" id="settings-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ws-session-trace-modal" class="modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="ws-session-trace-title">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="ws-session-trace-title">WebSocket Session Trace</h2>
+                <button class="modal-close" id="ws-session-trace-close" title="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <small class="form-help">Recent in-memory trace events for websocket/session lifecycle. Useful for reproducing frozen-session issues.</small>
+                </div>
+                <pre id="ws-session-trace-output" class="ws-session-trace-output"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="ws-session-trace-refresh">Refresh</button>
+                <button type="button" class="btn btn-secondary" id="ws-session-trace-clear">Clear</button>
+                <button type="button" class="btn btn-primary" id="ws-session-trace-copy">Copy</button>
             </div>
         </div>
     </div>

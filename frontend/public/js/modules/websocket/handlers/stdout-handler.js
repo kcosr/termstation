@@ -3,6 +3,7 @@
  * Handles terminal output messages
  */
 import { debug } from '../../../utils/debug.js';
+import { wsSessionTrace } from '../../../utils/ws-session-trace.js';
 
 export class StdoutHandler {
     handle(message, context) {
@@ -13,6 +14,10 @@ export class StdoutHandler {
         
         // Get session from terminal manager
         if (context.terminalManager) {
+            try {
+                const bytes = typeof message.data === 'string' ? message.data.length : 0;
+                wsSessionTrace.pushStdout(message.session_id, bytes);
+            } catch (_) {}
             const session = context.terminalManager.sessions.get(message.session_id);
             if (session) {
                 // Pass along the from_queue flag if present (for debugging)

@@ -995,6 +995,30 @@ textarea {
     background-color: inherit !important;
 }
 
+/* Mobile dictation: avoid Android viewport pan toward off-screen IME helper textarea */
+@media (hover: none) and (pointer: coarse) {
+    html,
+    body,
+    #app,
+    .app-content,
+    .main-layout,
+    .terminal-container,
+    .terminal-content-area,
+    .terminal-view {
+        max-width: 100%;
+        overflow-x: hidden !important;
+    }
+
+    .xterm .xterm-helper-textarea {
+        left: 0 !important;
+        top: 0 !important;
+        width: 1px !important;
+        height: 1px !important;
+        opacity: 0 !important;
+        z-index: -1 !important;
+    }
+}
+
 /* Debug markers overlay removed */
 
 /* Minimal visual hint when dragging over xterm */
@@ -3615,6 +3639,23 @@ body.session-selected #text-input-btn {
     flex-direction: column;
 }
 
+.ws-session-trace-output {
+    margin: 0;
+    min-height: 220px;
+    max-height: 55vh;
+    overflow: auto;
+    padding: 10px;
+    border: 1px solid var(--border-color, #444);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.45);
+    color: var(--text-color, #eee);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 /* Make new session modal specifically taller */
 #new-session-modal .modal-content {
     max-height: 95vh; /* Even taller for new session modal */
@@ -4374,6 +4415,10 @@ body.responsive-window .terminal-header .dropdown-menu {
 .is-electron.platform-mac.is-fullscreen body.responsive-window .terminal-header {
     padding-left: 1rem;
 }
+/* Fallback selector when fullscreen class is present on <body> */
+.is-electron.platform-mac body.is-fullscreen.responsive-window .terminal-header {
+    padding-left: 1rem;
+}
 
 /* Ensure xterm viewport uses full height */
 body.responsive-minimal .terminal-view .xterm .xterm-viewport {
@@ -4529,6 +4574,10 @@ body[data-sidebar-layout="overlay"]:not(.responsive-minimal) .mobile-sidebar-clo
 /* macOS traffic lights inset for dedicated window session info toolbar */
 .is-electron.platform-mac body.responsive-window .session-info-toolbar {
     padding-left: var(--mac-header-left-inset, 80px);
+}
+.is-electron.platform-mac.is-fullscreen body.responsive-window .session-info-toolbar,
+.is-electron.platform-mac body.is-fullscreen.responsive-window .session-info-toolbar {
+    padding-left: 1rem;
 }
 
 /* When in compact height (toolbars reduced), hide session tabs wrappers to eliminate extra borders/space */
