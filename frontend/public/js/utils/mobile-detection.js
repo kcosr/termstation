@@ -3,6 +3,7 @@
  * Provides reliable mobile device detection for preventing unwanted mobile behaviors
  */
 import { appStore } from '../core/store.js';
+import { isMobileRuntime } from './mobile-runtime.js';
 
 class MobileDetection {
     constructor() {
@@ -109,11 +110,16 @@ class MobileDetection {
         return {
             isMobile: this.isMobile,
             isTouch: this.isTouch,
+            isMobileRuntime: this.isMobileRuntime(),
             shouldPreventAutoFocus: this.shouldPreventAutoFocus(),
             userAgent: navigator.userAgent,
             innerWidth: window.innerWidth,
             innerHeight: window.innerHeight
         };
+    }
+
+    isMobileRuntime() {
+        return isMobileRuntime(globalThis);
     }
 }
 

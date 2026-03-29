@@ -13,6 +13,7 @@
 - Frontend desktop: keep keyboard session-tab navigation local to the current window instead of focusing a dedicated session window. ([#31](https://github.com/kcosr/termstation/pull/31))
 - Frontend desktop/macOS: remove dedicated-window header/sidebar toggle inset in fullscreen by syncing renderer fullscreen state reliably for child windows. ([#31](https://github.com/kcosr/termstation/pull/31))
 - Frontend mobile: reduce Android dictation-triggered horizontal panning by constraining terminal container overflow and adjusting xterm helper textarea placement on coarse-pointer devices. ([#31](https://github.com/kcosr/termstation/pull/31))
+- Frontend: restrict foreground session reattach/history reload handling to actual mobile runtimes so desktop and non-mobile web do not redraw active sessions on every app focus change.
 
 ## [0.0.8] - 2026-03-13
 

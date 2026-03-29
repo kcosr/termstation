@@ -774,6 +774,13 @@ class Application {
                 return;
             }
 
+            // The foreground reattach path exists for real mobile runtimes where
+            // transports or server-side subscriptions can be suspended in the background.
+            // Desktop/Electron and non-mobile web should keep the live attachment intact.
+            if (!mobileDetection.isMobileRuntime()) {
+                return;
+            }
+
             // If still "connected" after resume, proactively reattach the active session.
             // On some mobile browsers, the transport resumes but server-side stream
             // subscriptions are lost; reattach ensures stdout resumes.
