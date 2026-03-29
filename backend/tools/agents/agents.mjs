@@ -24,6 +24,16 @@ function toListJsonEntry(session) {
   };
 }
 
+export function resolveCreateWorkspace({ optionWorkspace, envWorkspace } = {}) {
+  const optionValue = typeof optionWorkspace === 'string' ? optionWorkspace.trim() : '';
+  if (optionValue) return optionValue.toLowerCase() === 'default' ? 'Default' : optionValue;
+
+  const envValue = typeof envWorkspace === 'string' ? envWorkspace.trim() : '';
+  if (envValue) return envValue.toLowerCase() === 'default' ? 'Default' : envValue;
+
+  return 'Default';
+}
+
 async function main() {
   const program = new Command();
   program
@@ -118,6 +128,7 @@ async function main() {
     .argument('[message]', 'Optional prompt (or read from stdin)')
     .option('--post-create-delay <seconds>', 'Seconds to wait after successful creation (default: 10)')
     .option('--description <description>', 'Short description to append to the session title')
+    .option('--workspace <name>', 'Workspace for the created session')
     .option('--cwd <path>', 'Override working directory for the created session')
     .description('Create a new peer agent session')
     .action(async (agent, messageArg, cmd) => {
@@ -144,12 +155,16 @@ async function main() {
       if (cfg.ISSUE_ID) template_parameters.issue_id = isNaN(Number(cfg.ISSUE_ID)) ? cfg.ISSUE_ID : Number(cfg.ISSUE_ID);
       const forge = opts.forge || cfg.FORGE;
       if (forge) template_parameters.forge = forge;
+      const workspace = resolveCreateWorkspace({
+        optionWorkspace: cmd.workspace,
+        envWorkspace: cfg.AGENTS_WORKSPACE,
+      });
 
       const payload = {
         template_id: agent,
         template_parameters,
         interactive: true,
-        workspace: 'Agents',
+        workspace,
         cols: 187,
         rows: 58,
         visibility: 'private',

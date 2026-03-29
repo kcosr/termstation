@@ -8,9 +8,10 @@ Only create or use peer agent sessions when the user explicitly asks you to invo
     - Do not create peer sessions proactively if the user has not requested one.
 - Always use `{BOOTSTRAP_DIR}/bin/agents.js` — do not print peer messages directly.
 - Create peer (`ISSUE_ID` is required so the peer session is linked to the correct issue):
-    - `ISSUE_ID=<issue-id> {BOOTSTRAP_DIR}/bin/agents.js create <agent> [--description "..."]`
+    - `ISSUE_ID=<issue-id> {BOOTSTRAP_DIR}/bin/agents.js create <agent> [--description "..."] [--workspace "<name>"]`
     - Example for code review:
-      `ISSUE_ID=1 {BOOTSTRAP_DIR}/bin/agents.js create claude --description 'Review PR #2 for issue #1 (Gitea TypeScript webhook handler)'`
+      `ISSUE_ID=1 {BOOTSTRAP_DIR}/bin/agents.js create claude --description 'Review PR #2 for issue #1 (Gitea TypeScript webhook handler)' --workspace 'Reviews'`
+    - Workspace defaults to `Default`. Override it with `--workspace` or `AGENTS_WORKSPACE=<name>`.
 - Send a message:
     - Single-line:
       `{BOOTSTRAP_DIR}/bin/agents.js send <peer-session-id> "Message"`

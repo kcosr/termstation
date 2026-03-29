@@ -15,6 +15,7 @@ export function loadConfig() {
   const REPO = env.REPO || '';
   const ISSUE_ID = env.ISSUE_ID || '';
   const FORGE = env.FORGE || '';
+  const AGENTS_WORKSPACE = env.AGENTS_WORKSPACE || '';
   let BRANCH = env.BRANCH || '';
   // SESSION_TITLE was previously supported to fully override the title.
   // It has been removed in favor of explicit CLI options (e.g., --description).
@@ -34,6 +35,7 @@ export function loadConfig() {
     REPO,
     ISSUE_ID,
     FORGE,
+    AGENTS_WORKSPACE,
     BRANCH,
     DEBUG,
   };

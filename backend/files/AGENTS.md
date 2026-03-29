@@ -55,8 +55,8 @@ To get a list of active peer agent session IDs, use:
 - `{BOOTSTRAP_DIR}/bin/agents.js list`
 
 To create a new peer agent (when user asks you to get help from claude, codex, or cursor):
-- Use `{BOOTSTRAP_DIR}/bin/agents.js create <agent> [--description "<brief>"]` (you can also pipe a prompt)
-- Example (single‑line): `{BOOTSTRAP_DIR}/bin/agents.js create claude --description "Review my MR changes"`
+- Use `{BOOTSTRAP_DIR}/bin/agents.js create <agent> [--description "<brief>"] [--workspace "<name>"]` (you can also pipe a prompt)
+- Example (single‑line): `{BOOTSTRAP_DIR}/bin/agents.js create claude --description "Review my MR changes" --workspace "Reviews"`
 - Preferred heredoc for multi‑line prompts or special characters:
   ```bash
   cat << 'MSG' | {BOOTSTRAP_DIR}/bin/agents.js create claude --description "Review MR changes"
@@ -66,6 +66,7 @@ To create a new peer agent (when user asks you to get help from claude, codex, o
 - On success, it prints: `Peer agent <id> is available`
 - Then send your instructions with: `{BOOTSTRAP_DIR}/bin/agents.js send <peer-id> "<your message>"`
 - Never create more than one session to the same agent.
+- Workspace defaults to `Default`. Override it with `--workspace` or `AGENTS_WORKSPACE=<name>`.
 
 To stop a peer agent session:
 - Only stop peer sessions when the user explicitly instructs you to do so.

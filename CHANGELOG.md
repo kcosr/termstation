@@ -5,6 +5,7 @@
 ### Added
 
 - Backend tools: add `agents.js list --json` support with expanded session metadata (`session_id`, `created_at`, `workspace`, `title`, `dynamic_title`, `template_id`, `template_name`, `last_output_at`, `output_active`). ([#31](https://github.com/kcosr/termstation/pull/31))
+- Backend tools: add `agents.js create --workspace` plus `AGENTS_WORKSPACE` support, defaulting peer agent sessions to the `Default` workspace.
 - Frontend: add a Developer WebSocket Session Trace viewer (in-memory ring buffer) with refresh, clear, and copy actions for client-side session/websocket event debugging. ([#31](https://github.com/kcosr/termstation/pull/31))
 
 ### Fixed
