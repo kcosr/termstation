@@ -724,6 +724,7 @@ export class SessionList {
      * Update an existing session element
      */
     updateSessionElement(sessionItem, sessionData, pinnedSessions, displayNumber = null) {
+        sessionData = this.manager?.getDisplaySessionData?.(sessionData) || sessionData;
         // Check if this session is pinned
         const isPinned = pinnedSessions.has(sessionData.session_id);
         let showChildPref = true;
@@ -1351,6 +1352,35 @@ export class SessionList {
     getSessionData(sessionId) {
         const sessions = this.store.getState().sessionList.sessions;
         return sessions.get(sessionId);
+    }
+
+    refreshSessionDisplay(sessionId, sessionData = null) {
+        const sessionItem = this.sessions.get(sessionId);
+        if (!sessionItem) return;
+
+        const state = this.store.getState().sessionList || {};
+        const pinnedSessions = state.filters?.pinnedSessions || new Set();
+        const visibleOrder = Array.isArray(state.visibleOrder) ? state.visibleOrder : [];
+        let visibleIndex = visibleOrder.indexOf(sessionId);
+        if (visibleIndex < 0) {
+            try {
+                const visibleItems = Array.from(this.container.querySelectorAll('.session-item')).filter(
+                    (item) => item && item.style.display !== 'none'
+                );
+                visibleIndex = visibleItems.findIndex((item) => item.dataset.sessionId === sessionId);
+            } catch (_) {
+                visibleIndex = -1;
+            }
+        }
+        const displayNumber = visibleIndex >= 0 ? (visibleIndex + 1) : null;
+        const resolvedSessionData = sessionData || this.getSessionData(sessionId);
+        if (!resolvedSessionData) return;
+
+        this.updateSessionElement(sessionItem, resolvedSessionData, pinnedSessions, displayNumber);
+
+        const isSelected = sessionId === state.activeSessionId;
+        sessionItem.classList.toggle('active', isSelected);
+        sessionItem.classList.toggle('selected', isSelected);
     }
     
     /**

@@ -37,6 +37,8 @@ import { appStore } from '../../core/store.js';
 import { iconUtils } from '../../utils/icon-utils.js';
 import { computeDisplayTitle, getDynamicTitleMode } from '../../utils/title-utils.js';
 import { resolveSessionBadgeRule } from '../../utils/session-badge-rules.js';
+import { isDynamicTitleOnlySessionUpdate } from '../../utils/dynamic-title-updates.js';
+import { applyWindowTitleFromSessionData } from '../../utils/window-title.js';
 import { settingsManager } from '../settings/settings-manager.js';
 import { fontDetector } from '../../utils/font-detector.js';
 import { keyboardShortcuts } from '../shortcuts/keyboard-shortcuts.js';
@@ -325,6 +327,7 @@ export class TerminalManager {
 
         // Track a pending manual selection across workspace/search re-renders
         this.pendingManualSelectionId = null;
+        this.liveDynamicTitles = new Map();
 
         // Helper: show an Attach prompt inside a container tab view for a child session
         this.showContainerAttachPrompt = (childId) => {
@@ -824,11 +827,93 @@ export class TerminalManager {
         try {
             const sid = sessionId || this.currentSessionId;
             if (!sid) return;
-            const data = this.sessionList?.getSessionData?.(sid) || {};
+            const data = this.getDisplaySessionData(sid);
             const effective = computeDisplayTitle(data, { fallbackOrder: [], defaultValue: 'Session' });
             const templateName = data.template_name || null;
             this.updateSessionInfoToolbar(effective, sid, templateName);
         } catch (_) { /* ignore */ }
+    }
+
+    getDisplaySessionData(sessionOrId = null) {
+        try {
+            const sessionData = (typeof sessionOrId === 'string')
+                ? (this.sessionList?.getSessionData?.(sessionOrId) || null)
+                : (sessionOrId || null);
+            const sid = typeof sessionOrId === 'string'
+                ? sessionOrId
+                : String(sessionData?.session_id || '').trim();
+            if (!sid) return sessionData ? { ...sessionData } : {};
+            if (!this.liveDynamicTitles.has(sid)) {
+                return sessionData ? { ...sessionData } : {};
+            }
+            return {
+                ...(sessionData || {}),
+                session_id: sid,
+                dynamic_title: this.liveDynamicTitles.get(sid)
+            };
+        } catch (_) {
+            return {};
+        }
+    }
+
+    setLiveDynamicTitle(sessionId, dynamicTitle) {
+        const sid = String(sessionId || '').trim();
+        if (!sid) return;
+        const nextDynamicTitle = typeof dynamicTitle === 'string' ? dynamicTitle : '';
+        this.liveDynamicTitles.set(sid, nextDynamicTitle);
+        try {
+            const existingSessionData = this.sessionList?.getSessionData?.(sid);
+            if (existingSessionData && existingSessionData.dynamic_title !== nextDynamicTitle) {
+                existingSessionData.dynamic_title = nextDynamicTitle;
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    deleteLiveDynamicTitle(sessionId) {
+        const sid = String(sessionId || '').trim();
+        if (!sid) return;
+        this.liveDynamicTitles.delete(sid);
+    }
+
+    reseedLiveDynamicTitlesFromSessions(sessions = []) {
+        this.liveDynamicTitles.clear();
+        if (!Array.isArray(sessions)) return;
+        sessions.forEach((sessionData) => {
+            const sid = String(sessionData?.session_id || '').trim();
+            if (!sid) return;
+            if (typeof sessionData.dynamic_title === 'string') {
+                this.liveDynamicTitles.set(sid, sessionData.dynamic_title);
+            }
+        });
+    }
+
+    applyDynamicTitleFastPath(sessionId, dynamicTitle) {
+        this.setLiveDynamicTitle(sessionId, dynamicTitle);
+
+        const displayData = this.getDisplaySessionData(sessionId);
+        if (!displayData || !displayData.session_id) return;
+
+        try {
+            this.sessionList?.refreshSessionDisplay?.(sessionId, displayData);
+        } catch (_) { /* ignore */ }
+
+        try {
+            this.sessionTabsManager?.updateSessionTab?.(displayData);
+        } catch (_) { /* ignore */ }
+
+        if (this.currentSessionId !== sessionId) return;
+
+        try {
+            const mode = getDynamicTitleMode();
+            const hasExplicitTitle = typeof displayData.title === 'string' && displayData.title.trim().length > 0;
+            if (mode === 'always' || (mode === 'ifUnset' && !hasExplicitTitle)) {
+                const effective = computeDisplayTitle(displayData, { fallbackOrder: [], defaultValue: 'Session' });
+                const templateName = displayData.template_name || null;
+                this.updateSessionInfoToolbar(effective, sessionId, templateName);
+            }
+        } catch (_) { /* ignore */ }
+
+        try { applyWindowTitleFromSessionData(displayData); } catch (_) { /* ignore */ }
     }
 
     /**
@@ -908,7 +993,10 @@ export class TerminalManager {
                                 queueStateSet('local_session_dynamic_titles', map);
                             } catch (_) { /* ignore */ }
                             const hasExplicitTitle = typeof data.title === 'string' && data.title.trim().length > 0;
-                            if (hasExplicitTitle) return;
+                            if (hasExplicitTitle) {
+                                this.setLiveDynamicTitle(sid, dyn);
+                                return;
+                            }
                             // Reuse existing update pipeline so header/tabs/sidebar refresh consistently
                             this.handleSessionUpdate({ session_id: sid, dynamic_title: dyn }, 'updated');
                         }
@@ -4225,6 +4313,7 @@ export class TerminalManager {
 
             // Always load only active sessions for the sidebar
             const sessions = await apiService.getSessions();
+            this.reseedLiveDynamicTitlesFromSessions(sessions);
                 
             console.log(`[Manager] Loaded ${sessions?.length || 0} sessions:`, sessions?.map(s => ({id: s.session_id, active: s.is_active, title: s.title})));
             
@@ -6682,7 +6771,7 @@ export class TerminalManager {
         this.viewController.showLoadingPlaceholder('Loading session...');
 
         // Get session data from session list first
-        let sessionData = this.sessionList.getSessionData(sessionId);
+        let sessionData = this.getDisplaySessionData(sessionId);
         
         // Check if this is a terminated session
         const isActiveSession = sessionData && sessionData.is_active !== false;
@@ -6878,7 +6967,7 @@ export class TerminalManager {
     }
     updateSessionUI(sessionId, options = {}) {
         // Get session data and update UI elements
-        const sessionListData = this.sessionList.getSessionData(sessionId);
+        const sessionListData = this.getDisplaySessionData(sessionId);
         let sessionTitle = 'Session';
         let templateName = null;
         if (sessionListData) {
@@ -7925,6 +8014,18 @@ export class TerminalManager {
                 // Check if session exists in our list
                 const existingSessionData = this.sessionList.getSessionData(sessionData.session_id);
                 if (existingSessionData) {
+                    if (isDynamicTitleOnlySessionUpdate(sessionData, updateType)) {
+                        const currentDynamicTitle = this.liveDynamicTitles.has(sessionData.session_id)
+                            ? this.liveDynamicTitles.get(sessionData.session_id)
+                            : existingSessionData.dynamic_title;
+                        if (currentDynamicTitle !== sessionData.dynamic_title) {
+                            this.applyDynamicTitleFastPath(sessionData.session_id, sessionData.dynamic_title);
+                        }
+                        return;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(sessionData, 'dynamic_title')) {
+                        this.setLiveDynamicTitle(sessionData.session_id, sessionData.dynamic_title);
+                    }
                     // Keep activity indicator in sync if server includes current state in update
                     try {
                         const live = (Object.prototype.hasOwnProperty.call(sessionData, 'is_active')
@@ -8245,6 +8346,7 @@ export class TerminalManager {
                 
             case 'terminated': {
                 const terminatedId = sessionData.session_id;
+                this.deleteLiveDynamicTitle(terminatedId);
                 const wasCurrentSession = this.currentSessionId === terminatedId;
                 const persistEndedSessions = this.shouldPersistEndedSessions();
 
@@ -8349,6 +8451,7 @@ export class TerminalManager {
                 
             case 'deleted':
                 // Session was deleted (save_session_history=false) - remove completely from UI
+                this.deleteLiveDynamicTitle(sessionData.session_id);
                 
                 // Check if this was the current active session
                 const wasCurrentSessionDeleted = this.currentSession && this.currentSession.sessionId === sessionData.session_id;

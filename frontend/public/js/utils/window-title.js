@@ -7,6 +7,8 @@
 import { getContext } from '../core/context.js';
 import { computeDisplayTitle } from './title-utils.js';
 
+let lastAppliedTitle = null;
+
 function isWindowMode() {
   try {
     if (window.WindowModeUtils && typeof WindowModeUtils.shouldUseWindowModeFromUrl === 'function') {
@@ -20,34 +22,36 @@ function isWindowMode() {
   return false;
 }
 
+function getDisplaySessionData(parentSessionId) {
+  try {
+    const terminalManager = getContext()?.app?.modules?.terminal;
+    if (terminalManager && typeof terminalManager.getDisplaySessionData === 'function') {
+      return terminalManager.getDisplaySessionData(parentSessionId);
+    }
+  } catch (_) { /* ignore */ }
+
+  try {
+    const { appStore } = getContext();
+    if (parentSessionId) {
+      const sessions = appStore.getState('sessionList.sessions');
+      if (sessions && typeof sessions.get === 'function') {
+        return sessions.get(parentSessionId) || null;
+      }
+    }
+  } catch (_) { /* ignore */ }
+
+  return null;
+}
+
 /** Initialize title syncing for window-mode renderers. */
 export function initWindowTitleSync() {
   if (!isWindowMode()) return () => {};
 
   const { appStore } = getContext();
-  let lastTitle = null;
 
   const applyTitle = (parentSessionId) => {
-    let finalTitle = 'TermStation';
-    try {
-      let data = null;
-      if (parentSessionId) {
-        const sessions = appStore.getState('sessionList.sessions');
-        if (sessions && typeof sessions.get === 'function') {
-          data = sessions.get(parentSessionId);
-        }
-      }
-      // Use empty default so unknown title does not render as placeholder in window title
-      const display = computeDisplayTitle(data || {}, { fallbackOrder: [], defaultValue: '' }).trim();
-      if (display) {
-        finalTitle = `TermStation — ${display}`;
-      }
-    } catch (_) { /* keep default */ }
-
-    if (finalTitle !== lastTitle) {
-      try { document.title = finalTitle; } catch (_) {}
-      lastTitle = finalTitle;
-    }
+    const data = getDisplaySessionData(parentSessionId);
+    applyWindowTitleFromSessionData(data);
   };
 
   const getActiveParentId = () => {
@@ -81,4 +85,21 @@ export function initWindowTitleSync() {
     try { typeof unsubSessions === 'function' && unsubSessions(); } catch (_) {}
     try { typeof unsubMode === 'function' && unsubMode(); } catch (_) {}
   };
+}
+
+export function applyWindowTitleFromSessionData(sessionData = null) {
+  if (!isWindowMode()) return;
+
+  let finalTitle = 'TermStation';
+  try {
+    const display = computeDisplayTitle(sessionData || {}, { fallbackOrder: [], defaultValue: '' }).trim();
+    if (display) {
+      finalTitle = `TermStation — ${display}`;
+    }
+  } catch (_) { /* keep default */ }
+
+  if (finalTitle !== lastAppliedTitle) {
+    try { document.title = finalTitle; } catch (_) {}
+    lastAppliedTitle = finalTitle;
+  }
 }

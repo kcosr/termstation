@@ -262,6 +262,7 @@ export class SessionTabsManager {
      * Add a session tab
      */
     addSessionTab(sessionData) {
+        sessionData = this.manager?.getDisplaySessionData?.(sessionData) || sessionData;
         const tabButton = document.createElement('button');
         tabButton.className = 'session-tab';
         tabButton.dataset.sessionId = sessionData.session_id;
@@ -744,6 +745,7 @@ export class SessionTabsManager {
      * Update a session tab (e.g., when title changes)
      */
     updateSessionTab(sessionData) {
+        sessionData = this.manager?.getDisplaySessionData?.(sessionData) || sessionData;
         const tab = this.sessionTabs.get(sessionData.session_id);
         if (tab) {
             // Update tab title using settings
