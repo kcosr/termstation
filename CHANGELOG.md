@@ -2,7 +2,25 @@
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Added
+
+- Backend tools: add `agents.js list --json` support with expanded session metadata (`session_id`, `created_at`, `workspace`, `title`, `dynamic_title`, `template_id`, `template_name`, `last_output_at`, `output_active`). ([#31](https://github.com/kcosr/termstation/pull/31))
+- Backend tools: add `agents.js create --workspace` plus `AGENTS_WORKSPACE` support, defaulting peer agent sessions to the `Default` workspace.
+- Backend tools: restore full title overrides for `agents.js create` via `--title` and `SESSION_TITLE`, with `--title` taking precedence over the environment variable.
+- Frontend: add a Developer WebSocket Session Trace viewer (in-memory ring buffer) with refresh, clear, and copy actions for client-side session/websocket event debugging. ([#31](https://github.com/kcosr/termstation/pull/31))
+
+### Changed
+
+- Backend tools: require an explicit `-` sentinel to read `agents.js create/send` message text from stdin, so omitted messages no longer block on non-TTY stdin.
+
+### Fixed
+
+- Backend: ensure `SESSION_TOK` and `SESSIONS_API_BASE_URL` are injected for `isolation_mode=none` sessions, including route-created and auto-started sessions. ([#31](https://github.com/kcosr/termstation/pull/31))
+- Backend/frontend: stop dynamic OSC title churn from forcing repeated session refresh work while an explicit session title override is set.
+- Frontend desktop: keep keyboard session-tab navigation local to the current window instead of focusing a dedicated session window. ([#31](https://github.com/kcosr/termstation/pull/31))
+- Frontend desktop/macOS: remove dedicated-window header/sidebar toggle inset in fullscreen by syncing renderer fullscreen state reliably for child windows. ([#31](https://github.com/kcosr/termstation/pull/31))
+- Frontend mobile: reduce Android dictation-triggered horizontal panning by constraining terminal container overflow and adjusting xterm helper textarea placement on coarse-pointer devices. ([#31](https://github.com/kcosr/termstation/pull/31))
+- Frontend: restrict foreground session reattach/history reload handling to actual mobile runtimes so desktop and non-mobile web do not redraw active sessions on every app focus change.
 
 ## [0.0.8] - 2026-03-13
 

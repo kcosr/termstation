@@ -919,6 +919,7 @@ router.post('/', async (req, res) => {
         workspace_service_port: workspaceServicePort,
         // Persist effective parameters (provided + defaults) on the session
         template_parameters: resolvedTemplateParameters,
+        session_token: sessionUnifiedToken || '',
         session_id: initialSessionId,
         // Optional alias (safe slug only)
         ...(computedAlias ? { session_alias: computedAlias } : {})

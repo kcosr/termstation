@@ -33,6 +33,7 @@ import { passwordResetModal } from '../modules/auth/password-reset-modal.js';
 import { isAnyModalOpen } from '../modules/ui/modal.js';
 import { authOrchestrator } from './auth-orchestrator.js';
 import { initWindowTitleSync } from '../utils/window-title.js';
+import { wsSessionTrace } from '../utils/ws-session-trace.js';
 
 // (cleanup) Removed legacy isChildOf helper injection; not required.
 
@@ -157,28 +158,38 @@ class Application {
     setupFullScreenToggle() {
         const btn = document.getElementById('window-fullscreen-toggle');
         const iconSpan = document.getElementById('window-fullscreen-toggle-icon');
-        if (!btn || !iconSpan) return;
 
         const isElectron = !!(window.desktop && window.desktop.isElectron);
         if (!isElectron) {
-            try { btn.style.display = 'none'; } catch (_) {}
+            try { if (btn) btn.style.display = 'none'; } catch (_) {}
             return;
         }
 
+        const root = document.documentElement;
+        const body = document.body;
+
         const applyState = (fs) => {
             const fullscreen = !!fs;
-            try { btn.setAttribute('aria-pressed', fullscreen ? 'true' : 'false'); } catch (_) {}
-            try { btn.title = fullscreen ? 'Exit full screen' : 'Enter full screen'; } catch (_) {}
+            // Keep both html/body in sync so CSS selectors can target either.
+            try { root.classList.toggle('is-fullscreen', fullscreen); } catch (_) {}
+            try { body?.classList?.toggle('is-fullscreen', fullscreen); } catch (_) {}
+            try { btn?.setAttribute('aria-pressed', fullscreen ? 'true' : 'false'); } catch (_) {}
+            try { if (btn) btn.title = fullscreen ? 'Exit full screen' : 'Enter full screen'; } catch (_) {}
             try {
                 // Swap icon
-                iconSpan.innerHTML = '';
-                iconSpan.appendChild(iconUtils.createIcon(fullscreen ? 'fullscreen-exit' : 'fullscreen', { size: 16 }));
+                if (iconSpan) {
+                    iconSpan.innerHTML = '';
+                    iconSpan.appendChild(iconUtils.createIcon(fullscreen ? 'fullscreen-exit' : 'fullscreen', { size: 16 }));
+                }
             } catch (_) {}
+        };
+
+        const refreshFromDesktop = () => {
+            try { window.desktop.getFullScreen().then((fs) => applyState(!!fs)).catch(() => {}); } catch (_) {}
         };
 
         // Reflect DOM class changes applied by the Electron main process
         try {
-            const root = document.documentElement;
             const obs = new MutationObserver(() => applyState(root.classList.contains('is-fullscreen')));
             obs.observe(root, { attributes: true, attributeFilter: ['class'] });
             // Initial apply based on current class
@@ -186,12 +197,23 @@ class Application {
         } catch (_) { /* ignore */ }
 
         // Also query initial fullscreen state from the desktop API (in case class not yet set)
-        try { window.desktop.getFullScreen().then((fs) => applyState(!!fs)).catch(() => {}); } catch (_) {}
+        refreshFromDesktop();
+
+        // Dedicated windows can miss class propagation in some fullscreen transitions.
+        // Re-query fullscreen state on common window lifecycle events as a fallback.
+        try { window.addEventListener('resize', refreshFromDesktop, { passive: true }); } catch (_) {}
+        try { window.addEventListener('focus', refreshFromDesktop, { passive: true }); } catch (_) {}
+        try {
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) refreshFromDesktop();
+            });
+        } catch (_) {}
 
         // Wire click handler
-        btn.addEventListener('click', () => {
+        btn?.addEventListener('click', () => {
             try { window.desktop.toggleFullScreen(); } catch (_) {}
             try { btn.blur && btn.blur(); } catch (_) {}
+            setTimeout(() => refreshFromDesktop(), 120);
         });
     }
 
@@ -742,11 +764,20 @@ class Application {
         document.addEventListener('visibilitychange', async () => {
             // Only act when page becomes visible again
             if (document.hidden) return;
+            wsSessionTrace.push('app.visibility.visible');
 
             const state = websocketService.getState();
             if (state === 'disconnected') {
+                wsSessionTrace.push('app.visibility.reconnect_disconnected');
                 // If disconnected while backgrounded, reconnect
                 await this.connectWebSocketWithAuth(this.serverRequiresAuth);
+                return;
+            }
+
+            // The foreground reattach path exists for real mobile runtimes where
+            // transports or server-side subscriptions can be suspended in the background.
+            // Desktop/Electron and non-mobile web should keep the live attachment intact.
+            if (!mobileDetection.isMobileRuntime()) {
                 return;
             }
 
@@ -755,11 +786,23 @@ class Application {
             // subscriptions are lost; reattach ensures stdout resumes.
             if (state === 'connected') {
                 try {
+                    const probeTimeout = Math.max(
+                        1000,
+                        Math.min(6000, Number(websocketService.options?.pongTimeout) || 4000)
+                    );
+                    const healthy = await websocketService.probeHealth(probeTimeout);
+                    if (!healthy) {
+                        wsSessionTrace.push('app.visibility.probe_failed');
+                        console.warn('[App] WebSocket health probe failed after visibilitychange, forcing reconnect');
+                        websocketService.forceReconnect('Foreground health probe failed');
+                        return;
+                    }
+
                     const mgr = this.modules && this.modules.terminal ? this.modules.terminal : null;
                     if (mgr && mgr.currentSessionId && mgr.attachedSessions && mgr.attachedSessions.has(mgr.currentSessionId)) {
                         const sessionObj = (mgr.sessions && typeof mgr.sessions.get === 'function') ? mgr.sessions.get(mgr.currentSessionId) : null;
                         if (sessionObj && typeof sessionObj.attach === 'function') {
-                            await sessionObj.attach(true);
+                            await sessionObj.attach(true, { forceReattach: true });
                         } else if (typeof mgr.attachToCurrentSession === 'function') {
                             await mgr.attachToCurrentSession();
                         }

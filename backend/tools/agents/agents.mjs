@@ -7,6 +7,56 @@ import { ApiClient } from './lib/apiClient.mjs';
 import { CliError } from './lib/errors.mjs';
 import { getMessageArgOrStdin, prefixMessage } from './lib/io.mjs';
 
+function toListJsonEntry(session) {
+  if (!session || typeof session !== 'object') return null;
+  const sessionId = session.session_id || session.id || '';
+  if (!sessionId) return null;
+  return {
+    session_id: sessionId,
+    created_at: Object.prototype.hasOwnProperty.call(session, 'created_at') ? session.created_at : null,
+    workspace: Object.prototype.hasOwnProperty.call(session, 'workspace') ? session.workspace : null,
+    title: Object.prototype.hasOwnProperty.call(session, 'title') ? session.title : '',
+    dynamic_title: Object.prototype.hasOwnProperty.call(session, 'dynamic_title') ? session.dynamic_title : '',
+    template_id: Object.prototype.hasOwnProperty.call(session, 'template_id') ? session.template_id : null,
+    template_name: Object.prototype.hasOwnProperty.call(session, 'template_name') ? session.template_name : null,
+    last_output_at: Object.prototype.hasOwnProperty.call(session, 'last_output_at') ? session.last_output_at : null,
+    output_active: Object.prototype.hasOwnProperty.call(session, 'output_active') ? session.output_active : null,
+  };
+}
+
+export function resolveCreateWorkspace({ optionWorkspace, envWorkspace } = {}) {
+  const optionValue = typeof optionWorkspace === 'string' ? optionWorkspace.trim() : '';
+  if (optionValue) return optionValue.toLowerCase() === 'default' ? 'Default' : optionValue;
+
+  const envValue = typeof envWorkspace === 'string' ? envWorkspace.trim() : '';
+  if (envValue) return envValue.toLowerCase() === 'default' ? 'Default' : envValue;
+
+  return 'Default';
+}
+
+export function resolveCreateTitle({
+  agent,
+  repo,
+  issueId,
+  description,
+  optionTitle,
+  envTitle,
+} = {}) {
+  const optionValue = typeof optionTitle === 'string' ? optionTitle.trim() : '';
+  if (optionValue) return optionValue;
+
+  const envValue = typeof envTitle === 'string' ? envTitle.trim() : '';
+  if (envValue) return envValue;
+
+  let title = 'Session for ' + agent;
+  if (repo && issueId) title = `${repo} #${issueId}`;
+  else if (repo) title = repo;
+
+  const desc = typeof description === 'string' ? description.trim() : '';
+  if (desc) title = `${title}: ${desc}`;
+  return title;
+}
+
 async function main() {
   const program = new Command();
   program
@@ -17,8 +67,9 @@ async function main() {
 
   program
     .command('list')
+    .option('--json', 'Output session details as JSON')
     .description('List active peer agent sessions (excluding your own)')
-    .action(async () => {
+    .action(async (cmdOpts) => {
       const opts = program.opts();
       const cfg = loadConfig();
       const api = new ApiClient(cfg.SESSIONS_API_BASE_URL, { debug: opts.debug || cfg.DEBUG, token: cfg.SESSION_TOK });
@@ -38,6 +89,14 @@ async function main() {
         return ta - tb;
       });
 
+      if (cmdOpts && cmdOpts.json) {
+        const rows = filtered
+          .map(toListJsonEntry)
+          .filter(Boolean);
+        process.stdout.write(JSON.stringify(rows, null, 2) + '\n');
+        return;
+      }
+
       for (const s of filtered) {
         const id = s.session_id || s.id || '';
         if (id) process.stdout.write(id + '\n');
@@ -47,7 +106,7 @@ async function main() {
   program
     .command('send')
     .argument('<peer_id>', 'Peer agent session ID')
-    .argument('[message]', 'Message to send (or read from stdin)')
+    .argument('[message]', 'Message to send, or "-" to read from stdin')
     .description('Send a message to a peer agent session')
     .action(async (peerId, messageArg) => {
       const opts = program.opts();
@@ -89,9 +148,12 @@ async function main() {
   program
     .command('create')
     .argument('<agent>', 'Agent template ID (e.g., claude, codex)')
-    .argument('[message]', 'Optional prompt (or read from stdin)')
+    .argument('[message]', 'Optional prompt, or "-" to read from stdin')
     .option('--post-create-delay <seconds>', 'Seconds to wait after successful creation (default: 10)')
+    .option('--title <title>', 'Full title override for the created session')
     .option('--description <description>', 'Short description to append to the session title')
+    .option('--workspace <name>', 'Workspace for the created session')
+    .option('--cwd <path>', 'Override working directory for the created session')
     .description('Create a new peer agent session')
     .action(async (agent, messageArg, cmd) => {
       const opts = program.opts();
@@ -102,13 +164,14 @@ async function main() {
       const msg = await getMessageArgOrStdin(messageArg);
       const fullPrompt = msg && msg.length ? prefixMessage(cfg.SESSION_ID, msg) : '';
 
-      // Title policy: manual only, no glab
-      let title = 'Session for ' + agent;
-      if (cfg.REPO && cfg.ISSUE_ID) title = `${cfg.REPO} #${cfg.ISSUE_ID}`;
-      else if (cfg.REPO) title = cfg.REPO;
-      // Optionally append a brief description to the computed title
-      const desc = cmd.description || '';
-      if (desc) title = `${title}: ${desc}`;
+      const title = resolveCreateTitle({
+        agent,
+        repo: cfg.REPO,
+        issueId: cfg.ISSUE_ID,
+        description: cmd.description,
+        optionTitle: cmd.title,
+        envTitle: cfg.SESSION_TITLE,
+      });
 
       const template_parameters = {};
       if (fullPrompt) template_parameters.prompt = fullPrompt;
@@ -117,12 +180,16 @@ async function main() {
       if (cfg.ISSUE_ID) template_parameters.issue_id = isNaN(Number(cfg.ISSUE_ID)) ? cfg.ISSUE_ID : Number(cfg.ISSUE_ID);
       const forge = opts.forge || cfg.FORGE;
       if (forge) template_parameters.forge = forge;
+      const workspace = resolveCreateWorkspace({
+        optionWorkspace: cmd.workspace,
+        envWorkspace: cfg.AGENTS_WORKSPACE,
+      });
 
       const payload = {
         template_id: agent,
         template_parameters,
         interactive: true,
-        workspace: 'Agents',
+        workspace,
         cols: 187,
         rows: 58,
         visibility: 'private',
@@ -130,6 +197,8 @@ async function main() {
         code_review: true,
         as_user: cfg.TERMSTATION_USER,
       };
+      const cwd = (typeof cmd?.cwd === 'string') ? cmd.cwd.trim() : '';
+      if (cwd) payload.working_directory = cwd;
 
       const resp = await api.createSession(payload);
       const id = resp?.session_id || resp?.id;

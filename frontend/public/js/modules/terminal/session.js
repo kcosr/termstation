@@ -17,6 +17,7 @@ import { AnsiDebug } from '../../utils/ansi-debug.js';
 import { applyAnsiFilters } from '../../utils/ansi-filters.js';
 import { streamHistoryToTerminal } from '../../utils/history-streamer.js';
 import { isAnyModalOpen } from '../ui/modal.js';
+import { wsSessionTrace } from '../../utils/ws-session-trace.js';
 
 export class TerminalSession {
     constructor(sessionId, container, wsClient, eventBus, sessionData = null, preloadedHistoryData = null) {
@@ -101,6 +102,7 @@ export class TerminalSession {
 
         // Client-only ordinal counter for markers (start at 1 to avoid special-case zero)
         this._nextClientOrdinal = 1;
+        this._attachPromise = null;
     }
     
     computeInteractive() {
@@ -627,17 +629,42 @@ export class TerminalSession {
         });
     }
     
-    async attach(forceLoadHistory = false) {
-        console.log(`[TerminalSession] attach() called for session ${this.sessionId}, forceLoadHistory=${forceLoadHistory}`);
+    async attach(forceLoadHistory = false, options = {}) {
+        const forceReattach = options && options.forceReattach === true;
+        console.log(`[TerminalSession] attach() called for session ${this.sessionId}, forceLoadHistory=${forceLoadHistory}, forceReattach=${forceReattach}`);
+        wsSessionTrace.push('session.attach.request', {
+            session_id: this.sessionId,
+            force_load_history: forceLoadHistory === true,
+            force_reattach: forceReattach === true,
+            already_attached: this.isAttached === true
+        });
 
-        if (!this.isAttached && this.terminal) {
+        if (!this.terminal) {
+            console.log(`[TerminalSession] Skipping attach - no terminal`);
+            wsSessionTrace.push('session.attach.skipped_no_terminal', { session_id: this.sessionId });
+            return;
+        }
+
+        if (this._attachPromise) return this._attachPromise;
+
+        this._attachPromise = (async () => {
+            if (this.isAttached && !forceReattach) {
+                console.log(`[TerminalSession] Skipping attach - already attached`);
+                wsSessionTrace.push('session.attach.skipped_already_attached', { session_id: this.sessionId });
+                return;
+            }
+
+            if (this.isAttached && forceReattach) {
+                // Local-only reset: do not send WS detach while transport may be stale.
+                this.onTransportDisconnected();
+            }
+
             // Clear terminal before attaching to avoid showing old content
             this.terminal.clear();
             // Gate stdout immediately to prevent duplicates while resolving history
             this._gateWsStdout();
             // Register history sync handler BEFORE sending attach to avoid race
             // where a fast server response emits ws-attached before we listen.
-            // This ensures we never hit the 5000ms fallback when the backend is fast.
             this.handleHistoryLoading(forceLoadHistory);
 
             console.log(`[TerminalSession] Sending attach message for session ${this.sessionId}`);
@@ -645,47 +672,58 @@ export class TerminalSession {
             this.wsClient.send('attach', {
                 session_id: this.sessionId
             });
+            wsSessionTrace.push('session.attach.sent', { session_id: this.sessionId });
 
             // Mark as attached immediately to start receiving output
             this.isAttached = true;
             console.log(`[TerminalSession] Marked as attached, history sync armed for session ${this.sessionId}`);
-            
+
             // Ensure proper sizing after DOM has settled
-            // Use requestAnimationFrame to ensure layout is complete
             requestAnimationFrame(() => {
                 this.fit();
                 this.logFitDimensions('attach-fit');
-
-                // Note: Focus is now handled after history loading completes
-                // to prevent focus events from corrupting the output stream
-
-                // Emit ready event
                 this.eventBus.emit('terminal-ready', { sessionId: this.sessionId });
             });
-        } else {
-            console.log(`[TerminalSession] Skipping attach - already attached or no terminal`);
+        })();
+
+        try {
+            await this._attachPromise;
+        } finally {
+            this._attachPromise = null;
         }
     }
-    
+
+    // Reset attachment/sync state after transport loss without sending detach over WS.
+    onTransportDisconnected() {
+        wsSessionTrace.push('session.transport_disconnected', {
+            session_id: this.sessionId,
+            had_attach_handler: !!this._wsAttachHandler,
+            was_attached: this.isAttached === true
+        });
+        this.isAttached = false;
+        this.outputQueue = [];
+        this._clearWsStdoutBuffer();
+        this._openWsStdoutGate();
+        this.resetHistorySyncState();
+        try { if (this._wsAttachHandler) { this.eventBus.off('ws-attached', this._wsAttachHandler); } } catch (_) {}
+        this._wsAttachHandler = null;
+        try { if (this._historyAbort) { this._historyAbort.abort(); this._historyAbort = null; } } catch (_) {}
+    }
+
     detach(dispose = false) {
+        wsSessionTrace.push('session.detach.request', {
+            session_id: this.sessionId,
+            dispose: dispose === true,
+            is_attached: this.isAttached === true
+        });
         if (this.isAttached) {
             this.wsClient.send('detach', {
                 session_id: this.sessionId
             });
-            this.isAttached = false;
+            wsSessionTrace.push('session.detach.sent', { session_id: this.sessionId });
         }
 
-        // Clear any pending output queue on detach
-        this.outputQueue = [];
-        // Drop any buffered early stdout and open the gate
-        this._clearWsStdoutBuffer();
-        this._openWsStdoutGate();
-        this.resetHistorySyncState();
-        // Remove pending ws-attached handler to avoid races after detach
-        try { if (this._wsAttachHandler) { this.eventBus.off('ws-attached', this._wsAttachHandler); } } catch (_) {}
-        this._wsAttachHandler = null;
-        // Abort in-flight streamed history
-        try { if (this._historyAbort) { this._historyAbort.abort(); this._historyAbort = null; } } catch (_) {}
+        this.onTransportDisconnected();
 
         // Disconnect observers and timers
         try { if (this._io) { this._io.disconnect(); this._io = null; } } catch (_) {}
@@ -914,6 +952,11 @@ export class TerminalSession {
     async handleHistoryLoading(forceLoadHistory = false) {
         console.log(`[TerminalSession] handleHistoryLoading() called for session ${this.sessionId}`);
         console.log(`[TerminalSession] Session data load_history flag: ${this.sessionData?.load_history}`);
+        const shouldLoadHistory = (forceLoadHistory || this.sessionData?.load_history !== false);
+        wsSessionTrace.push('session.history_sync.start', {
+            session_id: this.sessionId,
+            should_load_history: shouldLoadHistory === true
+        });
 
         this.clearHistorySyncTimer();
         this.historySyncComplete = false;
@@ -929,12 +972,17 @@ export class TerminalSession {
             if (event.type === 'attached' && event.detail.session_id === this.sessionId) {
                 this.historyMarker = event.detail.history_marker;
                 this.historyByteOffset = event.detail.history_byte_offset != null ? Number(event.detail.history_byte_offset) : null;
+                wsSessionTrace.push('session.attached.ack', {
+                    session_id: this.sessionId,
+                    history_marker: this.historyMarker,
+                    history_byte_offset: this.historyByteOffset
+                });
                 this.eventBus.off('ws-attached', handler);
                 if (this._wsAttachHandler === handler) this._wsAttachHandler = null;
                 console.log(`[TerminalSession] Got history marker ${this.historyMarker}, byte offset ${this.historyByteOffset} for session ${this.sessionId}`);
 
                 // Only load history if we have a marker and should load. Honor forceLoadHistory override.
-                if (this.historyMarker !== null && (forceLoadHistory || this.sessionData.load_history !== false)) {
+                if (this.historyMarker !== null && shouldLoadHistory) {
                     console.log(`[TerminalSession] Loading history for session ${this.sessionId}`);
                     // Set loading flag to queue any incoming output during history load
                     this.isLoadingHistory = true;
@@ -976,9 +1024,14 @@ export class TerminalSession {
         this.historySyncTimer = setTimeout(() => {
             try { this.eventBus.off('ws-attached', handler); } catch (_) {}
             if (this._wsAttachHandler === handler) this._wsAttachHandler = null;
-            // If we still haven't loaded history, proceed without it
-            if (!this.historySyncComplete && (forceLoadHistory || this.sessionData?.load_history !== false)) {
+            // If we still haven't loaded history, proceed without it.
+            // This must run regardless of shouldLoadHistory so we always open the stdout gate.
+            if (!this.historySyncComplete) {
                 console.log(`[TerminalSession] No attach response received after 5000ms for session ${this.sessionId}, proceeding without history`);
+                wsSessionTrace.push('session.attached.ack_timeout', {
+                    session_id: this.sessionId,
+                    should_load_history: shouldLoadHistory === true
+                });
                 this.finishHistorySync();
                 // Safe to focus since we're not loading history
                 // Open gate and flush any buffered output to avoid data loss

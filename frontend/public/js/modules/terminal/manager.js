@@ -37,11 +37,14 @@ import { appStore } from '../../core/store.js';
 import { iconUtils } from '../../utils/icon-utils.js';
 import { computeDisplayTitle, getDynamicTitleMode } from '../../utils/title-utils.js';
 import { resolveSessionBadgeRule } from '../../utils/session-badge-rules.js';
+import { isDynamicTitleOnlySessionUpdate } from '../../utils/dynamic-title-updates.js';
+import { applyWindowTitleFromSessionData } from '../../utils/window-title.js';
 import { settingsManager } from '../settings/settings-manager.js';
 import { fontDetector } from '../../utils/font-detector.js';
 import { keyboardShortcuts } from '../shortcuts/keyboard-shortcuts.js';
 import { openAddRuleModal } from '../ui/scheduled-input-modals.js';
 import { createDebug } from '../../utils/debug.js';
+import { wsSessionTrace } from '../../utils/ws-session-trace.js';
 import { getSettingsStore } from '../../core/settings-store/index.js';
 import {
     WORKSPACE_SORT_MODE_MANUAL,
@@ -324,6 +327,7 @@ export class TerminalManager {
 
         // Track a pending manual selection across workspace/search re-renders
         this.pendingManualSelectionId = null;
+        this.liveDynamicTitles = new Map();
 
         // Helper: show an Attach prompt inside a container tab view for a child session
         this.showContainerAttachPrompt = (childId) => {
@@ -823,11 +827,97 @@ export class TerminalManager {
         try {
             const sid = sessionId || this.currentSessionId;
             if (!sid) return;
-            const data = this.sessionList?.getSessionData?.(sid) || {};
+            const data = this.getDisplaySessionData(sid);
             const effective = computeDisplayTitle(data, { fallbackOrder: [], defaultValue: 'Session' });
             const templateName = data.template_name || null;
             this.updateSessionInfoToolbar(effective, sid, templateName);
         } catch (_) { /* ignore */ }
+    }
+
+    getDisplaySessionData(sessionOrId = null) {
+        try {
+            const sessionData = (typeof sessionOrId === 'string')
+                ? (this.sessionList?.getSessionData?.(sessionOrId) || null)
+                : (sessionOrId || null);
+            const sid = typeof sessionOrId === 'string'
+                ? sessionOrId
+                : String(sessionData?.session_id || '').trim();
+            if (!sid) return sessionData || {};
+            if (!this.liveDynamicTitles.has(sid)) {
+                return sessionData || {};
+            }
+            const liveDynamicTitle = this.liveDynamicTitles.get(sid);
+            if (sessionData && sessionData.dynamic_title === liveDynamicTitle) {
+                return sessionData;
+            }
+            return {
+                ...(sessionData || {}),
+                session_id: sid,
+                dynamic_title: liveDynamicTitle
+            };
+        } catch (_) {
+            return {};
+        }
+    }
+
+    setLiveDynamicTitle(sessionId, dynamicTitle) {
+        const sid = String(sessionId || '').trim();
+        if (!sid) return;
+        const nextDynamicTitle = typeof dynamicTitle === 'string' ? dynamicTitle : '';
+        this.liveDynamicTitles.set(sid, nextDynamicTitle);
+        try {
+            const existingSessionData = this.sessionList?.getSessionData?.(sid);
+            if (existingSessionData && existingSessionData.dynamic_title !== nextDynamicTitle) {
+                existingSessionData.dynamic_title = nextDynamicTitle;
+            }
+        } catch (_) { /* ignore */ }
+    }
+
+    deleteLiveDynamicTitle(sessionId) {
+        const sid = String(sessionId || '').trim();
+        if (!sid) return;
+        this.liveDynamicTitles.delete(sid);
+    }
+
+    reseedLiveDynamicTitlesFromSessions(sessions = []) {
+        this.liveDynamicTitles.clear();
+        if (!Array.isArray(sessions)) return;
+        sessions.forEach((sessionData) => {
+            const sid = String(sessionData?.session_id || '').trim();
+            if (!sid) return;
+            if (typeof sessionData.dynamic_title === 'string') {
+                this.liveDynamicTitles.set(sid, sessionData.dynamic_title);
+            }
+        });
+    }
+
+    applyDynamicTitleFastPath(sessionId, dynamicTitle) {
+        this.setLiveDynamicTitle(sessionId, dynamicTitle);
+
+        const displayData = this.getDisplaySessionData(sessionId);
+        if (!displayData || !displayData.session_id) return;
+
+        try {
+            this.sessionList?.refreshSessionDisplay?.(sessionId, displayData);
+        } catch (_) { /* ignore */ }
+
+        try {
+            this.sessionTabsManager?.updateSessionTab?.(displayData);
+        } catch (_) { /* ignore */ }
+
+        if (this.currentSessionId !== sessionId) return;
+
+        try {
+            const mode = getDynamicTitleMode();
+            const hasExplicitTitle = typeof displayData.title === 'string' && displayData.title.trim().length > 0;
+            if (mode === 'always' || (mode === 'ifUnset' && !hasExplicitTitle)) {
+                const effective = computeDisplayTitle(displayData, { fallbackOrder: [], defaultValue: 'Session' });
+                const templateName = displayData.template_name || null;
+                this.updateSessionInfoToolbar(effective, sessionId, templateName);
+            }
+        } catch (_) { /* ignore */ }
+
+        try { applyWindowTitleFromSessionData(displayData); } catch (_) { /* ignore */ }
     }
 
     /**
@@ -906,6 +996,11 @@ export class TerminalManager {
                                 if (dyn) { map[sid] = dyn; } else { try { delete map[sid]; } catch (_) {} }
                                 queueStateSet('local_session_dynamic_titles', map);
                             } catch (_) { /* ignore */ }
+                            const hasExplicitTitle = typeof data.title === 'string' && data.title.trim().length > 0;
+                            if (hasExplicitTitle) {
+                                this.setLiveDynamicTitle(sid, dyn);
+                                return;
+                            }
                             // Reuse existing update pipeline so header/tabs/sidebar refresh consistently
                             this.handleSessionUpdate({ session_id: sid, dynamic_title: dyn }, 'updated');
                         }
@@ -1879,10 +1974,17 @@ export class TerminalManager {
         // When the socket disconnects, mark all local sessions as detached so
         // subsequent reattach attempts actually send an attach message.
         this.eventBus.on('ws:disconnected', () => {
+            wsSessionTrace.push('manager.ws.disconnected');
             try {
                 if (this.sessions && typeof this.sessions.forEach === 'function') {
                     this.sessions.forEach((session) => {
-                        try { if (session) session.isAttached = false; } catch (_) {}
+                        try {
+                            if (session && typeof session.onTransportDisconnected === 'function') {
+                                session.onTransportDisconnected();
+                            } else if (session) {
+                                session.isAttached = false;
+                            }
+                        } catch (_) {}
                     });
                 }
                 // Reset compatibility tracking; preserve attachedSessions set so we know what to reattach
@@ -1891,25 +1993,39 @@ export class TerminalManager {
         });
 
         this.eventBus.on('ws:connected', async () => {
+            wsSessionTrace.push('manager.ws.connected', {
+                attached_session_count: this.attachedSessions?.size || 0
+            });
             // Only reload sessions when reconnected if we were already initialized
             // This prevents double loading during initial connection
             if (this.isInitialized) {
                 await this.loadSessions(true, true);
 
-                // Ensure the actively viewed session is fully reattached using
-                // TerminalSession.attach() so the history sync handshake completes
-                // (required for stdout to resume after reconnects).
+                // Reattach all sessions that were attached before disconnect.
                 try {
+                    const attachedIds = Array.from(this.attachedSessions || []);
+                    for (const sid of attachedIds) {
+                        const sessionObj = this.sessions && typeof this.sessions.get === 'function'
+                            ? this.sessions.get(sid)
+                            : null;
+                        if (!sessionObj || typeof sessionObj.attach !== 'function') continue;
+                        try {
+                            const forceLoadHistory = !(sessionObj?.sessionData?.local_only === true);
+                            await sessionObj.attach(forceLoadHistory, { forceReattach: true });
+                        } catch (_) {}
+                    }
+
+                    // Fallback for current session if object is missing.
                     if (this.currentSessionId && this.attachedSessions && this.attachedSessions.has(this.currentSessionId)) {
-                        const active = this.sessions && typeof this.sessions.get === 'function' ? this.sessions.get(this.currentSessionId) : null;
-                        if (active && typeof active.attach === 'function') {
-                            await active.attach(true);
-                        } else if (typeof this.attachToCurrentSession === 'function') {
+                        const active = this.sessions && typeof this.sessions.get === 'function'
+                            ? this.sessions.get(this.currentSessionId)
+                            : null;
+                        if (!active && typeof this.attachToCurrentSession === 'function') {
                             await this.attachToCurrentSession();
                         }
                     }
                 } catch (e) {
-                    console.warn('[TerminalManager] Failed to reattach active session on reconnect:', e);
+                    console.warn('[TerminalManager] Failed to reattach session(s) on reconnect:', e);
                 }
             }
         });
@@ -4201,6 +4317,7 @@ export class TerminalManager {
 
             // Always load only active sessions for the sidebar
             const sessions = await apiService.getSessions();
+            this.reseedLiveDynamicTitlesFromSessions(sessions);
                 
             console.log(`[Manager] Loaded ${sessions?.length || 0} sessions:`, sessions?.map(s => ({id: s.session_id, active: s.is_active, title: s.title})));
             
@@ -6505,6 +6622,11 @@ export class TerminalManager {
                 });
             }
         } catch (_) {}
+        wsSessionTrace.push('manager.select_session.start', {
+            session_id: sessionId,
+            has_existing: !!existingSession,
+            in_attached_set: this.attachedSessions.has(sessionId) === true
+        });
         
         if (existingSession) {
             // Session already exists - switch to it
@@ -6543,6 +6665,10 @@ export class TerminalManager {
             const isActive = sessionListData ? (sessionListData.is_active !== false) : true;
 
             if (this.attachedSessions.has(sessionId)) {
+                wsSessionTrace.push('manager.select_session.show_attached', {
+                    session_id: sessionId,
+                    has_container: !!existingSession.container
+                });
                 // Session is attached - show the terminal
                 this.connectedSessionId = sessionId; // For compatibility
                 
@@ -6592,6 +6718,9 @@ export class TerminalManager {
                 try {
                     const autoAttach = appStore.getState('preferences.terminal.autoAttachOnSelect') === true;
                     if (autoAttach && isActive) {
+                        wsSessionTrace.push('manager.select_session.auto_attach', {
+                            session_id: sessionId
+                        });
                         // Ensure header/links visible before attaching (history fetch)
                         try { this.updateSessionUI(sessionId, options); } catch (_) {}
                         await this.attachToCurrentSession();
@@ -6646,7 +6775,7 @@ export class TerminalManager {
         this.viewController.showLoadingPlaceholder('Loading session...');
 
         // Get session data from session list first
-        let sessionData = this.sessionList.getSessionData(sessionId);
+        let sessionData = this.getDisplaySessionData(sessionId);
         
         // Check if this is a terminated session
         const isActiveSession = sessionData && sessionData.is_active !== false;
@@ -6842,7 +6971,7 @@ export class TerminalManager {
     }
     updateSessionUI(sessionId, options = {}) {
         // Get session data and update UI elements
-        const sessionListData = this.sessionList.getSessionData(sessionId);
+        const sessionListData = this.getDisplaySessionData(sessionId);
         let sessionTitle = 'Session';
         let templateName = null;
         if (sessionListData) {
@@ -7239,6 +7368,10 @@ export class TerminalManager {
             console.error('[Manager] No current session ID to attach to');
             return;
         }
+        wsSessionTrace.push('manager.attach_current.start', {
+            session_id: this.currentSessionId,
+            has_current_session_object: !!this.currentSession
+        });
 
         try {
             // Safeguard: if a dedicated window exists for this session, do not attach in main window
@@ -7310,6 +7443,10 @@ export class TerminalManager {
                 }
 
                 this.updateSessionTabs?.();
+                wsSessionTrace.push('manager.attach_current.success', {
+                    session_id: this.currentSessionId,
+                    local_only: true
+                });
                 return true;
             }
 
@@ -7365,6 +7502,10 @@ export class TerminalManager {
             
             // Update compatibility tracking
             this.connectedSessionId = this.currentSessionId;
+            wsSessionTrace.push('manager.attach_current.success', {
+                session_id: this.currentSessionId,
+                local_only: false
+            });
             
             // Clear the attach button and ensure the terminal is properly displayed
             this.viewController.clearTerminalView();
@@ -7877,6 +8018,18 @@ export class TerminalManager {
                 // Check if session exists in our list
                 const existingSessionData = this.sessionList.getSessionData(sessionData.session_id);
                 if (existingSessionData) {
+                    if (isDynamicTitleOnlySessionUpdate(sessionData, updateType)) {
+                        const currentDynamicTitle = this.liveDynamicTitles.has(sessionData.session_id)
+                            ? this.liveDynamicTitles.get(sessionData.session_id)
+                            : existingSessionData.dynamic_title;
+                        if (currentDynamicTitle !== sessionData.dynamic_title) {
+                            this.applyDynamicTitleFastPath(sessionData.session_id, sessionData.dynamic_title);
+                        }
+                        return;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(sessionData, 'dynamic_title')) {
+                        this.setLiveDynamicTitle(sessionData.session_id, sessionData.dynamic_title);
+                    }
                     // Keep activity indicator in sync if server includes current state in update
                     try {
                         const live = (Object.prototype.hasOwnProperty.call(sessionData, 'is_active')
@@ -7939,6 +8092,10 @@ export class TerminalManager {
                     // If dynamic title changed, update header depending on configured mode
                     const dynamicChanged = Object.prototype.hasOwnProperty.call(sessionData, 'dynamic_title') &&
                         sessionData.dynamic_title !== existingSessionData.dynamic_title;
+                    const hasExplicitTitle = !!(
+                        (typeof existingSessionData.title === 'string' && existingSessionData.title.trim()) ||
+                        (typeof sessionData.title === 'string' && sessionData.title.trim())
+                    );
                     if (dynamicChanged) {
                         const isCurrent = this.currentSessionId === sessionData.session_id;
                         if (isCurrent) {
@@ -7947,9 +8104,7 @@ export class TerminalManager {
                             if (mode === 'always') {
                                 shouldUpdate = true;
                             } else if (mode === 'ifUnset') {
-                                const hasExplicit = (existingSessionData.title && existingSessionData.title.trim()) ||
-                                    (sessionData.title && sessionData.title.trim());
-                                shouldUpdate = !hasExplicit;
+                                shouldUpdate = !hasExplicitTitle;
                             } else {
                                 // 'never' -> do not update in response to dynamic change
                                 shouldUpdate = false;
@@ -7984,7 +8139,7 @@ export class TerminalManager {
                     const badgeRelevantChanged =
                         (Object.prototype.hasOwnProperty.call(sessionData, 'title') &&
                             sessionData.title !== prevTitle) ||
-                        dynamicChanged ||
+                        (dynamicChanged && !hasExplicitTitle) ||
                         (Object.prototype.hasOwnProperty.call(sessionData, 'template_badge_label') &&
                             sessionData.template_badge_label !== prevTemplateBadgeLabel) ||
                         (Object.prototype.hasOwnProperty.call(sessionData, 'template_name') &&
@@ -8195,6 +8350,7 @@ export class TerminalManager {
                 
             case 'terminated': {
                 const terminatedId = sessionData.session_id;
+                this.deleteLiveDynamicTitle(terminatedId);
                 const wasCurrentSession = this.currentSessionId === terminatedId;
                 const persistEndedSessions = this.shouldPersistEndedSessions();
 
@@ -8299,6 +8455,7 @@ export class TerminalManager {
                 
             case 'deleted':
                 // Session was deleted (save_session_history=false) - remove completely from UI
+                this.deleteLiveDynamicTitle(sessionData.session_id);
                 
                 // Check if this was the current active session
                 const wasCurrentSessionDeleted = this.currentSession && this.currentSession.sessionId === sessionData.session_id;

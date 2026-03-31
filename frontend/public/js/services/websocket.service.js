@@ -3,6 +3,17 @@
  * Handles WebSocket connections, reconnection logic, and message routing
  */
 import { appStore } from '../core/store.js';
+import { wsSessionTrace } from '../utils/ws-session-trace.js';
+
+const sanitizeWsUrlForTrace = (value) => {
+    try {
+        const u = new URL(String(value || ''), window.location?.href || 'http://local');
+        u.searchParams.delete('ws_token');
+        return `${u.protocol}//${u.host}${u.pathname}`;
+    } catch (_) {
+        return String(value || '');
+    }
+};
 
 export class WebSocketService {
     constructor(options = {}) {
@@ -79,7 +90,13 @@ export class WebSocketService {
      */
     connect(url, options = {}) {
         return new Promise((resolve, reject) => {
+            wsSessionTrace.push('ws.connect.request', {
+                state: this.getState(),
+                url: sanitizeWsUrlForTrace(url)
+            });
+
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                wsSessionTrace.push('ws.connect.short_circuit_open');
                 resolve();
                 return;
             }
@@ -132,6 +149,7 @@ export class WebSocketService {
                         };
                         const emit = (type, ev) => { const set = shim._handlers[type]; if (!set) return; for (const fn of Array.from(set)) { try { fn(ev); } catch (_) {} } };
                         bridge.onOpen(() => { shim.readyState = OPEN; emit('open');
+                            wsSessionTrace.push('ws.open', { via: 'bridge' });
                             // Mirror the open handler path from native below
                             this.isConnecting = false;
                             this.reconnectAttempts = 0;
@@ -206,6 +224,7 @@ export class WebSocketService {
                 }
 
                 this.ws.addEventListener('open', async () => {
+                    wsSessionTrace.push('ws.open', { via: 'native' });
                     this.isConnecting = false;
                     this.reconnectAttempts = 0;
                     
@@ -310,6 +329,9 @@ export class WebSocketService {
                 });
 
                 this.ws.addEventListener('error', (error) => {
+                    wsSessionTrace.push('ws.error.connect_phase', {
+                        message: error?.message || String(error || '')
+                    });
                     this.isConnecting = false;
                     this.emit('error', error);
                     try { appStore.setPath('connection.websocket', 'error'); } catch (_) {}
@@ -548,6 +570,19 @@ export class WebSocketService {
 
         this.ws.addEventListener('error', (event) => {
             console.error('WebSocket error:', event);
+            wsSessionTrace.push('ws.error', {
+                state: this.getState(),
+                message: event?.message || String(event || '')
+            });
+            // Some platforms emit error without a corresponding close event.
+            // If that happens while still OPEN, force reconnect to avoid zombie sockets.
+            setTimeout(() => {
+                try {
+                    if (!this.isClosing && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        this.forceReconnect('WebSocket error event');
+                    }
+                } catch (_) {}
+            }, 250);
         });
     }
 
@@ -631,6 +666,7 @@ export class WebSocketService {
         const wasClean = event.wasClean;
         const code = event.code;
         const reason = event.reason;
+        wsSessionTrace.push('ws.close', { code, reason: reason || '', wasClean: wasClean === true });
 
         this.emit('close', { wasClean, code, reason });
         try { appStore.setPath('connection.websocket', 'disconnected'); } catch (_) {}
@@ -666,6 +702,10 @@ export class WebSocketService {
 
         this.reconnectAttempts++;
         this.emit('reconnecting', { attempt: this.reconnectAttempts, delay });
+        wsSessionTrace.push('ws.reconnect.scheduled', {
+            attempt: this.reconnectAttempts,
+            delay
+        });
 
         this.reconnectTimer = setTimeout(() => {
             (async () => {
@@ -751,6 +791,103 @@ export class WebSocketService {
                     this.ws.close();
                 }, this.options.pongTimeout);
             }
+        }
+    }
+
+    /**
+     * Probe transport health with an immediate ping/pong round-trip.
+     * Returns false on timeout, close, or send failure.
+     * @param {number} timeoutMs
+     * @returns {Promise<boolean>}
+     */
+    async probeHealth(timeoutMs = 4000) {
+        if (!this.isReady()) return false;
+
+        const effectiveTimeout = Number.isFinite(Number(timeoutMs))
+            ? Math.max(500, Math.floor(Number(timeoutMs)))
+            : 4000;
+
+        wsSessionTrace.push('ws.health.probe.start', {
+            timeout_ms: effectiveTimeout
+        });
+
+        return new Promise((resolve) => {
+            let settled = false;
+
+            const cleanup = () => {
+                try { this.off('pong', onPong); } catch (_) {}
+                try { this.off('close', onClose); } catch (_) {}
+                if (timer) clearTimeout(timer);
+            };
+
+            const finish = (ok) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                wsSessionTrace.push('ws.health.probe.result', { ok: ok === true });
+                resolve(ok === true);
+            };
+
+            const onPong = () => finish(true);
+            const onClose = () => finish(false);
+
+            this.on('pong', onPong);
+            this.on('close', onClose);
+
+            const timer = setTimeout(() => {
+                finish(false);
+                // If the socket is still OPEN after probe timeout, force a reconnect path.
+                // Some mobile platforms can leave WebSocket in OPEN while transport is dead.
+                try {
+                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        this.forceReconnect('Health probe timeout');
+                    }
+                } catch (_) {}
+            }, effectiveTimeout);
+
+            const sent = this.send('ping', { timestamp: Date.now(), probe: true });
+            if (!sent) finish(false);
+        });
+    }
+
+    /**
+     * Force reconnection, with fallback when close events are not delivered.
+     * @param {string} reason
+     */
+    forceReconnect(reason = 'Forced reconnect') {
+        wsSessionTrace.push('ws.force_reconnect', {
+            reason,
+            state: this.getState()
+        });
+        this.stopPing();
+
+        // Reset authentication state on forced reconnect.
+        this.isAuthenticated = false;
+        this.authenticationRequired = false;
+        if (this._authTimer) {
+            clearTimeout(this._authTimer);
+            this._authTimer = null;
+        }
+        this._pendingAuthResolve = null;
+        this._pendingAuthReject = null;
+
+        const activeWs = this.ws;
+        if (activeWs) {
+            try { activeWs.close(4000, reason); } catch (_) {}
+
+            // Fallback: some environments never deliver close for stale sockets.
+            setTimeout(() => {
+                try {
+                    if (this.ws && this.ws === activeWs && this.ws.readyState === WebSocket.OPEN) {
+                        this.handleClose({ wasClean: false, code: 4000, reason });
+                    }
+                } catch (_) {}
+            }, 300);
+            return;
+        }
+
+        if (!this.isClosing && this.options.reconnect) {
+            this.scheduleReconnect();
         }
     }
 

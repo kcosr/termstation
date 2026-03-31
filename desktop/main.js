@@ -1333,6 +1333,17 @@ function createSessionWindow({ sessionId, title }) {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default'
   });
 
+  // Reflect fullscreen state into the child renderer DOM so CSS can
+  // remove macOS traffic-light inset when the window is fullscreen.
+  const updateChildFullscreenClass = () => {
+    try {
+      if (!child || child.isDestroyed() || !child.webContents) return;
+      const isFs = child.isFullScreen();
+      const js = `try { document.documentElement.classList.toggle('is-fullscreen', ${isFs}); } catch (e) {}`;
+      child.webContents.executeJavaScript(js).catch(() => {});
+    } catch (_) { /* ignore */ }
+  };
+
   if (title && typeof title === 'string') {
     try { child.setTitle(`TermStation — ${title}`); } catch (_) {}
   } else {
@@ -1479,6 +1490,13 @@ function createSessionWindow({ sessionId, title }) {
       } catch (_) {}
     }, 2000);
   });
+
+  // Keep renderer fullscreen class in sync for dedicated windows.
+  child.on('enter-full-screen', () => updateChildFullscreenClass());
+  child.on('leave-full-screen', () => updateChildFullscreenClass());
+  child.on('show', () => updateChildFullscreenClass());
+  child.webContents.on('dom-ready', () => updateChildFullscreenClass());
+  child.webContents.on('did-finish-load', () => updateChildFullscreenClass());
 
   // Apply current effects (opacity) to new window as well
   child.webContents.on('did-finish-load', () => {
