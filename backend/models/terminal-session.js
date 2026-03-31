@@ -451,11 +451,13 @@ export class TerminalSession {
           if (typeof data === 'string' && data) {
             const { title, carry } = parseOscTitles(data, this._oscBuffer || '');
             this._oscBuffer = carry || '';
-            // If changed, update and broadcast session update
+            // If changed, update and broadcast session update unless an explicit
+            // title override is already set for the session.
             if (title && title !== this.dynamic_title) {
               this.dynamic_title = title;
               try {
-                if (global.connectionManager) {
+                const hasExplicitTitle = typeof this.title === 'string' && this.title.trim().length > 0;
+                if (!hasExplicitTitle && global.connectionManager) {
                   global.connectionManager.broadcast({
                     type: 'session_updated',
                     update_type: 'updated',

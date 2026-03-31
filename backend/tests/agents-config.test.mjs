@@ -4,6 +4,7 @@ import { loadConfig } from '../tools/agents/lib/config.mjs';
 const originalSessionId = process.env.SESSION_ID;
 const originalApiBase = process.env.SESSIONS_API_BASE_URL;
 const originalForge = process.env.FORGE;
+const originalSessionTitle = process.env.SESSION_TITLE;
 
 beforeEach(() => {
   if (!process.env.SESSION_ID) process.env.SESSION_ID = 'test-session-id';
@@ -19,6 +20,9 @@ afterEach(() => {
 
   if (originalForge === undefined) delete process.env.FORGE;
   else process.env.FORGE = originalForge;
+
+  if (originalSessionTitle === undefined) delete process.env.SESSION_TITLE;
+  else process.env.SESSION_TITLE = originalSessionTitle;
 });
 
 describe('agents config FORGE handling', () => {
@@ -33,5 +37,10 @@ describe('agents config FORGE handling', () => {
     const cfg = loadConfig();
     expect(cfg.FORGE).toBe('');
   });
-});
 
+  it('includes SESSION_TITLE from environment when set', () => {
+    process.env.SESSION_TITLE = 'My explicit title';
+    const cfg = loadConfig();
+    expect(cfg.SESSION_TITLE).toBe('My explicit title');
+  });
+});

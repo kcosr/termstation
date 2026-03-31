@@ -16,9 +16,8 @@ export function loadConfig() {
   const ISSUE_ID = env.ISSUE_ID || '';
   const FORGE = env.FORGE || '';
   const AGENTS_WORKSPACE = env.AGENTS_WORKSPACE || '';
+  const SESSION_TITLE = env.SESSION_TITLE || '';
   let BRANCH = env.BRANCH || '';
-  // SESSION_TITLE was previously supported to fully override the title.
-  // It has been removed in favor of explicit CLI options (e.g., --description).
 
   if (!SESSION_ID) throw new CliError('SESSION_ID is required but not set', 2);
   if (!SESSIONS_API_BASE_URL) throw new CliError('SESSIONS_API_BASE_URL is required but not set', 2);
@@ -36,6 +35,7 @@ export function loadConfig() {
     ISSUE_ID,
     FORGE,
     AGENTS_WORKSPACE,
+    SESSION_TITLE,
     BRANCH,
     DEBUG,
   };

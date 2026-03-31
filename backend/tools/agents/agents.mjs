@@ -34,6 +34,29 @@ export function resolveCreateWorkspace({ optionWorkspace, envWorkspace } = {}) {
   return 'Default';
 }
 
+export function resolveCreateTitle({
+  agent,
+  repo,
+  issueId,
+  description,
+  optionTitle,
+  envTitle,
+} = {}) {
+  const optionValue = typeof optionTitle === 'string' ? optionTitle.trim() : '';
+  if (optionValue) return optionValue;
+
+  const envValue = typeof envTitle === 'string' ? envTitle.trim() : '';
+  if (envValue) return envValue;
+
+  let title = 'Session for ' + agent;
+  if (repo && issueId) title = `${repo} #${issueId}`;
+  else if (repo) title = repo;
+
+  const desc = typeof description === 'string' ? description.trim() : '';
+  if (desc) title = `${title}: ${desc}`;
+  return title;
+}
+
 async function main() {
   const program = new Command();
   program
@@ -127,6 +150,7 @@ async function main() {
     .argument('<agent>', 'Agent template ID (e.g., claude, codex)')
     .argument('[message]', 'Optional prompt (or read from stdin)')
     .option('--post-create-delay <seconds>', 'Seconds to wait after successful creation (default: 10)')
+    .option('--title <title>', 'Full title override for the created session')
     .option('--description <description>', 'Short description to append to the session title')
     .option('--workspace <name>', 'Workspace for the created session')
     .option('--cwd <path>', 'Override working directory for the created session')
@@ -140,13 +164,14 @@ async function main() {
       const msg = await getMessageArgOrStdin(messageArg);
       const fullPrompt = msg && msg.length ? prefixMessage(cfg.SESSION_ID, msg) : '';
 
-      // Title policy: manual only, no glab
-      let title = 'Session for ' + agent;
-      if (cfg.REPO && cfg.ISSUE_ID) title = `${cfg.REPO} #${cfg.ISSUE_ID}`;
-      else if (cfg.REPO) title = cfg.REPO;
-      // Optionally append a brief description to the computed title
-      const desc = cmd.description || '';
-      if (desc) title = `${title}: ${desc}`;
+      const title = resolveCreateTitle({
+        agent,
+        repo: cfg.REPO,
+        issueId: cfg.ISSUE_ID,
+        description: cmd.description,
+        optionTitle: cmd.title,
+        envTitle: cfg.SESSION_TITLE,
+      });
 
       const template_parameters = {};
       if (fullPrompt) template_parameters.prompt = fullPrompt;

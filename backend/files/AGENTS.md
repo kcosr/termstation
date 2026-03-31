@@ -55,8 +55,8 @@ To get a list of active peer agent session IDs, use:
 - `{BOOTSTRAP_DIR}/bin/agents.js list`
 
 To create a new peer agent (when user asks you to get help from claude, codex, or cursor):
-- Use `{BOOTSTRAP_DIR}/bin/agents.js create <agent> [--description "<brief>"] [--workspace "<name>"]` (you can also pipe a prompt)
-- Example (single‑line): `{BOOTSTRAP_DIR}/bin/agents.js create claude --description "Review my MR changes" --workspace "Reviews"`
+- Use `{BOOTSTRAP_DIR}/bin/agents.js create <agent> [--title "<full title>"] [--description "<brief>"] [--workspace "<name>"]` (you can also pipe a prompt)
+- Example (single‑line): `{BOOTSTRAP_DIR}/bin/agents.js create claude --title "Review Session" --workspace "Reviews"`
 - Preferred heredoc for multi‑line prompts or special characters:
   ```bash
   cat << 'MSG' | {BOOTSTRAP_DIR}/bin/agents.js create claude --description "Review MR changes"
@@ -67,6 +67,7 @@ To create a new peer agent (when user asks you to get help from claude, codex, o
 - Then send your instructions with: `{BOOTSTRAP_DIR}/bin/agents.js send <peer-id> "<your message>"`
 - Never create more than one session to the same agent.
 - Workspace defaults to `Default`. Override it with `--workspace` or `AGENTS_WORKSPACE=<name>`.
+- Title can be fully overridden with `--title` or `SESSION_TITLE=<full title>`. `--title` takes precedence.
 
 To stop a peer agent session:
 - Only stop peer sessions when the user explicitly instructs you to do so.
@@ -81,10 +82,10 @@ Session Title and Issue Assignment
   - With `REPO` and `ISSUE_ID`: `<repo> #<issue_id>`
   - With `REPO` only: `<repo>`
   - Otherwise: `Session for <agent>`
-- Provide a brief `--description` to append to the title (recommended). Example:
+- Provide a brief `--description` to append to the auto-generated title when you do not need a full override. Example:
   - `ISSUE_ID=751 {BOOTSTRAP_DIR}/bin/agents.js create codex --description "Implement pagination"`
-  - Title becomes: `<repo> #751: Implement pagination`
-- Note: `SESSION_TITLE` is no longer supported; use `--description` for a short suffix, or pass a full custom title via future tooling when available.
+- Title becomes: `<repo> #751: Implement pagination`
+- Use `SESSION_TITLE` or `--title` when you want a full custom title instead of the computed default. `--title` takes precedence over `SESSION_TITLE`.
 - Branch is derived automatically as `issue/<ISSUE_ID>` when `ISSUE_ID` is set (unless `BRANCH` is provided).
 - Example:
   - `ISSUE_ID=751 {BOOTSTRAP_DIR}/bin/agents.js create codex`

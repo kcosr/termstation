@@ -907,6 +907,8 @@ export class TerminalManager {
                                 if (dyn) { map[sid] = dyn; } else { try { delete map[sid]; } catch (_) {} }
                                 queueStateSet('local_session_dynamic_titles', map);
                             } catch (_) { /* ignore */ }
+                            const hasExplicitTitle = typeof data.title === 'string' && data.title.trim().length > 0;
+                            if (hasExplicitTitle) return;
                             // Reuse existing update pipeline so header/tabs/sidebar refresh consistently
                             this.handleSessionUpdate({ session_id: sid, dynamic_title: dyn }, 'updated');
                         }
@@ -7985,6 +7987,10 @@ export class TerminalManager {
                     // If dynamic title changed, update header depending on configured mode
                     const dynamicChanged = Object.prototype.hasOwnProperty.call(sessionData, 'dynamic_title') &&
                         sessionData.dynamic_title !== existingSessionData.dynamic_title;
+                    const hasExplicitTitle = !!(
+                        (typeof existingSessionData.title === 'string' && existingSessionData.title.trim()) ||
+                        (typeof sessionData.title === 'string' && sessionData.title.trim())
+                    );
                     if (dynamicChanged) {
                         const isCurrent = this.currentSessionId === sessionData.session_id;
                         if (isCurrent) {
@@ -7993,9 +7999,7 @@ export class TerminalManager {
                             if (mode === 'always') {
                                 shouldUpdate = true;
                             } else if (mode === 'ifUnset') {
-                                const hasExplicit = (existingSessionData.title && existingSessionData.title.trim()) ||
-                                    (sessionData.title && sessionData.title.trim());
-                                shouldUpdate = !hasExplicit;
+                                shouldUpdate = !hasExplicitTitle;
                             } else {
                                 // 'never' -> do not update in response to dynamic change
                                 shouldUpdate = false;
@@ -8030,7 +8034,7 @@ export class TerminalManager {
                     const badgeRelevantChanged =
                         (Object.prototype.hasOwnProperty.call(sessionData, 'title') &&
                             sessionData.title !== prevTitle) ||
-                        dynamicChanged ||
+                        (dynamicChanged && !hasExplicitTitle) ||
                         (Object.prototype.hasOwnProperty.call(sessionData, 'template_badge_label') &&
                             sessionData.template_badge_label !== prevTemplateBadgeLabel) ||
                         (Object.prototype.hasOwnProperty.call(sessionData, 'template_name') &&
