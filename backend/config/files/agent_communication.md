@@ -11,14 +11,15 @@ Only create or use peer agent sessions when the user explicitly asks you to invo
     - `ISSUE_ID=<issue-id> {BOOTSTRAP_DIR}/bin/agents.js create <agent> [--title "<full title>"] [--description "..."] [--workspace "<name>"]`
     - Example for code review:
       `ISSUE_ID=1 {BOOTSTRAP_DIR}/bin/agents.js create claude --title 'Review PR #2' --workspace 'Reviews'`
+    - To pipe the initial prompt, pass `-` as the final argument.
     - Workspace defaults to `Default`. Override it with `--workspace` or `AGENTS_WORKSPACE=<name>`.
     - Title can be fully overridden with `--title` or `SESSION_TITLE=<full title>`. `--title` takes precedence.
 - Send a message:
     - Single-line:
       `{BOOTSTRAP_DIR}/bin/agents.js send <peer-session-id> "Message"`
-    - Multi-line (preferred):
+    - Multi-line (preferred, pass `-` to read from stdin):
       ```bash
-      cat << 'MSG' | {BOOTSTRAP_DIR}/bin/agents.js send <peer-session-id>
+      cat << 'MSG' | {BOOTSTRAP_DIR}/bin/agents.js send <peer-session-id> -
       Please review PR #<pr-number> for #<issue-number>.
       MSG
       ```

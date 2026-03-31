@@ -9,6 +9,10 @@
 - Backend tools: restore full title overrides for `agents.js create` via `--title` and `SESSION_TITLE`, with `--title` taking precedence over the environment variable.
 - Frontend: add a Developer WebSocket Session Trace viewer (in-memory ring buffer) with refresh, clear, and copy actions for client-side session/websocket event debugging. ([#31](https://github.com/kcosr/termstation/pull/31))
 
+### Changed
+
+- Backend tools: require an explicit `-` sentinel to read `agents.js create/send` message text from stdin, so omitted messages no longer block on non-TTY stdin.
+
 ### Fixed
 
 - Backend: ensure `SESSION_TOK` and `SESSIONS_API_BASE_URL` are injected for `isolation_mode=none` sessions, including route-created and auto-started sessions. ([#31](https://github.com/kcosr/termstation/pull/31))

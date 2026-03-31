@@ -14,9 +14,18 @@ export async function readFromStdin() {
   });
 }
 
+export function shouldReadMessageFromStdin(arg) {
+  return arg === '-';
+}
+
+export function resolveInlineMessageArg(arg) {
+  return (typeof arg === 'string' && arg.length > 0 && arg !== '-') ? arg : '';
+}
+
 export async function getMessageArgOrStdin(arg) {
-  if (typeof arg === 'string' && arg.length > 0) return arg;
-  if (!process.stdin.isTTY) {
+  const inline = resolveInlineMessageArg(arg);
+  if (inline) return inline;
+  if (shouldReadMessageFromStdin(arg)) {
     const s = await readFromStdin();
     return s;
   }
@@ -26,4 +35,3 @@ export async function getMessageArgOrStdin(arg) {
 export function prefixMessage(sessionId, message) {
   return `Message from peer agent ${sessionId}: ${message}`;
 }
-

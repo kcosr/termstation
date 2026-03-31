@@ -28,9 +28,9 @@ To send a message to a peer agent:
 Examples (single‑line):
 - `{BOOTSTRAP_DIR}/bin/agents.js send <peer-session-id> "Hello! How can I help?"`
 
-Preferred for multi‑line/special characters (single‑quoted heredoc to avoid shell expansion):
+Preferred for multi‑line/special characters (single‑quoted heredoc to avoid shell expansion, with `-` to read from stdin):
 ```bash
-cat << 'MSG' | {BOOTSTRAP_DIR}/bin/agents.js send <peer-session-id>
+cat << 'MSG' | {BOOTSTRAP_DIR}/bin/agents.js send <peer-session-id> -
 Please review MR !<mr-number> for #<issue-number>.
 
 Summary
@@ -55,11 +55,11 @@ To get a list of active peer agent session IDs, use:
 - `{BOOTSTRAP_DIR}/bin/agents.js list`
 
 To create a new peer agent (when user asks you to get help from claude, codex, or cursor):
-- Use `{BOOTSTRAP_DIR}/bin/agents.js create <agent> [--title "<full title>"] [--description "<brief>"] [--workspace "<name>"]` (you can also pipe a prompt)
+- Use `{BOOTSTRAP_DIR}/bin/agents.js create <agent> [--title "<full title>"] [--description "<brief>"] [--workspace "<name>"]`
 - Example (single‑line): `{BOOTSTRAP_DIR}/bin/agents.js create claude --title "Review Session" --workspace "Reviews"`
-- Preferred heredoc for multi‑line prompts or special characters:
+- Preferred heredoc for multi‑line prompts or special characters (pass `-` to read the prompt from stdin):
   ```bash
-  cat << 'MSG' | {BOOTSTRAP_DIR}/bin/agents.js create claude --description "Review MR changes"
+  cat << 'MSG' | {BOOTSTRAP_DIR}/bin/agents.js create claude --description "Review MR changes" -
   Please review MR !<mr-number> for #<issue-number> — brief summary, key files, and links.
   MSG
   ```

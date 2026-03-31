@@ -106,7 +106,7 @@ async function main() {
   program
     .command('send')
     .argument('<peer_id>', 'Peer agent session ID')
-    .argument('[message]', 'Message to send (or read from stdin)')
+    .argument('[message]', 'Message to send, or "-" to read from stdin')
     .description('Send a message to a peer agent session')
     .action(async (peerId, messageArg) => {
       const opts = program.opts();
@@ -148,7 +148,7 @@ async function main() {
   program
     .command('create')
     .argument('<agent>', 'Agent template ID (e.g., claude, codex)')
-    .argument('[message]', 'Optional prompt (or read from stdin)')
+    .argument('[message]', 'Optional prompt, or "-" to read from stdin')
     .option('--post-create-delay <seconds>', 'Seconds to wait after successful creation (default: 10)')
     .option('--title <title>', 'Full title override for the created session')
     .option('--description <description>', 'Short description to append to the session title')
