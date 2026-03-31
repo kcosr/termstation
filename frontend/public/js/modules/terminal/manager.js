@@ -842,14 +842,18 @@ export class TerminalManager {
             const sid = typeof sessionOrId === 'string'
                 ? sessionOrId
                 : String(sessionData?.session_id || '').trim();
-            if (!sid) return sessionData ? { ...sessionData } : {};
+            if (!sid) return sessionData || {};
             if (!this.liveDynamicTitles.has(sid)) {
-                return sessionData ? { ...sessionData } : {};
+                return sessionData || {};
+            }
+            const liveDynamicTitle = this.liveDynamicTitles.get(sid);
+            if (sessionData && sessionData.dynamic_title === liveDynamicTitle) {
+                return sessionData;
             }
             return {
                 ...(sessionData || {}),
                 session_id: sid,
-                dynamic_title: this.liveDynamicTitles.get(sid)
+                dynamic_title: liveDynamicTitle
             };
         } catch (_) {
             return {};
